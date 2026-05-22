@@ -1,0 +1,214 @@
+@page "/admin/families/{FamilyId:guid}"
+@using FamilySplit.Client.Store.Admin
+@inherits Fluxor.Blazor.Web.Components.FluxorComponent
+@inject IDispatcher Dispatcher
+@inject IState<AdminState> State
+@inject IDialogService DialogService
+@inject NavigationManager Nav
+
+<PageTitle>Admin · Family — FamilySplit</PageTitle>
+
+<RequireAdmin />
+
+@if (State.Value.IsLoading && State.Value.SelectedFamily is null)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+    return;
+}
+
+@if (State.Value.ErrorMessage is not null && State.Value.SelectedFamily is null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@State.Value.ErrorMessage</MudAlert>
+    <MudButton StartIcon="@Icons.Material.Filled.ArrowBack" OnClick="@(() => Nav.NavigateTo("/admin"))">
+        Back
+    </MudButton>
+    return;
+}
+
+@{
+    var family = State.Value.SelectedFamily;
+    if (family is null) return;
+}
+
+<MudBreadcrumbs Items="_crumbs" Class="mb-2" />
+
+@if (State.Value.ErrorMessage is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true">@State.Value.ErrorMessage</MudAlert>
+}
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-1">
+    <MudIcon Icon="@Icons.Material.Filled.FamilyRestroom" Color="Color.Primary" Size="Size.Large" />
+    <MudText Typo="Typo.h5">@family.Name</MudText>
+    <MudChip T="string" Color="Color.Error" Size="Size.Small">Global Admin</MudChip>
+</MudStack>
+<MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-4">
+    ID: @family.Id · Created @family.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")
+</MudText>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2">
+    <MudText Typo="Typo.h6">Members</MudText>
+    <MudButton Variant="Variant.Outlined"
+               Size="Size.Small"
+               StartIcon="@Icons.Material.Filled.PersonAdd"
+               OnClick="OpenAddMemberDialog">
+        Add member
+    </MudButton>
+</MudStack>
+
+@if (!family.Members.Any())
+{
+    <MudAlert Severity="Severity.Info" Class="mb-4">
+        No members yet. Add the first member so they can log in.
+    </MudAlert>
+}
+else
+{
+    <MudTable Items="family.Members"
+              Dense="true"
+              Hover="true"
+              Elevation="1"
+              Class="mb-6">
+        <HeaderContent>
+            <MudTh>Name</MudTh>
+            <MudTh>Email</MudTh>
+            <MudTh>Weight</MudTh>
+            <MudTh>Tier</MudTh>
+            <MudTh>Role</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh Style="width:80px"></MudTh>
+        </HeaderContent>
+        <RowTemplate Context="member">
+            <MudTd DataLabel="Name">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                    <MudAvatar Size="Size.Small" Color="Color.Primary">@member.DisplayName[0]</MudAvatar>
+                    <MudText>@member.DisplayName</MudText>
+                </MudStack>
+            </MudTd>
+            <MudTd DataLabel="Email">
+                <MudText Typo="Typo.body2">@(member.Email ?? "—")</MudText>
+            </MudTd>
+            <MudTd DataLabel="Weight">@member.CurrentWeight.ToString("0.##")×</MudTd>
+            <MudTd DataLabel="Tier">
+                <WeightBadge Tier="member.CurrentTier" Weight="member.CurrentWeight" />
+            </MudTd>
+            <MudTd DataLabel="Role">
+                @if (member.IsAdmin)
+                {
+                    <MudChip T="string" Color="Color.Warning" Size="Size.Small">Admin</MudChip>
+                }
+                else
+                {
+                    <MudChip T="string" Color="Color.Default" Size="Size.Small">Member</MudChip>
+                }
+            </MudTd>
+            <MudTd DataLabel="Status">
+                @if (member.IsLinked)
+                {
+                    <MudChip T="string" Color="Color.Success" Size="Size.Small"
+                             Icon="@Icons.Material.Filled.VerifiedUser">Linked</MudChip>
+                }
+                else
+                {
+                    <MudChip T="string" Color="Color.Default" Size="Size.Small"
+                             Icon="@Icons.Material.Filled.PersonOff">Pending</MudChip>
+                }
+            </MudTd>
+            <MudTd>
+                <MudStack Row="true" Spacing="0">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                   Size="Size.Small"
+                                   title="Edit member"
+                                   OnClick="@(() => OpenEditMemberDialog(member))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.PersonRemove"
+                                   Size="Size.Small"
+                                   Color="Color.Error"
+                                   title="Remove member"
+                                   OnClick="@(() => ConfirmRemoveMember(member))" />
+                </MudStack>
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    [Parameter] public Guid FamilyId { get; set; }
+
+    private List<BreadcrumbItem> _crumbs = [];
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        _crumbs =
+        [
+            new BreadcrumbItem("Admin", href: "/admin"),
+            new BreadcrumbItem("Family", href: null, disabled: true)
+        ];
+        Dispatcher.Dispatch(new LoadAdminFamilyAction(FamilyId));
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (State.Value.SelectedFamily?.Id != FamilyId)
+            Dispatcher.Dispatch(new LoadAdminFamilyAction(FamilyId));
+    }
+
+    private async Task OpenAddMemberDialog()
+    {
+        var dialog = await DialogService.ShowAsync<FamilyMemberDialog>("Add member");
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false, Data: FamilyMemberFormModel form })
+        {
+            Dispatcher.Dispatch(new AddAdminMemberAction(FamilyId, new AddFamilyMemberRequest(
+                form.DisplayName,
+                string.IsNullOrWhiteSpace(form.Email) ? null : form.Email!.Trim(),
+                form.DateOfBirth,
+                form.UseOverride ? form.WeightOverride : null,
+                form.IsAdmin)));
+        }
+    }
+
+    private async Task OpenEditMemberDialog(FamilyMemberDto member)
+    {
+        var initial = new FamilyMemberFormModel
+        {
+            DisplayName    = member.DisplayName,
+            Email          = member.Email,
+            DateOfBirth    = member.DateOfBirth,
+            UseOverride    = member.WeightOverride is not null,
+            WeightOverride = member.WeightOverride ?? 1.00m,
+            IsAdmin        = member.IsAdmin
+        };
+
+        var parameters = new DialogParameters<FamilyMemberDialog>
+        {
+            { x => x.InitialValues, initial }
+        };
+
+        var dialog = await DialogService.ShowAsync<FamilyMemberDialog>("Edit member", parameters);
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false, Data: FamilyMemberFormModel form })
+        {
+            Dispatcher.Dispatch(new UpdateAdminMemberAction(FamilyId, member.Id,
+                new UpdateFamilyMemberRequest(
+                    form.DisplayName,
+                    string.IsNullOrWhiteSpace(form.Email) ? null : form.Email!.Trim(),
+                    form.DateOfBirth,
+                    form.UseOverride ? form.WeightOverride : null)));
+        }
+    }
+
+    private async Task ConfirmRemoveMember(FamilyMemberDto member)
+    {
+        bool? confirmed = await DialogService.ShowMessageBox(
+            "Remove member",
+            $"Remove {member.DisplayName} from {State.Value.SelectedFamily!.Name}?",
+            yesText: "Remove",
+            cancelText: "Cancel");
+
+        if (confirmed == true)
+            Dispatcher.Dispatch(new RemoveAdminMemberAction(FamilyId, member.Id));
+    }
+}

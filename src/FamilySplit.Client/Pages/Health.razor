@@ -1,0 +1,46 @@
+@page "/health"
+@inject IHealthApi HealthApi
+
+<PageTitle>FamilySplit · API health</PageTitle>
+
+<MudText Typo="Typo.h5" GutterBottom="true">API health check</MudText>
+
+<MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@CheckAsync" Disabled="@_loading">
+    @(_loading ? "Checking…" : "Ping API")
+</MudButton>
+
+@if (_result is not null)
+{
+    <MudAlert Severity="@(_result.Status == "ok" ? Severity.Success : Severity.Error)" Class="mt-4">
+        <strong>@_result.Service</strong> reports <em>@_result.Status</em> at @_result.Utc.ToLocalTime().
+    </MudAlert>
+}
+else if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mt-4">@_error</MudAlert>
+}
+
+@code {
+    private bool _loading;
+    private HealthResponse? _result;
+    private string? _error;
+
+    private async Task CheckAsync()
+    {
+        _loading = true;
+        _result = null;
+        _error = null;
+        try
+        {
+            _result = await HealthApi.GetAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

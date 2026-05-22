@@ -1,0 +1,215 @@
+@page "/groups/{GroupId:guid}"
+@using FamilySplit.Client.Store.Groups
+@using FamilySplit.Client.Services
+@inherits Fluxor.Blazor.Web.Components.FluxorComponent
+@inject IDispatcher Dispatcher
+@inject IState<GroupState> State
+@inject IDialogService DialogService
+@inject NavigationManager Nav
+
+<PageTitle>Group — FamilySplit</PageTitle>
+
+<RequireAuth />
+
+@if (State.Value.IsLoading && State.Value.SelectedGroup is null)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+    return;
+}
+
+@if (State.Value.ErrorMessage is not null && State.Value.SelectedGroup is null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@State.Value.ErrorMessage</MudAlert>
+    <MudButton StartIcon="@Icons.Material.Filled.ArrowBack" OnClick="@(() => Nav.NavigateTo("/groups"))">Back to groups</MudButton>
+    return;
+}
+
+@{
+    var group = State.Value.SelectedGroup;
+    if (group is null) return;
+    var isAdmin = group.CallerFamilyRole == MemberRole.Admin;
+}
+
+<MudBreadcrumbs Items="_crumbs" Class="mb-2" />
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-1">
+    <MudText Typo="Typo.h5">@group.Name</MudText>
+    @if (isAdmin)
+    {
+        <MudChip T="string" Color="Color.Warning" Size="Size.Small">Admin</MudChip>
+    }
+</MudStack>
+
+@if (group.Description is not null)
+{
+    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">@group.Description</MudText>
+}
+
+@if (State.Value.ErrorMessage is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true">@State.Value.ErrorMessage</MudAlert>
+}
+
+<!-- Invite code card -->
+<MudPaper Elevation="1" Class="pa-4 mb-6 d-flex flex-row align-center gap-3" Style="width:fit-content">
+    <MudIcon Icon="@Icons.Material.Filled.VpnKey" Color="Color.Primary" />
+    <div>
+        <MudText Typo="Typo.caption" Color="Color.Secondary">Invite code</MudText>
+        <MudText Typo="Typo.h6" Style="letter-spacing:0.25em">@group.InviteCode</MudText>
+    </div>
+    <MudTooltip Text="Copy invite code">
+        <MudIconButton Icon="@Icons.Material.Filled.ContentCopy"
+                       Size="Size.Small"
+                       OnClick="CopyInviteCode" />
+    </MudTooltip>
+    @if (isAdmin)
+    {
+        <MudTooltip Text="Regenerate invite code">
+            <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                           Size="Size.Small"
+                           Color="Color.Warning"
+                           OnClick="ConfirmRegenerate" />
+        </MudTooltip>
+    }
+</MudPaper>
+
+<!-- Participating families -->
+<MudText Typo="Typo.h6" Class="mb-3">
+    Families
+    <MudChip T="string" Size="Size.Small" Color="Color.Default" Class="ml-1">@group.Families.Count</MudChip>
+</MudText>
+
+@foreach (var family in group.Families)
+{
+    <MudPaper Elevation="1" Class="pa-4 mb-4">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2">
+            <MudIcon Icon="@Icons.Material.Filled.FamilyRestroom" Color="Color.Primary" />
+            <MudText Typo="Typo.subtitle1"><strong>@family.FamilyName</strong></MudText>
+            @if (family.Role == MemberRole.Admin)
+            {
+                <MudChip T="string" Color="Color.Warning" Size="Size.Small">Admin</MudChip>
+            }
+            else
+            {
+                <MudChip T="string" Color="Color.Default" Size="Size.Small">Member</MudChip>
+            }
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="ml-auto">
+                Joined @family.JoinedAt.ToLocalTime().ToString("dd MMM yyyy")
+            </MudText>
+        </MudStack>
+
+        @if (family.Members.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary">No active members.</MudText>
+        }
+        else
+        {
+            <MudTable Items="family.Members" Dense="true" Hover="true" Elevation="0">
+                <HeaderContent>
+                    <MudTh>Name</MudTh>
+                    <MudTh>Weight</MudTh>
+                    <MudTh>Tier</MudTh>
+                    <MudTh>Status</MudTh>
+                </HeaderContent>
+                <RowTemplate Context="member">
+                    <MudTd DataLabel="Name">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                            <MudAvatar Size="Size.Small" Color="Color.Primary">@member.DisplayName[0]</MudAvatar>
+                            <MudText>@member.DisplayName</MudText>
+                        </MudStack>
+                    </MudTd>
+                    <MudTd DataLabel="Weight">@member.CurrentWeight.ToString("0.##")×</MudTd>
+                    <MudTd DataLabel="Tier">
+                        <WeightBadge Tier="member.CurrentTier" Weight="member.CurrentWeight" />
+                    </MudTd>
+                    <MudTd DataLabel="Status">
+                        @if (member.IsLinked)
+                        {
+                            <MudChip T="string" Color="Color.Success" Size="Size.Small"
+                                     Icon="@Icons.Material.Filled.VerifiedUser">Linked</MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Color="Color.Default" Size="Size.Small"
+                                     Icon="@Icons.Material.Filled.PersonOff">Pending</MudChip>
+                        }
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    </MudPaper>
+}
+
+@if (isAdmin)
+{
+    <MudButton Variant="Variant.Outlined"
+               Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.Edit"
+               OnClick="OpenEditDialog"
+               Class="mr-2">
+        Edit group
+    </MudButton>
+}
+
+@code {
+    [Parameter] public Guid GroupId { get; set; }
+
+    private List<BreadcrumbItem> _crumbs = [];
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        _crumbs =
+        [
+            new BreadcrumbItem("Groups", href: "/groups"),
+            new BreadcrumbItem("Detail", href: null, disabled: true)
+        ];
+
+        Dispatcher.Dispatch(new LoadGroupDetailAction(GroupId));
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (State.Value.SelectedGroup?.Id != GroupId)
+            Dispatcher.Dispatch(new LoadGroupDetailAction(GroupId));
+    }
+
+    private async Task OpenEditDialog()
+    {
+        var group = State.Value.SelectedGroup!;
+        var parameters = new DialogParameters<EditGroupDialog>
+        {
+            { x => x.InitialName, group.Name },
+            { x => x.InitialDescription, group.Description }
+        };
+
+        var dialog = await DialogService.ShowAsync<EditGroupDialog>("Edit group", parameters);
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false, Data: EditGroupFormModel form })
+        {
+            Dispatcher.Dispatch(new UpdateGroupAction(GroupId,
+                new UpdateGroupRequest(form.Name, form.Description)));
+        }
+    }
+
+    private async Task ConfirmRegenerate()
+    {
+        bool? confirmed = await DialogService.ShowMessageBox(
+            "Regenerate invite code",
+            "The old invite code will stop working immediately. Continue?",
+            yesText: "Regenerate",
+            cancelText: "Cancel");
+
+        if (confirmed == true)
+            Dispatcher.Dispatch(new RegenerateInviteCodeAction(GroupId));
+    }
+
+    [Inject] IJSRuntime JS { get; set; } = default!;
+
+    private async Task CopyInviteCode()
+    {
+        if (State.Value.SelectedGroup is null) return;
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", State.Value.SelectedGroup.InviteCode);
+    }
+}

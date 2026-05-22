@@ -1,0 +1,36 @@
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Create family</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField T="string"
+                      @bind-Value="_name"
+                      Label="Family name"
+                      Required="true"
+                      MaxLength="100"
+                      Error="@_nameError"
+                      ErrorText="Family name is required."
+                      Immediate="true"
+                      Autofocus="true" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">Create</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    private string _name      = "";
+    private bool   _nameError;
+
+    private void Submit()
+    {
+        _nameError = string.IsNullOrWhiteSpace(_name);
+        if (_nameError) return;
+        MudDialog.Close(DialogResult.Ok(_name.Trim()));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

@@ -1,0 +1,24 @@
+@page "/not-registered"
+
+<PageTitle>Account not registered — FamilySplit</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-16 text-center">
+    <MudIcon Icon="@Icons.Material.Filled.PersonOff"
+             Color="Color.Warning"
+             Style="font-size:5rem;"
+             Class="mb-4" />
+
+    <MudText Typo="Typo.h5" Class="mb-2">Account not registered</MudText>
+
+    <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mb-6">
+        Your Google account is not linked to a FamilySplit family member.
+        Ask a group admin to add you by email, then try signing in again.
+    </MudText>
+
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Primary"
+               Href="/"
+               StartIcon="@Icons.Material.Filled.Home">
+        Back to home
+    </MudButton>
+</MudContainer>

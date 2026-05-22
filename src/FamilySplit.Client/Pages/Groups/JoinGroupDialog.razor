@@ -1,0 +1,54 @@
+@inject IDialogService DialogService
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Join group</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+            Enter the 8-character invite code shared by the group admin.
+        </MudText>
+        <MudTextField T="string"
+                      Label="Invite code"
+                      @bind-Value="_inviteCode"
+                      Error="_inviteCodeError"
+                      ErrorText="@_inviteCodeErrorText"
+                      MaxLength="8"
+                      Immediate="true"
+                      Placeholder="e.g. AB3FGH7K" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">Join</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    private string _inviteCode = "";
+    private bool _inviteCodeError;
+    private string _inviteCodeErrorText = "Invite code is required.";
+
+    private void Submit()
+    {
+        if (string.IsNullOrWhiteSpace(_inviteCode))
+        {
+            _inviteCodeError = true;
+            _inviteCodeErrorText = "Invite code is required.";
+            return;
+        }
+
+        if (_inviteCode.Trim().Length != 8)
+        {
+            _inviteCodeError = true;
+            _inviteCodeErrorText = "Invite code must be exactly 8 characters.";
+            return;
+        }
+
+        _inviteCodeError = false;
+        MudDialog.Close(DialogResult.Ok(_inviteCode.Trim().ToUpperInvariant()));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

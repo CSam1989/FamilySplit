@@ -1,0 +1,82 @@
+@page "/"
+@using FamilySplit.Client.Store.Auth
+@inherits Fluxor.Blazor.Web.Components.FluxorComponent
+@inject IDispatcher Dispatcher
+@inject IState<AuthState> AuthState
+@inject AuthService Auth
+@inject NavigationManager Nav
+@inject IConfiguration Config
+
+<PageTitle>FamilySplit · Dashboard</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">FamilySplit</MudText>
+<MudText Typo="Typo.body1" Class="mb-6">
+    Group-based expense splitting with age-weighted family shares.
+</MudText>
+
+<MudGrid>
+    <MudItem xs="12" md="6">
+        <MudPaper Class="pa-4" Elevation="1">
+            <MudText Typo="Typo.h6">Authentication</MudText>
+
+            @if (AuthState.Value.IsLoading)
+            {
+                <MudProgressCircular Indeterminate="true" Class="mt-2" />
+            }
+            else if (AuthState.Value.CurrentUser is { } user)
+            {
+                <MudText Typo="Typo.body2" Class="mt-2">
+                    Signed in as <strong>@user.DisplayName</strong> (@user.Email)
+                </MudText>
+                <MudText Typo="Typo.caption">
+                    User id: @user.Id · provider: @user.Provider
+                    @if (user.IsGlobalAdmin)
+                    {
+                        <MudChip T="string" Color="Color.Error" Size="Size.Small" Class="ml-1">Global Admin</MudChip>
+                    }
+                </MudText>
+                <MudButton Variant="Variant.Outlined" Color="Color.Default" Class="mt-4" OnClick="SignOut">
+                    Sign out
+                </MudButton>
+            }
+            else
+            {
+                <MudText Typo="Typo.body2" Class="mt-2">Not signed in.</MudText>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-4"
+                           StartIcon="@Icons.Material.Filled.Login"
+                           OnClick="SignIn">
+                    Sign in with Google
+                </MudButton>
+            }
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" md="6">
+        <MudPaper Class="pa-4" Elevation="1">
+            <MudText Typo="Typo.h6">Roadmap</MudText>
+            <MudList T="string" Dense="true">
+                <MudListItem T="string" Text="Phase 3.5 ✅ — Family entity, Global admin, Family management UI" />
+                <MudListItem T="string" Text="Phase 4 — Activities &amp; sub-activities" />
+                <MudListItem T="string" Text="Phase 5 — Expenses &amp; splits" />
+                <MudListItem T="string" Text="Phase 6 — Settlements" />
+            </MudList>
+            <MudButton Href="health" Variant="Variant.Text" Class="mt-2">Check API health</MudButton>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        // Auth check is driven by NavMenu; nothing extra needed here.
+    }
+
+    private void SignIn()
+    {
+        var apiBaseUrl = Config["Api:BaseUrl"] ?? "https://localhost:5081";
+        var returnUrl  = Nav.BaseUri.TrimEnd('/');
+        Nav.NavigateTo($"{apiBaseUrl}/auth/login/Google?returnUrl={Uri.EscapeDataString(returnUrl)}", forceLoad: true);
+    }
+
+    private void SignOut() => Dispatcher.Dispatch(new SignOutAction());
+}

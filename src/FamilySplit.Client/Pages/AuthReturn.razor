@@ -1,0 +1,47 @@
+@page "/auth/return"
+@inject IHandoffApi HandoffApi
+@inject AuthService Auth
+@inject NavigationManager Nav
+
+<PageTitle>FamilySplit · Signing in…</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-16 text-center">
+    @if (_error is null)
+    {
+        <MudProgressCircular Indeterminate="true" Size="Size.Large" />
+        <MudText Typo="Typo.body1" Class="mt-4">Completing sign-in…</MudText>
+    }
+    else
+    {
+        <MudAlert Severity="Severity.Error">@_error</MudAlert>
+        <MudButton Variant="Variant.Text" Color="Color.Primary" Class="mt-4" Href="/">Back to dashboard</MudButton>
+    }
+</MudContainer>
+
+@code {
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var response = await HandoffApi.GetAsync();
+            if (string.IsNullOrWhiteSpace(response.Token))
+            {
+                _error = "Handoff returned an empty token. Try signing in again.";
+                return;
+            }
+
+            await Auth.SetTokenAsync(response.Token);
+            Nav.NavigateTo("/", forceLoad: false);
+        }
+        catch (Refit.ApiException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            _error = "Sign-in session expired before we could collect the token. Please try again.";
+        }
+        catch (Exception ex)
+        {
+            _error = $"Sign-in failed: {ex.Message}";
+        }
+    }
+}

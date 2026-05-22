@@ -1,0 +1,133 @@
+@page "/groups"
+@inherits Fluxor.Blazor.Web.Components.FluxorComponent
+@inject IDispatcher Dispatcher
+@inject IState<GroupState> State
+@inject IDialogService DialogService
+@inject NavigationManager Nav
+
+<PageTitle>Groups — FamilySplit</PageTitle>
+
+<RequireAuth />
+
+<MudText Typo="Typo.h5" Class="mb-2">My Groups</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-5">
+    Groups let you split expenses with family members or housemates.
+    Create a group and share the invite code with others to let them join.
+</MudText>
+
+@if (State.Value.ErrorMessage is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true">
+        @State.Value.ErrorMessage
+    </MudAlert>
+}
+
+<MudStack Row="true" Class="mb-4" Spacing="2">
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.GroupAdd"
+               OnClick="OpenCreateDialog">
+        New group
+    </MudButton>
+    <MudButton Variant="Variant.Outlined"
+               Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.Login"
+               OnClick="OpenJoinDialog">
+        Join group
+    </MudButton>
+</MudStack>
+
+@if (State.Value.IsLoading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-4" />
+}
+
+@if (!State.Value.IsLoading && !State.Value.Groups.Any())
+{
+    <MudPaper Elevation="0" Class="pa-6 d-flex flex-column align-center" Style="border: 1px dashed var(--mud-palette-divider);">
+        <MudIcon Icon="@Icons.Material.Outlined.Group" Size="Size.Large" Color="Color.Secondary" Class="mb-2" />
+        <MudText Typo="Typo.body1" Color="Color.Secondary">You're not in any groups yet.</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">Create a new group or join one with an invite code.</MudText>
+    </MudPaper>
+}
+else
+{
+    <MudGrid Spacing="3">
+        @foreach (var group in State.Value.Groups)
+        {
+            <MudItem xs="12" sm="6" md="4">
+                <MudCard Elevation="2" Style="cursor:pointer" @onclick="() => GoToDetail(group.Id)">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h6">@group.Name</MudText>
+                            @if (group.Description is not null)
+                            {
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">@group.Description</MudText>
+                            }
+                        </CardHeaderContent>
+                        <CardHeaderActions>
+                            @if (group.CallerFamilyRole == MemberRole.Admin)
+                            {
+                                <MudChip T="string" Color="Color.Warning" Size="Size.Small">Admin</MudChip>
+                            }
+                        </CardHeaderActions>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                            <MudIcon Icon="@Icons.Material.Filled.People" Size="Size.Small" Color="Color.Secondary" />
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">@group.FamilyCount famil@(group.FamilyCount == 1 ? "y" : "ies")</MudText>
+                        </MudStack>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+        }
+    </MudGrid>
+}
+
+@code {
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        Dispatcher.Dispatch(new LoadGroupsAction());
+    }
+
+    private void GoToDetail(Guid groupId) =>
+        Nav.NavigateTo($"/groups/{groupId}");
+
+    private bool _pendingNavigation;
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        // Navigate to detail page after a successful Create or Join
+        if (_pendingNavigation && State.Value.SelectedGroup is not null && !State.Value.IsLoading)
+        {
+            _pendingNavigation = false;
+            Nav.NavigateTo($"/groups/{State.Value.SelectedGroup.Id}");
+        }
+    }
+
+    private async Task OpenCreateDialog()
+    {
+        var dialog = await DialogService.ShowAsync<CreateGroupDialog>("Create group");
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false, Data: CreateGroupFormModel form })
+        {
+            _pendingNavigation = true;
+            Dispatcher.Dispatch(new CreateGroupAction(
+                new CreateGroupRequest(form.Name, form.Description)));
+        }
+    }
+
+    private async Task OpenJoinDialog()
+    {
+        var dialog = await DialogService.ShowAsync<JoinGroupDialog>("Join group");
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false, Data: string inviteCode })
+        {
+            _pendingNavigation = true;
+            Dispatcher.Dispatch(new JoinGroupAction(new JoinGroupRequest(inviteCode)));
+        }
+    }
+}

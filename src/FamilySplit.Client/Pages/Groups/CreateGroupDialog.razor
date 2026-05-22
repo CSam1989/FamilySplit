@@ -1,0 +1,46 @@
+@inject IDialogService DialogService
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Create group</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField T="string"
+                      Label="Group name"
+                      @bind-Value="_name"
+                      Error="_nameError"
+                      ErrorText="Group name is required."
+                      MaxLength="100"
+                      Immediate="true"
+                      Class="mb-3" />
+
+        <MudTextField T="string"
+                      Label="Description (optional)"
+                      @bind-Value="_description"
+                      MaxLength="500"
+                      Lines="3"
+                      Immediate="true" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">Create</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    private string _name = "";
+    private string? _description;
+    private bool _nameError;
+
+    private void Submit()
+    {
+        _nameError = string.IsNullOrWhiteSpace(_name);
+        if (_nameError) return;
+
+        MudDialog.Close(DialogResult.Ok(new CreateGroupFormModel(_name.Trim(), _description?.Trim())));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

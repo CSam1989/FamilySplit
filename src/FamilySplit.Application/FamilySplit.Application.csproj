@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>FamilySplit.Application</RootNamespace>
+    <AssemblyName>FamilySplit.Application</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- EF Core comes transitively through the Infrastructure project reference. -->
+    <!-- Adding it here too causes the version to float independently and clash with Npgsql's constraint. -->
+    <PackageReference Include="FluentValidation" Version="11.*" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="11.*" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FamilySplit.Domain\FamilySplit.Domain.csproj" />
+    <ProjectReference Include="..\FamilySplit.Infrastructure\FamilySplit.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

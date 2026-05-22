@@ -1,0 +1,40 @@
+name: familysplit-dev
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: familysplit-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-familysplit}
+      POSTGRES_USER: ${POSTGRES_USER:-familysplit}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-familysplit}
+    ports:
+      - "5432:5432"
+    volumes:
+      - familysplit_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-familysplit} -d ${POSTGRES_DB:-familysplit}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Optional UI for poking around the dev DB.
+  # Visit http://localhost:8081 (login: admin@familysplit.local / admin)
+  pgadmin:
+    image: dpage/pgadmin4:8
+    container_name: familysplit-pgadmin
+    restart: unless-stopped
+    profiles: ["tools"]
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@familysplit.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    ports:
+      - "8081:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  familysplit_pgdata:

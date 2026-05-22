@@ -1,0 +1,44 @@
+@using FamilySplit.Domain.Enums
+
+@* Displays an age-weight tier as a colour-coded MudBlazor chip with a tooltip. *@
+
+<MudTooltip Text="@TooltipText">
+    <MudChip T="string"
+             Color="@ChipColor"
+             Size="Size.Small"
+             Variant="Variant.Filled">
+        @TierLabel (@Weight.ToString("0.##")×)
+    </MudChip>
+</MudTooltip>
+
+@code {
+    [Parameter, EditorRequired] public WeightTier Tier   { get; set; }
+    [Parameter, EditorRequired] public decimal    Weight { get; set; }
+
+    private string TierLabel => Tier switch
+    {
+        WeightTier.Kleuterschool        => "Kleuterschool",
+        WeightTier.LagerOnderwijs       => "Lager onderwijs",
+        WeightTier.MiddelbaarOnderwijs  => "Middelbaar onderwijs",
+        WeightTier.Override             => "Override",
+        _                               => "Volwassene"
+    };
+
+    private Color ChipColor => Tier switch
+    {
+        WeightTier.Kleuterschool        => Color.Info,
+        WeightTier.LagerOnderwijs       => Color.Success,
+        WeightTier.MiddelbaarOnderwijs  => Color.Warning,
+        WeightTier.Override             => Color.Secondary,
+        _                               => Color.Default
+    };
+
+    private string TooltipText => Tier switch
+    {
+        WeightTier.Kleuterschool        => "Under 6 — pays 25 % of one adult share",
+        WeightTier.LagerOnderwijs       => "Age 6–11 — pays 50 % of one adult share",
+        WeightTier.MiddelbaarOnderwijs  => "Age 12–17 — pays 75 % of one adult share",
+        WeightTier.Override             => $"Custom weight: {Weight:0.##}×",
+        _                               => "Adult — full share"
+    };
+}

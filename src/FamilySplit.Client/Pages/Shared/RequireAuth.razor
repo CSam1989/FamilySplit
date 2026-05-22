@@ -1,0 +1,16 @@
+@*
+    Drop <RequireAuth /> at the top of any page that needs a logged-in user.
+    Redirects to the home page (which shows the sign-in button) if no JWT is present.
+*@
+@using FamilySplit.Client.Store.Auth
+@inject IState<AuthState> AuthState
+@inject NavigationManager Nav
+
+@code {
+    protected override void OnParametersSet()
+    {
+        // Once the auth check has completed and the user is not authenticated, redirect.
+        if (!AuthState.Value.IsLoading && !AuthState.Value.IsAuthenticated)
+            Nav.NavigateTo("/", replace: true);
+    }
+}

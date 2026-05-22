@@ -1,0 +1,34 @@
+@using FamilySplit.Client.Store.Auth
+@inherits Fluxor.Blazor.Web.Components.FluxorComponent
+@inject IDispatcher Dispatcher
+@inject IState<AuthState> AuthState
+
+<MudNavMenu>
+    <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
+
+    @if (AuthState.Value.IsAuthenticated)
+    {
+        <MudNavLink Href="groups" Icon="@Icons.Material.Filled.Group">Groups</MudNavLink>
+        <MudNavLink Href="families/mine" Icon="@Icons.Material.Filled.FamilyRestroom">My family</MudNavLink>
+    }
+
+    @if (AuthState.Value.IsGlobalAdmin)
+    {
+        <MudDivider Class="my-2" />
+        <MudNavGroup Title="Admin" Icon="@Icons.Material.Filled.AdminPanelSettings" Expanded="true">
+            <MudNavLink Href="admin" Icon="@Icons.Material.Filled.FamilyRestroom">Families</MudNavLink>
+        </MudNavGroup>
+    }
+
+    <MudDivider Class="my-2" />
+    <MudNavLink Href="health" Icon="@Icons.Material.Filled.MonitorHeart">API health</MudNavLink>
+</MudNavMenu>
+
+@code {
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        // Resolve who is logged in once when the app first renders.
+        Dispatcher.Dispatch(new CheckAuthAction());
+    }
+}

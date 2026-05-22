@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>FamilySplit.Domain</RootNamespace>
+    <AssemblyName>FamilySplit.Domain</AssemblyName>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,238 @@
+@page "/families/mine"
+@page "/profile"
+@using FamilySplit.Client.Store.Family
+@using FamilySplit.Client.Services
+@inherits Fluxor.Blazor.Web.Components.FluxorComponent
+@inject IDispatcher Dispatcher
+@inject IState<FamilyState> State
+@inject IDialogService DialogService
+
+<PageTitle>My Family — FamilySplit</PageTitle>
+
+<RequireAuth />
+
+@if (State.Value.IsLoading && State.Value.MyFamily is null)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+    return;
+}
+
+@if (State.Value.ErrorMessage is not null && State.Value.MyFamily is null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@State.Value.ErrorMessage</MudAlert>
+    return;
+}
+
+@{
+    var family = State.Value.MyFamily;
+    if (family is null)
+    {
+        <MudAlert Severity="Severity.Info">
+            You are not yet part of a family. Ask your admin to add you.
+        </MudAlert>
+        return;
+    }
+
+    var isAdmin = family.Members.Any(m => m.IsLinked && m.IsAdmin);
+}
+
+@if (State.Value.ErrorMessage is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true">@State.Value.ErrorMessage</MudAlert>
+}
+
+<!-- Header -->
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-1">
+    <MudIcon Icon="@Icons.Material.Filled.FamilyRestroom" Color="Color.Primary" Size="Size.Large" />
+    <MudText Typo="Typo.h5">@family.Name</MudText>
+    @if (isAdmin)
+    {
+        <MudChip T="string" Color="Color.Warning" Size="Size.Small">Admin</MudChip>
+        <MudTooltip Text="Rename family">
+            <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                           Size="Size.Small"
+                           OnClick="OpenRenameDialog" />
+        </MudTooltip>
+    }
+</MudStack>
+<MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-4">
+    Created @family.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")
+</MudText>
+
+<!-- Members -->
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2">
+    <MudText Typo="Typo.h6">Members</MudText>
+    @if (isAdmin)
+    {
+        <MudButton Variant="Variant.Outlined"
+                   Size="Size.Small"
+                   StartIcon="@Icons.Material.Filled.PersonAdd"
+                   OnClick="OpenAddMemberDialog">
+            Add member
+        </MudButton>
+    }
+</MudStack>
+
+<MudTable Items="family.Members"
+          Dense="true"
+          Hover="true"
+          Elevation="1"
+          Class="mb-6">
+    <HeaderContent>
+        <MudTh>Name</MudTh>
+        <MudTh>Weight</MudTh>
+        <MudTh>Tier</MudTh>
+        <MudTh>Role</MudTh>
+        <MudTh>Status</MudTh>
+        @if (isAdmin)
+        {
+            <MudTh Style="width:80px"></MudTh>
+        }
+    </HeaderContent>
+    <RowTemplate Context="member">
+        <MudTd DataLabel="Name">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <MudAvatar Size="Size.Small" Color="Color.Primary">@member.DisplayName[0]</MudAvatar>
+                <div>
+                    <MudText>@member.DisplayName</MudText>
+                    @if (member.Email is not null)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@member.Email</MudText>
+                    }
+                </div>
+            </MudStack>
+        </MudTd>
+        <MudTd DataLabel="Weight">@member.CurrentWeight.ToString("0.##")×</MudTd>
+        <MudTd DataLabel="Tier">
+            <WeightBadge Tier="member.CurrentTier" Weight="member.CurrentWeight" />
+        </MudTd>
+        <MudTd DataLabel="Role">
+            @if (member.IsAdmin)
+            {
+                <MudChip T="string" Color="Color.Warning" Size="Size.Small">Admin</MudChip>
+            }
+            else
+            {
+                <MudChip T="string" Color="Color.Default" Size="Size.Small">Member</MudChip>
+            }
+        </MudTd>
+        <MudTd DataLabel="Status">
+            @if (member.IsLinked)
+            {
+                <MudChip T="string" Color="Color.Success" Size="Size.Small"
+                         Icon="@Icons.Material.Filled.VerifiedUser">Linked</MudChip>
+            }
+            else
+            {
+                <MudChip T="string" Color="Color.Default" Size="Size.Small"
+                         Icon="@Icons.Material.Filled.PersonOff">Pending</MudChip>
+            }
+        </MudTd>
+        @if (isAdmin)
+        {
+            <MudTd>
+                <MudStack Row="true" Spacing="0">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                   Size="Size.Small"
+                                   title="Edit member"
+                                   OnClick="@(() => OpenEditMemberDialog(member))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.PersonRemove"
+                                   Size="Size.Small"
+                                   Color="Color.Error"
+                                   title="Remove member"
+                                   OnClick="@(() => ConfirmRemoveMember(member))" />
+                </MudStack>
+            </MudTd>
+        }
+    </RowTemplate>
+</MudTable>
+
+@code {
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        Dispatcher.Dispatch(new LoadMyFamilyAction());
+    }
+
+    // ── Rename ────────────────────────────────────────────────────────────────
+
+    private async Task OpenRenameDialog()
+    {
+        var parameters = new DialogParameters<RenameFamilyDialog>
+        {
+            { x => x.InitialName, State.Value.MyFamily!.Name }
+        };
+
+        var dialog = await DialogService.ShowAsync<RenameFamilyDialog>("Rename family", parameters);
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false, Data: string newName })
+        {
+            Dispatcher.Dispatch(new UpdateFamilyNameAction(new UpdateFamilyNameRequest(newName)));
+        }
+    }
+
+    // ── Add member ────────────────────────────────────────────────────────────
+
+    private async Task OpenAddMemberDialog()
+    {
+        var dialog = await DialogService.ShowAsync<FamilyMemberDialog>("Add member");
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false, Data: FamilyMemberFormModel form })
+        {
+            Dispatcher.Dispatch(new AddFamilyMemberAction(new AddFamilyMemberRequest(
+                form.DisplayName,
+                string.IsNullOrWhiteSpace(form.Email) ? null : form.Email!.Trim(),
+                form.DateOfBirth,
+                form.UseOverride ? form.WeightOverride : null,
+                form.IsAdmin)));
+        }
+    }
+
+    // ── Edit member ───────────────────────────────────────────────────────────
+
+    private async Task OpenEditMemberDialog(FamilyMemberDto member)
+    {
+        var initial = new FamilyMemberFormModel
+        {
+            DisplayName    = member.DisplayName,
+            Email          = member.Email,
+            DateOfBirth    = member.DateOfBirth,
+            UseOverride    = member.WeightOverride is not null,
+            WeightOverride = member.WeightOverride ?? 1.00m,
+            IsAdmin        = member.IsAdmin
+        };
+
+        var parameters = new DialogParameters<FamilyMemberDialog>
+        {
+            { x => x.InitialValues, initial }
+        };
+
+        var dialog = await DialogService.ShowAsync<FamilyMemberDialog>("Edit member", parameters);
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false, Data: FamilyMemberFormModel form })
+        {
+            Dispatcher.Dispatch(new UpdateFamilyMemberAction(member.Id, new UpdateFamilyMemberRequest(
+                form.DisplayName,
+                string.IsNullOrWhiteSpace(form.Email) ? null : form.Email!.Trim(),
+                form.DateOfBirth,
+                form.UseOverride ? form.WeightOverride : null)));
+        }
+    }
+
+    // ── Remove member ─────────────────────────────────────────────────────────
+
+    private async Task ConfirmRemoveMember(FamilyMemberDto member)
+    {
+        bool? confirmed = await DialogService.ShowMessageBox(
+            "Remove member",
+            $"Remove {member.DisplayName} from the family? This cannot be undone.",
+            yesText: "Remove",
+            cancelText: "Cancel");
+
+        if (confirmed == true)
+            Dispatcher.Dispatch(new RemoveFamilyMemberAction(member.Id));
+    }
+}

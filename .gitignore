@@ -1,0 +1,49 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.pidb
+*.svclog
+*.scc
+.vs/
+*.binlog
+
+## Publish output
+publish/
+out/
+
+## Test results
+[Tt]estResults/
+*.coverage
+*.coveragexml
+coverage.*.xml
+
+## Rider / VS Code
+.idea/
+.vscode/
+*.swp
+
+## OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+## Logs
+*.log
+
+## Environment files
+.env
+.env.local
+.env.*.local
+src/**/appsettings.Local.json
+
+## User secrets are stored outside the repo by `dotnet user-secrets` — nothing to ignore here.
+
+## Docker volume artifacts
+postgres-data/
+
+## ASP.NET Data Protection keys (dev only; rotated and not secret-bearing, but no need to commit)
+src/FamilySplit.Api/.dp-keys/

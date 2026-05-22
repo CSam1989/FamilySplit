@@ -1,0 +1,18 @@
+@*
+    Drop <RequireAdmin /> at the top of any page that needs IsGlobalAdmin = true.
+    Redirects to / if the user is not authenticated or not a global admin.
+*@
+@using FamilySplit.Client.Store.Auth
+@inject IState<AuthState> AuthState
+@inject NavigationManager Nav
+
+@code {
+    protected override void OnParametersSet()
+    {
+        if (!AuthState.Value.IsLoading &&
+            (!AuthState.Value.IsAuthenticated || !AuthState.Value.IsGlobalAdmin))
+        {
+            Nav.NavigateTo("/", replace: true);
+        }
+    }
+}

@@ -1,0 +1,82 @@
+@using FamilySplit.Client.Services
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Add family member</MudText>
+    </TitleContent>
+    <DialogContent>
+
+        <MudTextField T="string"
+                      @bind-Value="_model.DisplayName"
+                      Label="Name"
+                      Required="true"
+                      MaxLength="100"
+                      Error="@_nameError"
+                      ErrorText="Name is required."
+                      Immediate="true"
+                      Class="mb-4" />
+
+        <MudTextField T="string"
+                      @bind-Value="_model.Email"
+                      Label="Email (optional)"
+                      InputType="InputType.Email"
+                      MaxLength="255"
+                      HelperText="Set for adults who will log in; leave blank for children."
+                      Immediate="true"
+                      Class="mb-4" />
+
+        <MudDatePicker @bind-Date="_dobDate"
+                       Label="Date of birth (optional)"
+                       MaxDate="DateTime.Today"
+                       Placeholder="Leave blank if unknown"
+                       Class="mb-4" />
+
+        <MudCheckBox T="bool"
+                     @bind-Value="_model.UseOverride"
+                     Label="Set a custom weight (overrides age tier)"
+                     Class="mb-2" />
+
+        @if (_model.UseOverride)
+        {
+            <MudNumericField T="decimal?"
+                             @bind-Value="_model.WeightOverride"
+                             Label="Custom weight"
+                             Min="0.01m"
+                             Max="10m"
+                             Step="0.05m"
+                             Format="0.##"
+                             HelperText="1.00 = one full adult share"
+                             Class="mb-4" />
+        }
+
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary"
+                   Variant="Variant.Filled"
+                   OnClick="Submit">
+            Add member
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    private GroupMemberFormModel _model    = new();
+    private DateTime?            _dobDate;
+    private bool                 _nameError;
+
+    private void Submit()
+    {
+        _nameError = string.IsNullOrWhiteSpace(_model.DisplayName);
+        if (_nameError) return;
+
+        _model.DateOfBirth = _dobDate.HasValue ? DateOnly.FromDateTime(_dobDate.Value) : null;
+        if (!_model.UseOverride) _model.WeightOverride = null;
+
+        MudDialog.Close(DialogResult.Ok(_model));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

@@ -1,0 +1,96 @@
+using Fluxor;
+using FamilySplit.Client.Services;
+
+namespace FamilySplit.Client.Store.Admin;
+
+public class AdminEffects
+{
+    private readonly IAdminClient _client;
+
+    public AdminEffects(IAdminClient client) => _client = client;
+
+    [EffectMethod(typeof(LoadAdminFamiliesAction))]
+    public async Task HandleLoad(IDispatcher dispatcher)
+    {
+        try
+        {
+            var families = await _client.ListFamiliesAsync();
+            dispatcher.Dispatch(new LoadAdminFamiliesSuccessAction(families));
+        }
+        catch (Exception ex)
+        {
+            dispatcher.Dispatch(new LoadAdminFamiliesFailureAction(ex.Message));
+        }
+    }
+
+    [EffectMethod]
+    public async Task HandleLoadOne(LoadAdminFamilyAction action, IDispatcher dispatcher)
+    {
+        try
+        {
+            var family = await _client.GetFamilyAsync(action.FamilyId);
+            dispatcher.Dispatch(new LoadAdminFamilySuccessAction(family));
+        }
+        catch (Exception ex)
+        {
+            dispatcher.Dispatch(new LoadAdminFamilyFailureAction(ex.Message));
+        }
+    }
+
+    [EffectMethod]
+    public async Task HandleCreate(CreateAdminFamilyAction action, IDispatcher dispatcher)
+    {
+        try
+        {
+            var family = await _client.CreateFamilyAsync(action.Request);
+            dispatcher.Dispatch(new CreateAdminFamilySuccessAction(family));
+        }
+        catch (Exception ex)
+        {
+            dispatcher.Dispatch(new CreateAdminFamilyFailureAction(ex.Message));
+        }
+    }
+
+    [EffectMethod]
+    public async Task HandleAddMember(AddAdminMemberAction action, IDispatcher dispatcher)
+    {
+        try
+        {
+            await _client.AddMemberAsync(action.FamilyId, action.Request);
+            dispatcher.Dispatch(new AddAdminMemberSuccessAction(action.FamilyId));
+            dispatcher.Dispatch(new LoadAdminFamilyAction(action.FamilyId));
+        }
+        catch (Exception ex)
+        {
+            dispatcher.Dispatch(new AddAdminMemberFailureAction(ex.Message));
+        }
+    }
+
+    [EffectMethod]
+    public async Task HandleUpdateMember(UpdateAdminMemberAction action, IDispatcher dispatcher)
+    {
+        try
+        {
+            var member = await _client.UpdateMemberAsync(action.FamilyId, action.MemberId, action.Request);
+            dispatcher.Dispatch(new UpdateAdminMemberSuccessAction(member));
+        }
+        catch (Exception ex)
+        {
+            dispatcher.Dispatch(new UpdateAdminMemberFailureAction(ex.Message));
+        }
+    }
+
+    [EffectMethod]
+    public async Task HandleRemoveMember(RemoveAdminMemberAction action, IDispatcher dispatcher)
+    {
+        try
+        {
+            await _client.RemoveMemberAsync(action.FamilyId, action.MemberId);
+            dispatcher.Dispatch(new RemoveAdminMemberSuccessAction(action.FamilyId, action.MemberId));
+        }
+        catch (Exception ex)
+        {
+            dispatcher.Dispatch(new RemoveAdminMemberFailureAction(ex.Message));
+        }
+    }
+}

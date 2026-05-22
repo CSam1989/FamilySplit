@@ -1,0 +1,91 @@
+@page "/admin"
+@using FamilySplit.Client.Store.Admin
+@using FamilySplit.Client.Store.Auth
+@inherits Fluxor.Blazor.Web.Components.FluxorComponent
+@inject IDispatcher Dispatcher
+@inject IState<AdminState> State
+@inject IDialogService DialogService
+@inject NavigationManager Nav
+
+<PageTitle>Admin — FamilySplit</PageTitle>
+
+<RequireAdmin />
+
+<MudText Typo="Typo.h5" Class="mb-1">Families</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+    Global admin view — create and manage all families and their members.
+</MudText>
+
+@if (State.Value.ErrorMessage is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true">@State.Value.ErrorMessage</MudAlert>
+}
+
+<MudButton Variant="Variant.Filled"
+           Color="Color.Primary"
+           StartIcon="@Icons.Material.Filled.GroupAdd"
+           OnClick="OpenCreateDialog"
+           Class="mb-4">
+    Create family
+</MudButton>
+
+@if (State.Value.IsLoading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-4" />
+}
+
+@if (!State.Value.IsLoading && !State.Value.Families.Any())
+{
+    <MudPaper Elevation="0" Class="pa-6 d-flex flex-column align-center"
+              Style="border: 1px dashed var(--mud-palette-divider);">
+        <MudIcon Icon="@Icons.Material.Outlined.FamilyRestroom" Size="Size.Large" Color="Color.Secondary" Class="mb-2" />
+        <MudText Typo="Typo.body1" Color="Color.Secondary">No families yet.</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">Create the first family to get started.</MudText>
+    </MudPaper>
+}
+else
+{
+    <MudTable Items="State.Value.Families"
+              Hover="true"
+              Elevation="1"
+              OnRowClick="@((TableRowClickEventArgs<FamilyDto> args) => Nav.NavigateTo($"/admin/families/{args.Item.Id}"))">
+        <HeaderContent>
+            <MudTh>Name</MudTh>
+            <MudTh>Members</MudTh>
+            <MudTh>Created</MudTh>
+            <MudTh Style="width:48px"></MudTh>
+        </HeaderContent>
+        <RowTemplate Context="family">
+            <MudTd DataLabel="Name">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                    <MudIcon Icon="@Icons.Material.Filled.FamilyRestroom" Color="Color.Primary" Size="Size.Small" />
+                    <MudText><strong>@family.Name</strong></MudText>
+                </MudStack>
+            </MudTd>
+            <MudTd DataLabel="Members">@family.Members.Count</MudTd>
+            <MudTd DataLabel="Created">@family.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</MudTd>
+            <MudTd>
+                <MudIconButton Icon="@Icons.Material.Filled.ArrowForward"
+                               Size="Size.Small"
+                               OnClick="@(() => Nav.NavigateTo($"/admin/families/{family.Id}"))" />
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        Dispatcher.Dispatch(new LoadAdminFamiliesAction());
+    }
+
+    private async Task OpenCreateDialog()
+    {
+        var dialog = await DialogService.ShowAsync<CreateFamilyDialog>("Create family");
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false, Data: string name })
+            Dispatcher.Dispatch(new CreateAdminFamilyAction(new CreateFamilyRequest(name)));
+    }
+}
