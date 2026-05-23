@@ -1,0 +1,55 @@
+@using FamilySplit.Client.Services
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.PersonAdd" Class="mr-2" />
+            Add participant
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+            Select a group member to add to this activity.
+        </MudText>
+        <MudSelect T="Guid" @bind-Value="_selectedMemberId" Label="Member" Required="true"
+                   RequiredError="Please select a member."
+                   ToStringFunc="@(id => SelectedLabel(id))">
+            @foreach (var (member, familyName) in Available)
+            {
+                <MudSelectItem Value="@member.Id">
+                    @member.DisplayName (@familyName)
+                </MudSelectItem>
+            }
+        </MudSelect>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                   OnClick="Submit"
+                   Disabled="@(_selectedMemberId == Guid.Empty)">
+            Add
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public List<(GroupMemberSummaryDto m, string FamilyName)> Available { get; set; } = [];
+
+    private Guid _selectedMemberId;
+
+    private string SelectedLabel(Guid id)
+    {
+        var match = Available.FirstOrDefault(x => x.m.Id == id);
+        return match.m is not null ? $"{match.m.DisplayName} ({match.FamilyName})" : string.Empty;
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void Submit()
+    {
+        if (_selectedMemberId == Guid.Empty) return;
+        MudDialog.Close(DialogResult.Ok(_selectedMemberId));
+    }
+}

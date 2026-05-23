@@ -88,6 +88,7 @@ public class GroupService
     public async Task<GroupDetailDto> CreateAsync(CreateGroupRequest req, Guid callerId)
     {
         await _createValidator.ValidateAndThrowAsync(req);
+        await RequireCallerIsFamilyAdminAsync(callerId);
 
         var callerFamilyId = await GetCallerFamilyIdAsync(callerId);
 
@@ -144,6 +145,7 @@ public class GroupService
     public async Task<GroupDetailDto> JoinAsync(JoinGroupRequest req, Guid callerId)
     {
         await _joinValidator.ValidateAndThrowAsync(req);
+        await RequireCallerIsFamilyAdminAsync(callerId);
 
         var callerFamilyId = await GetCallerFamilyIdAsync(callerId);
 
@@ -175,6 +177,35 @@ public class GroupService
             ?? throw NotFound();
     }
 
+    // ── Leave group ───────────────────────────────────────────────────────────
+
+    public async Task LeaveAsync(Guid groupId, Guid callerId)
+    {
+        await RequireCallerIsFamilyAdminAsync(callerId);
+
+        var callerFamilyId = await GetCallerFamilyIdAsync(callerId);
+
+        var groupFamily = await _db.GroupFamilies
+            .Where(gf => gf.GroupId == groupId && gf.FamilyId == callerFamilyId)
+            .FirstOrDefaultAsync()
+            ?? throw Throw422("Group", "Your family is not a member of this group.");
+
+        // Guard: if this family is the sole admin, refuse the leave.
+        if (groupFamily.Role == MemberRole.Admin)
+        {
+            var adminCount = await _db.GroupFamilies
+                .CountAsync(gf => gf.GroupId == groupId && gf.Role == MemberRole.Admin);
+
+            if (adminCount <= 1)
+                throw Throw422("Group",
+                    "Cannot leave: your family is the only admin of this group. " +
+                    "Transfer the admin role to another family first.");
+        }
+
+        _db.GroupFamilies.Remove(groupFamily);
+        await _db.SaveChangesAsync();
+    }
+
     // ── Regenerate invite code ────────────────────────────────────────────────
 
     public async Task<string> RegenerateInviteCodeAsync(Guid groupId, Guid callerId)
@@ -192,6 +223,20 @@ public class GroupService
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Throws 403 unless the caller's active FamilyMember has IsAdmin = true.
+    /// </summary>
+    private async Task RequireCallerIsFamilyAdminAsync(Guid userId)
+    {
+        var isAdmin = await _db.FamilyMembers
+            .Where(m => m.UserId == userId && m.IsActive)
+            .Select(m => (bool?)m.IsAdmin)
+            .FirstOrDefaultAsync();
+
+        if (isAdmin is not true)
+            throw Forbidden();
+    }
 
     /// <summary>
     /// Resolves the FamilyId for the authenticated caller via their linked FamilyMember.

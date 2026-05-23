@@ -107,8 +107,8 @@ app.MapAdminEndpoints();          // /admin/families — global-admin CRUD
 app.MapFamilyEndpoints();         // /families/mine — own-family management
 app.MapGroupEndpoints();          // /groups — CRUD + join + invite-code
 app.MapGroupMemberEndpoints();    // no-op stub (members managed via Family endpoints)
-// Phase 4+ endpoint groups land here:
-//   app.MapActivityEndpoints();
+app.MapActivityEndpoints();       // /groups/{groupId}/activities — CRUD + participants + close
+// Phase 5+ endpoint groups land here:
 //   app.MapExpenseEndpoints();
 //   app.MapSettlementEndpoints();
 

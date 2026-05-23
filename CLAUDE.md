@@ -134,6 +134,7 @@ Expenses are split by weight, calculated from date of birth at expense-save time
 | `FamilyEndpoints.cs` | `/families/mine` | Own-family management (rename, members) |
 | `GroupsEndpoints.cs` | `/groups` | Group CRUD, join, invite code regeneration |
 | `GroupMembersEndpoints.cs` | — | No-op stub (replaced by Family endpoints) |
+| `ActivityEndpoints.cs` | `/groups/{groupId}/activities` | Activity CRUD, sub-activities, close, participant add/remove |
 
 ### Authorization
 All endpoints except `/auth/*`, `/health`, and Scalar/OpenAPI require a valid JWT (`RequireAuthorization()`). Global-admin checks are enforced inside `AdminService.RequireGlobalAdminAsync()`.
@@ -167,6 +168,20 @@ All endpoints except `/auth/*`, `/health`, and Scalar/OpenAPI require a valid JW
 - `UpdateAsync(groupId, req, callerId)` → Admin only
 - `JoinAsync(req, callerId)` → join via invite code (adds Member GroupFamily for caller's Family)
 - `RegenerateInviteCodeAsync(groupId, callerId)` → Admin only
+
+**`ActivityService`** — activity operations (any group member)
+- `ListAsync(groupId, callerId)` → top-level activities for a group (no-parent)
+- `GetDetailAsync(activityId, callerId)` → full detail with participants + sub-activities
+- `CreateAsync(groupId, req, callerId)` → new top-level activity; seeds participants from all active group members via `ParticipantSeeder`
+- `CreateSubActivityAsync(parentId, req, callerId)` → depth-1 guard; seeds from parent's participants
+- `UpdateAsync(activityId, req, callerId)` → name/description; Open only
+- `CloseAsync(activityId, callerId)` → closes activity; Open sub-activities → `AbsorbedByParent`
+- `AddParticipantAsync(activityId, req, callerId)` → adds a group member; Open only
+- `RemoveParticipantAsync(activityId, memberId, callerId)` → removes a participant; Open only
+
+**`ParticipantSeeder`** — seeds `ActivityParticipant` rows
+- `SeedForActivityAsync(activity)` → all active FamilyMembers of all families in the group
+- `SeedForSubActivityAsync(sub, parentId)` → copies parent activity's participant list
 
 ### Key patterns
 
@@ -240,6 +255,7 @@ DbSet<GroupFamily>  GroupFamilies
 | `IFamilyClient` | `/families/mine` | Own-family management |
 | `IAdminClient` | `/admin/families` | Global-admin family management |
 | `IGroupClient` | `/groups` | Group CRUD + join + invite code |
+| `IActivityClient` | `/groups/{groupId}/activities` | Activity CRUD + sub-activities + participants + close |
 | `IHandoffApi` | `/auth/handoff` | JWT retrieval (uses credentials) |
 
 ### Fluxor Stores
@@ -249,6 +265,7 @@ DbSet<GroupFamily>  GroupFamilies
 | `FamilyMemberState` | `MyProfile: FamilyMemberDto?` | `LoadMyProfileAction` |
 | `FamilyState` | `MyFamily: FamilyDto?` | `LoadMyFamilyAction`, `UpdateFamilyNameAction`, `AddFamilyMemberAction`, `UpdateFamilyMemberAction`, `RemoveFamilyMemberAction` |
 | `GroupState` | `Groups`, `SelectedGroup`, `IsLoading`, `ErrorMessage` | `LoadGroupsAction`, `LoadGroupDetailAction`, `CreateGroupAction`, `UpdateGroupAction`, `JoinGroupAction`, `RegenerateInviteCodeAction` |
+| `ActivityState` | `Activities`, `SelectedActivity`, `IsLoading`, `ErrorMessage` | `LoadActivitiesAction`, `LoadActivityDetailAction`, `CreateActivityAction`, `CreateSubActivityAction`, `UpdateActivityAction`, `CloseActivityAction`, `AddParticipantAction`, `RemoveParticipantAction` |
 
 ### Key pages
 
@@ -256,7 +273,8 @@ DbSet<GroupFamily>  GroupFamilies
 |---|---|---|
 | `/` | `Index.razor` | Dashboard / home |
 | `/groups` | `GroupList.razor` | List of caller's groups (shows family count) |
-| `/groups/{id}` | `GroupDetail.razor` | Group detail — families with nested members |
+| `/groups/{id}` | `GroupDetail.razor` | Group detail — families with nested members + activity list |
+| `/groups/{groupId}/activities/{activityId}` | `ActivityDetail.razor` | Activity detail — participants, sub-activities, close/edit |
 | `/families/mine` (also `/profile`) | `ManageFamily.razor` | Own-family management — rename, add/edit/remove members |
 | `/auth/return` | `AuthReturn.razor` | JWT handoff page |
 | `/not-registered` | `NotRegistered.razor` | Shown when login email has no FamilyMember |
@@ -379,6 +397,6 @@ Client-side controls must mirror every server-side permission check — if a use
 | 2 | ✅ Complete | FamilyMember entity, WeightCalculator, profile endpoint |
 | 3 | ✅ Complete | Groups (CRUD, invite codes), FamilyMember↔User link |
 | 3.5 | ✅ Complete | Family entity, GlobalAdmin, GroupFamily replaces GroupMembership; AdminService + FamilyService; Family management UI |
-| 4 | 🔲 Planned | Activities (recurring expenses with date ranges) |
+| 4 | ✅ Complete | Activities (top-level + sub-activities depth-1, participant management, close flow absorbs open subs) |
 | 5 | 🔲 Planned | Expenses (attach to activity, record weight snapshots) |
 | 6 | 🔲 Planned | Settlements (balance calculation per Family, optimised payment graph) |

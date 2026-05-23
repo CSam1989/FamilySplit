@@ -67,6 +67,15 @@ public static class AdminEndpoints
                 return Results.NoContent();
             });
 
+        // DELETE /admin/groups/{groupId} — hard-delete a group (cascades to members, activities)
+        grp.MapDelete("/groups/{groupId:guid}",
+            async (Guid groupId, AdminService svc, HttpContext ctx) =>
+            {
+                var callerId = ctx.User.GetUserId();
+                await svc.DeleteGroupAsync(groupId, callerId);
+                return Results.NoContent();
+            });
+
         return app;
     }
 }

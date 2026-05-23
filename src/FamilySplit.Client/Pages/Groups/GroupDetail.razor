@@ -1,9 +1,16 @@
 @page "/groups/{GroupId:guid}"
 @using FamilySplit.Client.Store.Groups
+@using FamilySplit.Client.Store.Activities
+@using FamilySplit.Client.Store.FamilyMembers
+@using FamilySplit.Client.Store.Auth
 @using FamilySplit.Client.Services
+@using FamilySplit.Domain.Enums
 @inherits Fluxor.Blazor.Web.Components.FluxorComponent
 @inject IDispatcher Dispatcher
 @inject IState<GroupState> State
+@inject IState<ActivityState> ActivityState
+@inject IState<FamilyMemberState> ProfileState
+@inject IState<AuthState> AuthState
 @inject IDialogService DialogService
 @inject NavigationManager Nav
 
@@ -149,15 +156,118 @@
                Color="Color.Primary"
                StartIcon="@Icons.Material.Filled.Edit"
                OnClick="OpenEditDialog"
-               Class="mr-2">
+               Class="mr-2 mb-6">
         Edit group
     </MudButton>
+}
+@if (IsCallerFamilyAdmin)
+{
+    <MudButton Variant="Variant.Outlined"
+               Color="Color.Error"
+               StartIcon="@Icons.Material.Filled.ExitToApp"
+               OnClick="ConfirmLeave"
+               Class="mr-2 mb-6">
+        Leave group
+    </MudButton>
+}
+@if (AuthState.Value.IsGlobalAdmin)
+{
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Error"
+               StartIcon="@Icons.Material.Filled.DeleteForever"
+               OnClick="ConfirmDelete"
+               Class="mr-2 mb-6">
+        Delete group
+    </MudButton>
+}
+
+<!-- ── Activities ──────────────────────────────────────────────────────────── -->
+<MudDivider Class="mb-6" />
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3" Spacing="2">
+    <MudText Typo="Typo.h6">Activities</MudText>
+    @if (ActivityState.Value.Activities.Count > 0)
+    {
+        <MudChip T="string" Size="Size.Small" Color="Color.Default">
+            @ActivityState.Value.Activities.Count
+        </MudChip>
+    }
+    <MudSpacer />
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Primary"
+               Size="Size.Small"
+               StartIcon="@Icons.Material.Filled.Add"
+               OnClick="OpenCreateActivityDialog">
+        New activity
+    </MudButton>
+</MudStack>
+
+@if (ActivityState.Value.ErrorMessage is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-3" ShowCloseIcon="true"
+              CloseIconClicked="@(() => Dispatcher.Dispatch(new ClearActivityErrorAction()))">
+        @ActivityState.Value.ErrorMessage
+    </MudAlert>
+}
+
+@if (ActivityState.Value.IsLoading && !ActivityState.Value.Activities.Any())
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-3" />
+}
+else if (!ActivityState.Value.Activities.Any())
+{
+    <MudPaper Elevation="0" Class="pa-5 d-flex flex-column align-center"
+              Style="border: 1px dashed var(--mud-palette-divider);">
+        <MudIcon Icon="@Icons.Material.Outlined.EventNote" Size="Size.Large" Color="Color.Secondary" Class="mb-2" />
+        <MudText Typo="Typo.body2" Color="Color.Secondary">No activities yet. Create one to start tracking shared costs.</MudText>
+    </MudPaper>
+}
+else
+{
+    @foreach (var activity in ActivityState.Value.Activities)
+    {
+        var actStatusColor = activity.Status switch
+        {
+            ActivityStatus.Open   => Color.Success,
+            ActivityStatus.Closed => Color.Default,
+            ActivityStatus.Settled => Color.Info,
+            _                     => Color.Default
+        };
+
+        <MudPaper Elevation="1" Class="pa-3 mb-3"
+                  Style="cursor:pointer"
+                  @onclick="@(() => Nav.NavigateTo($"/groups/{GroupId}/activities/{activity.Id}"))">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <MudIcon Icon="@Icons.Material.Filled.EventNote" Color="Color.Primary" />
+                <div style="flex:1">
+                    <MudText Typo="Typo.subtitle2">@activity.Name</MudText>
+                    @if (activity.Description is not null)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@activity.Description</MudText>
+                    }
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        @activity.ParticipantCount participants
+                        @if (activity.SubActivityCount > 0)
+                        {
+                            <span> · @activity.SubActivityCount sub-activit@(activity.SubActivityCount == 1 ? "y" : "ies")</span>
+                        }
+                        · created @activity.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")
+                    </MudText>
+                </div>
+                <MudChip T="string" Color="@actStatusColor" Size="Size.Small">@activity.Status</MudChip>
+                <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Secondary" />
+            </MudStack>
+        </MudPaper>
+    }
 }
 
 @code {
     [Parameter] public Guid GroupId { get; set; }
 
     private List<BreadcrumbItem> _crumbs = [];
+
+    /// <summary>True when the logged-in user's FamilyMember has IsAdmin = true.</summary>
+    private bool IsCallerFamilyAdmin => ProfileState.Value.MyProfile?.IsAdmin == true;
 
     protected override void OnInitialized()
     {
@@ -169,12 +279,19 @@
         ];
 
         Dispatcher.Dispatch(new LoadGroupDetailAction(GroupId));
+        Dispatcher.Dispatch(new LoadActivitiesAction(GroupId));
+
+        if (ProfileState.Value.MyProfile is null)
+            Dispatcher.Dispatch(new LoadMyProfileAction());
     }
 
     protected override void OnParametersSet()
     {
         if (State.Value.SelectedGroup?.Id != GroupId)
+        {
             Dispatcher.Dispatch(new LoadGroupDetailAction(GroupId));
+            Dispatcher.Dispatch(new LoadActivitiesAction(GroupId));
+        }
     }
 
     private async Task OpenEditDialog()
@@ -214,5 +331,40 @@
     {
         if (State.Value.SelectedGroup is null) return;
         await JS.InvokeVoidAsync("navigator.clipboard.writeText", State.Value.SelectedGroup.InviteCode);
+    }
+
+    private async Task OpenCreateActivityDialog()
+    {
+        var dialog = await DialogService.ShowAsync<CreateActivityDialog>("New activity");
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: ActivityFormModel form })
+        {
+            Dispatcher.Dispatch(new CreateActivityAction(GroupId,
+                new CreateActivityRequest(form.Name, form.Description)));
+        }
+    }
+
+    private async Task ConfirmLeave()
+    {
+        bool? confirmed = await DialogService.ShowMessageBox(
+            "Leave group",
+            "Your family will be removed from this group. This cannot be undone. Continue?",
+            yesText: "Leave group",
+            cancelText: "Cancel");
+
+        if (confirmed == true)
+            Dispatcher.Dispatch(new LeaveGroupAction(GroupId));
+    }
+
+    private async Task ConfirmDelete()
+    {
+        bool? confirmed = await DialogService.ShowMessageBox(
+            "Delete group",
+            $"This will permanently delete \"{State.Value.SelectedGroup?.Name}\" and all its activities. This cannot be undone. Continue?",
+            yesText: "Delete group",
+            cancelText: "Cancel");
+
+        if (confirmed == true)
+            Dispatcher.Dispatch(new DeleteGroupAction(GroupId));
     }
 }

@@ -203,6 +203,20 @@ public class AdminService
         await _db.SaveChangesAsync();
     }
 
+    // ── Delete a group ────────────────────────────────────────────────────────
+
+    public async Task DeleteGroupAsync(Guid groupId, Guid callerId)
+    {
+        await RequireGlobalAdminAsync(callerId);
+
+        var deleted = await _db.Groups
+            .Where(g => g.Id == groupId)
+            .ExecuteDeleteAsync();
+
+        if (deleted == 0)
+            throw Throw422("GroupId", "Group not found.");
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private async Task RequireGlobalAdminAsync(Guid userId)

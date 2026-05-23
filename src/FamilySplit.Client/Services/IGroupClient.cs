@@ -21,6 +21,9 @@ public interface IGroupClient
 
     [Post("/groups/{groupId}/invite-code")]
     Task<RegenerateInviteCodeResponse> RegenerateInviteCodeAsync(Guid groupId);
+
+    [Delete("/groups/{groupId}/leave")]
+    Task LeaveAsync(Guid groupId);
 }
 
 public record RegenerateInviteCodeResponse(string InviteCode);

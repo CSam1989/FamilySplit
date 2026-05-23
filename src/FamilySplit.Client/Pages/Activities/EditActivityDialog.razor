@@ -1,0 +1,62 @@
+@using FamilySplit.Client.Pages.Activities
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.Edit" Class="mr-2" />
+            Edit activity
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="_isValid">
+            <MudTextField @bind-Value="_model.Name"
+                          Label="Name"
+                          Required="true"
+                          RequiredError="Name is required."
+                          MaxLength="100"
+                          Counter="100"
+                          Class="mb-3" />
+            <MudTextField @bind-Value="_model.Description"
+                          Label="Description (optional)"
+                          MaxLength="500"
+                          Counter="500"
+                          Lines="3" />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                   OnClick="Submit" Disabled="@(!_isValid)">
+            Save
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public string InitialName { get; set; } = string.Empty;
+    [Parameter] public string? InitialDescription { get; set; }
+
+    private MudForm _form = default!;
+    private bool _isValid;
+    private ActivityFormModel _model = new();
+
+    protected override void OnInitialized()
+    {
+        _model = new ActivityFormModel
+        {
+            Name        = InitialName,
+            Description = InitialDescription,
+        };
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Submit()
+    {
+        await _form.Validate();
+        if (!_isValid) return;
+        MudDialog.Close(DialogResult.Ok(_model));
+    }
+}

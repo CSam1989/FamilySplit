@@ -32,5 +32,15 @@ public record RegenerateInviteCodeAction(Guid GroupId);
 public record RegenerateInviteCodeSuccessAction(Guid GroupId, string NewInviteCode);
 public record RegenerateInviteCodeFailureAction(string ErrorMessage);
 
+// ── Leave ─────────────────────────────────────────────────────────────────────
+public record LeaveGroupAction(Guid GroupId);
+public record LeaveGroupSuccessAction(Guid GroupId);
+public record LeaveGroupFailureAction(string ErrorMessage);
+
+// ── Delete (global-admin only) ────────────────────────────────────────────────
+public record DeleteGroupAction(Guid GroupId);
+public record DeleteGroupSuccessAction(Guid GroupId);
+public record DeleteGroupFailureAction(string ErrorMessage);
+
 // ── Clear error ───────────────────────────────────────────────────────────────
 public record ClearGroupErrorAction;

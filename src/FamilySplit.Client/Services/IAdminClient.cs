@@ -24,6 +24,9 @@ public interface IAdminClient
 
     [Delete("/admin/families/{familyId}/members/{memberId}")]
     Task RemoveMemberAsync(Guid familyId, Guid memberId);
+
+    [Delete("/admin/groups/{groupId}")]
+    Task DeleteGroupAsync(Guid groupId);
 }
 
 public record CreateFamilyRequest(string Name);

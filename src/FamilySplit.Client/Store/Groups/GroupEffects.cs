@@ -1,5 +1,6 @@
 using Fluxor;
 using FamilySplit.Client.Services;
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Logging;
 
 namespace FamilySplit.Client.Store.Groups;
@@ -7,12 +8,16 @@ namespace FamilySplit.Client.Store.Groups;
 public class GroupEffects
 {
     private readonly IGroupClient _client;
+    private readonly IAdminClient _adminClient;
     private readonly ILogger<GroupEffects> _logger;
+    private readonly NavigationManager _nav;
 
-    public GroupEffects(IGroupClient client, ILogger<GroupEffects> logger)
+    public GroupEffects(IGroupClient client, IAdminClient adminClient, ILogger<GroupEffects> logger, NavigationManager nav)
     {
         _client = client;
+        _adminClient = adminClient;
         _logger = logger;
+        _nav = nav;
     }
 
     [EffectMethod(typeof(LoadGroupsAction))]
@@ -102,6 +107,38 @@ public class GroupEffects
         {
             _logger.LogError(ex, "Failed to regenerate invite code for group {GroupId}", action.GroupId);
             dispatcher.Dispatch(new RegenerateInviteCodeFailureAction(ErrorHelper.GetMessage(ex)));
+        }
+    }
+
+    [EffectMethod]
+    public async Task HandleLeave(LeaveGroupAction action, IDispatcher dispatcher)
+    {
+        try
+        {
+            await _client.LeaveAsync(action.GroupId);
+            dispatcher.Dispatch(new LeaveGroupSuccessAction(action.GroupId));
+            _nav.NavigateTo("/groups");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to leave group {GroupId}", action.GroupId);
+            dispatcher.Dispatch(new LeaveGroupFailureAction(ErrorHelper.GetMessage(ex)));
+        }
+    }
+
+    [EffectMethod]
+    public async Task HandleDelete(DeleteGroupAction action, IDispatcher dispatcher)
+    {
+        try
+        {
+            await _adminClient.DeleteGroupAsync(action.GroupId);
+            dispatcher.Dispatch(new DeleteGroupSuccessAction(action.GroupId));
+            _nav.NavigateTo("/groups");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete group {GroupId}", action.GroupId);
+            dispatcher.Dispatch(new DeleteGroupFailureAction(ErrorHelper.GetMessage(ex)));
         }
     }
 }

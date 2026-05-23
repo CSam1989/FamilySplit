@@ -97,6 +97,44 @@ public static class GroupReducers
     public static GroupState OnRegenerateFailure(GroupState state, RegenerateInviteCodeFailureAction action) =>
         state with { IsLoading = false, ErrorMessage = action.ErrorMessage };
 
+    // ── Leave ─────────────────────────────────────────────────────────────────
+
+    [ReducerMethod(typeof(LeaveGroupAction))]
+    public static GroupState OnLeave(GroupState state) =>
+        state with { IsLoading = true, ErrorMessage = null };
+
+    [ReducerMethod]
+    public static GroupState OnLeaveSuccess(GroupState state, LeaveGroupSuccessAction action) =>
+        state with
+        {
+            IsLoading = false,
+            SelectedGroup = null,
+            Groups = state.Groups.Where(g => g.Id != action.GroupId).ToList()
+        };
+
+    [ReducerMethod]
+    public static GroupState OnLeaveFailure(GroupState state, LeaveGroupFailureAction action) =>
+        state with { IsLoading = false, ErrorMessage = action.ErrorMessage };
+
+    // ── Delete (global-admin only) ────────────────────────────────────────────
+
+    [ReducerMethod(typeof(DeleteGroupAction))]
+    public static GroupState OnDelete(GroupState state) =>
+        state with { IsLoading = true, ErrorMessage = null };
+
+    [ReducerMethod]
+    public static GroupState OnDeleteSuccess(GroupState state, DeleteGroupSuccessAction action) =>
+        state with
+        {
+            IsLoading     = false,
+            SelectedGroup = null,
+            Groups        = state.Groups.Where(g => g.Id != action.GroupId).ToList()
+        };
+
+    [ReducerMethod]
+    public static GroupState OnDeleteFailure(GroupState state, DeleteGroupFailureAction action) =>
+        state with { IsLoading = false, ErrorMessage = action.ErrorMessage };
+
     // ── Clear error ───────────────────────────────────────────────────────────
 
     [ReducerMethod(typeof(ClearGroupErrorAction))]

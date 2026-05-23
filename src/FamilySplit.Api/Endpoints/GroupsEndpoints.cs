@@ -59,6 +59,14 @@ public static class GroupsEndpoints
             return Results.Ok(new { inviteCode = newCode });
         });
 
+        // DELETE /groups/{groupId}/leave — leave a group (family admin only)
+        grp.MapDelete("/{groupId:guid}/leave", async (Guid groupId, GroupService svc, HttpContext ctx) =>
+        {
+            var callerId = ctx.User.GetUserId();
+            await svc.LeaveAsync(groupId, callerId);
+            return Results.NoContent();
+        });
+
         return app;
     }
 }
