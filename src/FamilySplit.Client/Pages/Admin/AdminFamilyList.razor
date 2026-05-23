@@ -1,9 +1,11 @@
 @page "/admin"
 @using FamilySplit.Client.Store.Admin
 @using FamilySplit.Client.Store.Auth
+@using FamilySplit.Client.Store.FamilyMembers
 @inherits Fluxor.Blazor.Web.Components.FluxorComponent
 @inject IDispatcher Dispatcher
 @inject IState<AdminState> State
+@inject IState<FamilyMemberState> ProfileState
 @inject IDialogService DialogService
 @inject NavigationManager Nav
 
@@ -18,7 +20,10 @@
 
 @if (State.Value.ErrorMessage is not null)
 {
-    <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true">@State.Value.ErrorMessage</MudAlert>
+    <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true"
+              CloseIconClicked="@(() => Dispatcher.Dispatch(new ClearAdminErrorAction()))">
+        @State.Value.ErrorMessage
+    </MudAlert>
 }
 
 <MudButton Variant="Variant.Filled"
@@ -48,7 +53,7 @@ else
     <MudTable Items="State.Value.Families"
               Hover="true"
               Elevation="1"
-              OnRowClick="@((TableRowClickEventArgs<FamilyDto> args) => Nav.NavigateTo($"/admin/families/{args.Item.Id}"))">
+              OnRowClick="@((TableRowClickEventArgs<FamilyDto> args) => Nav.NavigateTo($"/admin/families/{args.Item!.Id}"))">
         <HeaderContent>
             <MudTh>Name</MudTh>
             <MudTh>Members</MudTh>
@@ -60,6 +65,10 @@ else
                 <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
                     <MudIcon Icon="@Icons.Material.Filled.FamilyRestroom" Color="Color.Primary" Size="Size.Small" />
                     <MudText><strong>@family.Name</strong></MudText>
+                    @if (family.Members.Any(m => m.Id == ProfileState.Value.MyProfile?.Id))
+                    {
+                        <MudChip T="string" Color="Color.Info" Size="Size.Small" Icon="@Icons.Material.Filled.Home">Your family</MudChip>
+                    }
                 </MudStack>
             </MudTd>
             <MudTd DataLabel="Members">@family.Members.Count</MudTd>

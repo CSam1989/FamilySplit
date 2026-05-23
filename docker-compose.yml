@@ -20,14 +20,14 @@ services:
       retries: 10
 
   # Optional UI for poking around the dev DB.
-  # Visit http://localhost:8081 (login: admin@familysplit.local / admin)
+  # Visit http://localhost:8081 (login: admin@familysplit.com / admin)
   pgadmin:
     image: dpage/pgadmin4:8
     container_name: familysplit-pgadmin
     restart: unless-stopped
     profiles: ["tools"]
     environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@familysplit.local}
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@familysplit.com}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
       PGADMIN_CONFIG_SERVER_MODE: "False"
     ports:

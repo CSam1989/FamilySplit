@@ -23,6 +23,7 @@ public static class AuthEndpoints
         group.MapGet("/login/{provider}", (
             string provider,
             string? returnUrl,
+            bool? remember,
             HttpContext http,
             IConfiguration config,
             PkceFlow pkce) =>
@@ -38,7 +39,7 @@ public static class AuthEndpoints
                 ? returnUrl!
                 : config["Cors:AllowedOrigins:0"] ?? "https://localhost:5001";
 
-            var flow = pkce.NewFlow(safeReturnUrl);
+            var flow = pkce.NewFlow(safeReturnUrl, remember == true);
             var codeChallenge = pkce.DeriveCodeChallenge(flow.CodeVerifier);
             var protectedPayload = pkce.Protect(flow);
 
@@ -130,7 +131,7 @@ public static class AuthEndpoints
                 return Results.Redirect(flow.ReturnUrl.TrimEnd('/') + "/not-registered");
             }
 
-            var jwt = jwtFactory.Create(user);
+            var jwt = jwtFactory.Create(user, flow.RememberMe);
 
             http.Response.Cookies.Append(HandoffCookie, jwt, new CookieOptions
             {

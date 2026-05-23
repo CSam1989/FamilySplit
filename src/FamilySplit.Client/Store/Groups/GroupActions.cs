@@ -31,3 +31,6 @@ public record JoinGroupFailureAction(string ErrorMessage);
 public record RegenerateInviteCodeAction(Guid GroupId);
 public record RegenerateInviteCodeSuccessAction(Guid GroupId, string NewInviteCode);
 public record RegenerateInviteCodeFailureAction(string ErrorMessage);
+
+// ── Clear error ───────────────────────────────────────────────────────────────
+public record ClearGroupErrorAction;

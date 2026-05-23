@@ -96,4 +96,10 @@ public static class GroupReducers
     [ReducerMethod]
     public static GroupState OnRegenerateFailure(GroupState state, RegenerateInviteCodeFailureAction action) =>
         state with { IsLoading = false, ErrorMessage = action.ErrorMessage };
+
+    // ── Clear error ───────────────────────────────────────────────────────────
+
+    [ReducerMethod(typeof(ClearGroupErrorAction))]
+    public static GroupState OnClearError(GroupState state) =>
+        state with { ErrorMessage = null };
 }

@@ -98,4 +98,10 @@ public static class FamilyReducers
     [ReducerMethod]
     public static FamilyState OnRemoveMemberFailure(FamilyState state, RemoveFamilyMemberFailureAction action) =>
         state with { IsLoading = false, ErrorMessage = action.ErrorMessage };
+
+    // ── Clear error ───────────────────────────────────────────────────────────
+
+    [ReducerMethod(typeof(ClearFamilyErrorAction))]
+    public static FamilyState OnClearError(FamilyState state) =>
+        state with { ErrorMessage = null };
 }

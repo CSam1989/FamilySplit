@@ -48,7 +48,7 @@ public class AdminService
         // Load all members in one query, group in memory.
         var familyIds = families.Select(f => f.Id).ToList();
         var allMembers = await _db.FamilyMembers
-            .Where(m => familyIds.Contains(m.FamilyId))
+            .Where(m => familyIds.Contains(m.FamilyId) && m.IsActive)
             .OrderBy(m => m.DisplayName)
             .ToListAsync();
 
@@ -117,7 +117,7 @@ public class AdminService
         if (emailNorm is not null)
         {
             var conflict = await _db.FamilyMembers
-                .AnyAsync(m => m.Email != null && m.Email.ToLower() == emailNorm);
+                .AnyAsync(m => m.IsActive && m.Email != null && m.Email.ToLower() == emailNorm);
             if (conflict)
                 throw Throw422("Email", "A family member with this email already exists.");
         }
@@ -173,7 +173,7 @@ public class AdminService
         if (emailNorm is not null && emailNorm != member.Email)
         {
             var conflict = await _db.FamilyMembers
-                .AnyAsync(m => m.Id != memberId && m.Email != null && m.Email.ToLower() == emailNorm);
+                .AnyAsync(m => m.IsActive && m.Id != memberId && m.Email != null && m.Email.ToLower() == emailNorm);
             if (conflict)
                 throw Throw422("Email", "A family member with this email already exists.");
         }
@@ -226,7 +226,7 @@ public class AdminService
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var members = await _db.FamilyMembers
-            .Where(m => m.FamilyId == familyId)
+            .Where(m => m.FamilyId == familyId && m.IsActive)
             .OrderBy(m => m.DisplayName)
             .ToListAsync();
 

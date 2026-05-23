@@ -49,10 +49,13 @@
                              Class="mb-4" />
         }
 
-        <MudCheckBox T="bool"
-                     @bind-Value="_model.IsAdmin"
-                     Label="Family admin (can manage members)"
-                     Class="mb-2" />
+        @if (ShowAdminToggle)
+        {
+            <MudCheckBox T="bool"
+                         @bind-Value="_model.IsAdmin"
+                         Label="Family admin (can manage members)"
+                         Class="mb-2" />
+        }
 
     </DialogContent>
     <DialogActions>
@@ -70,6 +73,9 @@
 
     /// <summary>Pre-populate the form when editing an existing member.</summary>
     [Parameter] public FamilyMemberFormModel? InitialValues { get; set; }
+
+    /// <summary>Whether to show the admin toggle. Pass false for non-admin callers.</summary>
+    [Parameter] public bool ShowAdminToggle { get; set; } = true;
 
     private FamilyMemberFormModel _model   = new();
     private DateTime?             _dobDate;

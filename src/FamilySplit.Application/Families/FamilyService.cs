@@ -82,7 +82,7 @@ public class FamilyService
         if (emailNorm is not null)
         {
             var conflict = await _db.FamilyMembers
-                .AnyAsync(m => m.Email != null && m.Email.ToLower() == emailNorm);
+                .AnyAsync(m => m.IsActive && m.Email != null && m.Email.ToLower() == emailNorm);
             if (conflict)
                 throw Throw422("Email", "A family member with this email already exists.");
         }
@@ -143,7 +143,7 @@ public class FamilyService
         if (emailNorm is not null && emailNorm != member.Email)
         {
             var conflict = await _db.FamilyMembers
-                .AnyAsync(m => m.Id != memberId && m.Email != null && m.Email.ToLower() == emailNorm);
+                .AnyAsync(m => m.IsActive && m.Id != memberId && m.Email != null && m.Email.ToLower() == emailNorm);
             if (conflict)
                 throw Throw422("Email", "A family member with this email already exists.");
         }
@@ -152,6 +152,10 @@ public class FamilyService
         member.Email          = emailNorm;
         member.DateOfBirth    = req.DateOfBirth;
         member.WeightOverride = req.WeightOverride;
+        // Only family admins may change the IsAdmin flag; non-admins editing their
+        // own profile cannot self-elevate or self-demote.
+        if (caller.IsAdmin)
+            member.IsAdmin = req.IsAdmin;
 
         await _db.SaveChangesAsync();
         return ToDto(member, DateOnly.FromDateTime(DateTime.UtcNow));

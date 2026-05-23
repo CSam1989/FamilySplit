@@ -32,8 +32,9 @@
                 return;
             }
 
-            await Auth.SetTokenAsync(response.Token);
-            Nav.NavigateTo("/", forceLoad: false);
+            var remember = await Auth.GetAndClearRememberAsync();
+            await Auth.SetTokenAsync(response.Token, remember);
+            Nav.NavigateTo("/", forceLoad: true);
         }
         catch (Refit.ApiException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
         {

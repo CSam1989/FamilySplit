@@ -1,15 +1,18 @@
 using Fluxor;
 using FamilySplit.Client.Services;
+using Microsoft.Extensions.Logging;
 
 namespace FamilySplit.Client.Store.FamilyMembers;
 
 public class FamilyMemberEffects
 {
     private readonly IFamilyMemberClient _client;
+    private readonly ILogger<FamilyMemberEffects> _logger;
 
-    public FamilyMemberEffects(IFamilyMemberClient client)
+    public FamilyMemberEffects(IFamilyMemberClient client, ILogger<FamilyMemberEffects> logger)
     {
         _client = client;
+        _logger = logger;
     }
 
     [EffectMethod(typeof(LoadMyProfileAction))]
@@ -22,7 +25,8 @@ public class FamilyMemberEffects
         }
         catch (Exception ex)
         {
-            dispatcher.Dispatch(new LoadMyProfileFailureAction(ex.Message));
+            _logger.LogError(ex, "Failed to load member profile");
+            dispatcher.Dispatch(new LoadMyProfileFailureAction(ErrorHelper.GetMessage(ex)));
         }
     }
 }

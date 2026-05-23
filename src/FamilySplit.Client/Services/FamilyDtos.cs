@@ -15,7 +15,8 @@ public record UpdateFamilyMemberRequest(
     string DisplayName,
     string? Email,
     DateOnly? DateOfBirth,
-    decimal? WeightOverride);
+    decimal? WeightOverride,
+    bool IsAdmin = false);
 
 // ── Response ──────────────────────────────────────────────────────────────────
 

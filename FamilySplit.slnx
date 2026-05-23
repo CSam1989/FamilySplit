@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/FamilySplit.Api/FamilySplit.Api.csproj" />
+    <Project Path="src/FamilySplit.Application/FamilySplit.Application.csproj" />
+    <Project Path="src/FamilySplit.Client/FamilySplit.Client.csproj" />
+    <Project Path="src/FamilySplit.Domain/FamilySplit.Domain.csproj" />
+    <Project Path="src/FamilySplit.Infrastructure/FamilySplit.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/FamilySplit.UnitTests/FamilySplit.UnitTests.csproj" />
+  </Folder>
+</Solution>

@@ -116,4 +116,10 @@ public static class AdminReducers
     [ReducerMethod]
     public static AdminState OnRemoveMemberFailure(AdminState state, RemoveAdminMemberFailureAction action) =>
         state with { IsLoading = false, ErrorMessage = action.ErrorMessage };
+
+    // ── Clear error ───────────────────────────────────────────────────────────
+
+    [ReducerMethod(typeof(ClearAdminErrorAction))]
+    public static AdminState OnClearError(AdminState state) =>
+        state with { ErrorMessage = null };
 }

@@ -31,3 +31,6 @@ public record UpdateAdminMemberFailureAction(string ErrorMessage);
 public record RemoveAdminMemberAction(Guid FamilyId, Guid MemberId);
 public record RemoveAdminMemberSuccessAction(Guid FamilyId, Guid MemberId);
 public record RemoveAdminMemberFailureAction(string ErrorMessage);
+
+// ── Clear error ───────────────────────────────────────────────────────────────
+public record ClearAdminErrorAction;

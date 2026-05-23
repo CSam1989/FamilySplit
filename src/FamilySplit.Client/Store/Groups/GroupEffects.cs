@@ -1,15 +1,18 @@
 using Fluxor;
 using FamilySplit.Client.Services;
+using Microsoft.Extensions.Logging;
 
 namespace FamilySplit.Client.Store.Groups;
 
 public class GroupEffects
 {
     private readonly IGroupClient _client;
+    private readonly ILogger<GroupEffects> _logger;
 
-    public GroupEffects(IGroupClient client)
+    public GroupEffects(IGroupClient client, ILogger<GroupEffects> logger)
     {
         _client = client;
+        _logger = logger;
     }
 
     [EffectMethod(typeof(LoadGroupsAction))]
@@ -22,7 +25,8 @@ public class GroupEffects
         }
         catch (Exception ex)
         {
-            dispatcher.Dispatch(new LoadGroupsFailureAction(ex.Message));
+            _logger.LogError(ex, "Failed to load groups");
+            dispatcher.Dispatch(new LoadGroupsFailureAction(ErrorHelper.GetMessage(ex)));
         }
     }
 
@@ -36,7 +40,8 @@ public class GroupEffects
         }
         catch (Exception ex)
         {
-            dispatcher.Dispatch(new LoadGroupDetailFailureAction(ex.Message));
+            _logger.LogError(ex, "Failed to load group {GroupId}", action.GroupId);
+            dispatcher.Dispatch(new LoadGroupDetailFailureAction(ErrorHelper.GetMessage(ex)));
         }
     }
 
@@ -50,7 +55,8 @@ public class GroupEffects
         }
         catch (Exception ex)
         {
-            dispatcher.Dispatch(new CreateGroupFailureAction(ex.Message));
+            _logger.LogError(ex, "Failed to create group");
+            dispatcher.Dispatch(new CreateGroupFailureAction(ErrorHelper.GetMessage(ex)));
         }
     }
 
@@ -64,7 +70,8 @@ public class GroupEffects
         }
         catch (Exception ex)
         {
-            dispatcher.Dispatch(new UpdateGroupFailureAction(ex.Message));
+            _logger.LogError(ex, "Failed to update group {GroupId}", action.GroupId);
+            dispatcher.Dispatch(new UpdateGroupFailureAction(ErrorHelper.GetMessage(ex)));
         }
     }
 
@@ -78,7 +85,8 @@ public class GroupEffects
         }
         catch (Exception ex)
         {
-            dispatcher.Dispatch(new JoinGroupFailureAction(ex.Message));
+            _logger.LogError(ex, "Failed to join group");
+            dispatcher.Dispatch(new JoinGroupFailureAction(ErrorHelper.GetMessage(ex)));
         }
     }
 
@@ -92,7 +100,8 @@ public class GroupEffects
         }
         catch (Exception ex)
         {
-            dispatcher.Dispatch(new RegenerateInviteCodeFailureAction(ex.Message));
+            _logger.LogError(ex, "Failed to regenerate invite code for group {GroupId}", action.GroupId);
+            dispatcher.Dispatch(new RegenerateInviteCodeFailureAction(ErrorHelper.GetMessage(ex)));
         }
     }
 }

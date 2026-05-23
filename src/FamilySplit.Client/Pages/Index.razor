@@ -42,7 +42,8 @@
             else
             {
                 <MudText Typo="Typo.body2" Class="mt-2">Not signed in.</MudText>
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-4"
+                <MudCheckBox @bind-Value="_rememberMe" Label="Remember me" Class="mt-3" />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-2"
                            StartIcon="@Icons.Material.Filled.Login"
                            OnClick="SignIn">
                     Sign in with Google
@@ -65,17 +66,21 @@
 </MudGrid>
 
 @code {
+    private bool _rememberMe;
+
     protected override void OnInitialized()
     {
         base.OnInitialized();
         // Auth check is driven by NavMenu; nothing extra needed here.
     }
 
-    private void SignIn()
+    private async Task SignIn()
     {
+        await Auth.SetRememberAsync(_rememberMe);
         var apiBaseUrl = Config["Api:BaseUrl"] ?? "https://localhost:5081";
         var returnUrl  = Nav.BaseUri.TrimEnd('/');
-        Nav.NavigateTo($"{apiBaseUrl}/auth/login/Google?returnUrl={Uri.EscapeDataString(returnUrl)}", forceLoad: true);
+        var rememberParam = _rememberMe ? "&remember=true" : string.Empty;
+        Nav.NavigateTo($"{apiBaseUrl}/auth/login/Google?returnUrl={Uri.EscapeDataString(returnUrl)}{rememberParam}", forceLoad: true);
     }
 
     private void SignOut() => Dispatcher.Dispatch(new SignOutAction());

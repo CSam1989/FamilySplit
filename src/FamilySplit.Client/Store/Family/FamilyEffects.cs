@@ -1,15 +1,18 @@
 using Fluxor;
 using FamilySplit.Client.Services;
+using Microsoft.Extensions.Logging;
 
 namespace FamilySplit.Client.Store.Family;
 
 public class FamilyEffects
 {
     private readonly IFamilyClient _client;
+    private readonly ILogger<FamilyEffects> _logger;
 
-    public FamilyEffects(IFamilyClient client)
+    public FamilyEffects(IFamilyClient client, ILogger<FamilyEffects> logger)
     {
         _client = client;
+        _logger = logger;
     }
 
     [EffectMethod(typeof(LoadMyFamilyAction))]
@@ -22,7 +25,8 @@ public class FamilyEffects
         }
         catch (Exception ex)
         {
-            dispatcher.Dispatch(new LoadMyFamilyFailureAction(ex.Message));
+            _logger.LogError(ex, "Failed to load family");
+            dispatcher.Dispatch(new LoadMyFamilyFailureAction(ErrorHelper.GetMessage(ex)));
         }
     }
 
@@ -36,7 +40,8 @@ public class FamilyEffects
         }
         catch (Exception ex)
         {
-            dispatcher.Dispatch(new UpdateFamilyNameFailureAction(ex.Message));
+            _logger.LogError(ex, "Failed to rename family");
+            dispatcher.Dispatch(new UpdateFamilyNameFailureAction(ErrorHelper.GetMessage(ex)));
         }
     }
 
@@ -52,7 +57,8 @@ public class FamilyEffects
         }
         catch (Exception ex)
         {
-            dispatcher.Dispatch(new AddFamilyMemberFailureAction(ex.Message));
+            _logger.LogError(ex, "Failed to add family member");
+            dispatcher.Dispatch(new AddFamilyMemberFailureAction(ErrorHelper.GetMessage(ex)));
         }
     }
 
@@ -66,7 +72,8 @@ public class FamilyEffects
         }
         catch (Exception ex)
         {
-            dispatcher.Dispatch(new UpdateFamilyMemberFailureAction(ex.Message));
+            _logger.LogError(ex, "Failed to update member {MemberId}", action.MemberId);
+            dispatcher.Dispatch(new UpdateFamilyMemberFailureAction(ErrorHelper.GetMessage(ex)));
         }
     }
 
@@ -80,7 +87,8 @@ public class FamilyEffects
         }
         catch (Exception ex)
         {
-            dispatcher.Dispatch(new RemoveFamilyMemberFailureAction(ex.Message));
+            _logger.LogError(ex, "Failed to remove member {MemberId}", action.MemberId);
+            dispatcher.Dispatch(new RemoveFamilyMemberFailureAction(ErrorHelper.GetMessage(ex)));
         }
     }
 }

@@ -17,7 +17,8 @@
 
 @if (State.Value.ErrorMessage is not null)
 {
-    <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true">
+    <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true"
+              CloseIconClicked="@(() => Dispatcher.Dispatch(new ClearGroupErrorAction()))">
         @State.Value.ErrorMessage
     </MudAlert>
 }

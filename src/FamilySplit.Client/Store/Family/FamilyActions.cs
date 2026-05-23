@@ -26,3 +26,6 @@ public record UpdateFamilyMemberFailureAction(string ErrorMessage);
 public record RemoveFamilyMemberAction(Guid MemberId);
 public record RemoveFamilyMemberSuccessAction(Guid MemberId);
 public record RemoveFamilyMemberFailureAction(string ErrorMessage);
+
+// ── Clear error ───────────────────────────────────────────────────────────────
+public record ClearFamilyErrorAction;

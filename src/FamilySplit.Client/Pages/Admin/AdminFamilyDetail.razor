@@ -1,8 +1,10 @@
 @page "/admin/families/{FamilyId:guid}"
 @using FamilySplit.Client.Store.Admin
+@using FamilySplit.Client.Store.FamilyMembers
 @inherits Fluxor.Blazor.Web.Components.FluxorComponent
 @inject IDispatcher Dispatcher
 @inject IState<AdminState> State
+@inject IState<FamilyMemberState> ProfileState
 @inject IDialogService DialogService
 @inject NavigationManager Nav
 
@@ -34,13 +36,20 @@
 
 @if (State.Value.ErrorMessage is not null)
 {
-    <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true">@State.Value.ErrorMessage</MudAlert>
+    <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true"
+              CloseIconClicked="@(() => Dispatcher.Dispatch(new ClearAdminErrorAction()))">
+        @State.Value.ErrorMessage
+    </MudAlert>
 }
 
 <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-1">
     <MudIcon Icon="@Icons.Material.Filled.FamilyRestroom" Color="Color.Primary" Size="Size.Large" />
     <MudText Typo="Typo.h5">@family.Name</MudText>
     <MudChip T="string" Color="Color.Error" Size="Size.Small">Global Admin</MudChip>
+    @if (IsOwnFamily)
+    {
+        <MudChip T="string" Color="Color.Info" Size="Size.Small" Icon="@Icons.Material.Filled.Home">Your family</MudChip>
+    }
 </MudStack>
 <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-4">
     ID: @family.Id · Created @family.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")
@@ -120,11 +129,14 @@ else
                                    Size="Size.Small"
                                    title="Edit member"
                                    OnClick="@(() => OpenEditMemberDialog(member))" />
-                    <MudIconButton Icon="@Icons.Material.Filled.PersonRemove"
-                                   Size="Size.Small"
-                                   Color="Color.Error"
-                                   title="Remove member"
-                                   OnClick="@(() => ConfirmRemoveMember(member))" />
+                    @if (member.Id != MyMemberId)
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.PersonRemove"
+                                       Size="Size.Small"
+                                       Color="Color.Error"
+                                       title="Remove member"
+                                       OnClick="@(() => ConfirmRemoveMember(member))" />
+                    }
                 </MudStack>
             </MudTd>
         </RowTemplate>
@@ -133,6 +145,10 @@ else
 
 @code {
     [Parameter] public Guid FamilyId { get; set; }
+
+    private Guid?  MyMemberId  => ProfileState.Value.MyProfile?.Id;
+    private bool   IsOwnFamily => MyMemberId.HasValue &&
+                                  (State.Value.SelectedFamily?.Members.Any(m => m.Id == MyMemberId.Value) ?? false);
 
     private List<BreadcrumbItem> _crumbs = [];
 
@@ -145,6 +161,8 @@ else
             new BreadcrumbItem("Family", href: null, disabled: true)
         ];
         Dispatcher.Dispatch(new LoadAdminFamilyAction(FamilyId));
+        if (ProfileState.Value.MyProfile is null)
+            Dispatcher.Dispatch(new LoadMyProfileAction());
     }
 
     protected override void OnParametersSet()
@@ -196,7 +214,8 @@ else
                     form.DisplayName,
                     string.IsNullOrWhiteSpace(form.Email) ? null : form.Email!.Trim(),
                     form.DateOfBirth,
-                    form.UseOverride ? form.WeightOverride : null)));
+                    form.UseOverride ? form.WeightOverride : null,
+                    form.IsAdmin)));
         }
     }
 

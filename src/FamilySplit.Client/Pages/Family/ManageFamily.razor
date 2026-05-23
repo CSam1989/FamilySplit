@@ -1,10 +1,12 @@
 @page "/families/mine"
 @page "/profile"
 @using FamilySplit.Client.Store.Family
+@using FamilySplit.Client.Store.FamilyMembers
 @using FamilySplit.Client.Services
 @inherits Fluxor.Blazor.Web.Components.FluxorComponent
 @inject IDispatcher Dispatcher
 @inject IState<FamilyState> State
+@inject IState<FamilyMemberState> ProfileState
 @inject IDialogService DialogService
 
 <PageTitle>My Family — FamilySplit</PageTitle>
@@ -33,12 +35,15 @@
         return;
     }
 
-    var isAdmin = family.Members.Any(m => m.IsLinked && m.IsAdmin);
+    var isAdmin = family.Members.FirstOrDefault(m => m.Id == ProfileState.Value.MyProfile?.Id)?.IsAdmin ?? false;
 }
 
 @if (State.Value.ErrorMessage is not null)
 {
-    <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true">@State.Value.ErrorMessage</MudAlert>
+    <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true"
+              CloseIconClicked="@(() => Dispatcher.Dispatch(new ClearFamilyErrorAction()))">
+        @State.Value.ErrorMessage
+    </MudAlert>
 }
 
 <!-- Header -->
@@ -136,11 +141,14 @@
                                    Size="Size.Small"
                                    title="Edit member"
                                    OnClick="@(() => OpenEditMemberDialog(member))" />
-                    <MudIconButton Icon="@Icons.Material.Filled.PersonRemove"
-                                   Size="Size.Small"
-                                   Color="Color.Error"
-                                   title="Remove member"
-                                   OnClick="@(() => ConfirmRemoveMember(member))" />
+                    @if (member.Id != ProfileState.Value.MyProfile?.Id)
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.PersonRemove"
+                                       Size="Size.Small"
+                                       Color="Color.Error"
+                                       title="Remove member"
+                                       OnClick="@(() => ConfirmRemoveMember(member))" />
+                    }
                 </MudStack>
             </MudTd>
         }
@@ -176,7 +184,11 @@
 
     private async Task OpenAddMemberDialog()
     {
-        var dialog = await DialogService.ShowAsync<FamilyMemberDialog>("Add member");
+        var parameters = new DialogParameters<FamilyMemberDialog>
+        {
+            { x => x.ShowAdminToggle, true }
+        };
+        var dialog = await DialogService.ShowAsync<FamilyMemberDialog>("Add member", parameters);
         var result = await dialog.Result;
 
         if (result is { Canceled: false, Data: FamilyMemberFormModel form })
@@ -204,9 +216,13 @@
             IsAdmin        = member.IsAdmin
         };
 
+        var callerIsAdmin = State.Value.MyFamily?.Members
+            .FirstOrDefault(m => m.Id == ProfileState.Value.MyProfile?.Id)?.IsAdmin ?? false;
+
         var parameters = new DialogParameters<FamilyMemberDialog>
         {
-            { x => x.InitialValues, initial }
+            { x => x.InitialValues,    initial },
+            { x => x.ShowAdminToggle,  callerIsAdmin }
         };
 
         var dialog = await DialogService.ShowAsync<FamilyMemberDialog>("Edit member", parameters);
@@ -218,7 +234,8 @@
                 form.DisplayName,
                 string.IsNullOrWhiteSpace(form.Email) ? null : form.Email!.Trim(),
                 form.DateOfBirth,
-                form.UseOverride ? form.WeightOverride : null)));
+                form.UseOverride ? form.WeightOverride : null,
+                form.IsAdmin)));
         }
     }
 

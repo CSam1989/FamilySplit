@@ -328,6 +328,49 @@ dotnet ef database update --startup-project ../FamilySplit.Api
 
 ---
 
+## Error Handling Conventions
+
+### API error response shapes
+
+The middleware produces two structured error bodies:
+
+**403 Forbidden** (`ForbiddenException`):
+```json
+{ "type": "...", "title": "Forbidden", "status": 403, "detail": "reason" }
+```
+
+**422 Unprocessable Entity** (`ValidationException`):
+```json
+{ "type": "...", "title": "Validation failed", "status": 422, "errors": { "Field": ["msg"] } }
+```
+
+### Client error handling rules
+
+1. **Never show raw HTTP status strings to users.** All Refit `ApiException`s must go through `ErrorHelper.GetMessage(ex)` (`Services/ErrorHelper.cs`), which parses the structured body above and falls back to a friendly status-code message.
+2. **Always log the full exception** in Effects before dispatching the failure action, using the injected `ILogger<T>`.
+3. **Every store feature** (Admin, Family, Groups, FamilyMembers) has a `Clear*ErrorAction` and a matching reducer that sets `ErrorMessage = null`. Effects dispatch this automatically — it is also dispatched from the UI when the user clicks the alert's close icon.
+4. **Every dismissable `MudAlert`** must wire `CloseIconClicked` to dispatch the store's `Clear*ErrorAction`:
+
+```razor
+<MudAlert Severity="Severity.Error" ShowCloseIcon="true"
+          CloseIconClicked="@(() => Dispatcher.Dispatch(new ClearFamilyErrorAction()))">
+    @State.Value.ErrorMessage
+</MudAlert>
+```
+
+5. **Soft-deleted records** (`IsActive = false`) must be excluded from every query. Always add `&& m.IsActive` when filtering `FamilyMembers`. Email uniqueness checks must also filter by `IsActive` so a deleted member's email can be reused.
+
+### UI permission guardrails
+
+Client-side controls must mirror every server-side permission check — if a user can't do it, the control must be hidden. Key rules:
+- `isAdmin` on ManageFamily/AdminFamilyDetail must be derived from the **current user's own member record** via `ProfileState.Value.MyProfile?.Id`, not from any member in the family.
+- The logged-in user's remove-member button is always hidden (both ManageFamily and AdminFamilyDetail).
+- The IsAdmin checkbox in `FamilyMemberDialog` is only shown when `ShowAdminToggle = true` (pass `callerIsAdmin`).
+- Admin pages (`/admin/*`) dispatch `LoadMyProfileAction` on init if `ProfileState.Value.MyProfile is null`, since they need the caller's identity for UI guards.
+- Use **computed C# properties** in `@code` (not `@{ }` template variables) for values that depend on async state — template variables are captured at first render and won't update when Fluxor state changes.
+
+---
+
 ## Phase Roadmap
 
 | Phase | Status | Scope |

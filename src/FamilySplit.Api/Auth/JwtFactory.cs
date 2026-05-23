@@ -17,13 +17,22 @@ public class JwtFactory
 
     public JwtFactory(IConfiguration config) => _config = config;
 
-    public string Create(User user)
+    public string Create(User user, bool rememberMe = false)
     {
         var jwt = _config.GetSection("Jwt");
         var signingKey = jwt["SigningKey"] ?? throw new InvalidOperationException("Missing Jwt:SigningKey.");
         var issuer = jwt["Issuer"] ?? "familysplit";
         var audience = jwt["Audience"] ?? "familysplit-client";
-        var lifetimeMinutes = int.TryParse(jwt["LifetimeMinutes"], out var lm) ? lm : 60;
+        int lifetimeMinutes;
+        if (rememberMe)
+        {
+            var days = int.TryParse(jwt["PersistentLifetimeDays"], out var d) ? d : 30;
+            lifetimeMinutes = days * 24 * 60;
+        }
+        else
+        {
+            lifetimeMinutes = int.TryParse(jwt["LifetimeMinutes"], out var lm) ? lm : 60;
+        }
 
         var creds = new SigningCredentials(
             new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)),

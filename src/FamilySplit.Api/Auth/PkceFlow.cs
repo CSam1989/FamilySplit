@@ -8,7 +8,7 @@ namespace FamilySplit.Api.Auth;
 /// Holds the per-login PKCE state. Lives inside an encrypted, HttpOnly,
 /// SameSite=Lax cookie for ~10 minutes during the round-trip to Google.
 /// </summary>
-public record OAuthFlowState(string State, string CodeVerifier, string ReturnUrl);
+public record OAuthFlowState(string State, string CodeVerifier, string ReturnUrl, bool RememberMe = false);
 
 /// <summary>
 /// Generates PKCE values and serialises <see cref="OAuthFlowState"/> into an
@@ -24,10 +24,11 @@ public class PkceFlow
         _protector = provider.CreateProtector("FamilySplit.OAuth.v1");
     }
 
-    public OAuthFlowState NewFlow(string returnUrl) => new(
+    public OAuthFlowState NewFlow(string returnUrl, bool rememberMe = false) => new(
         State: RandomBase64Url(32),
         CodeVerifier: RandomBase64Url(32),
-        ReturnUrl: returnUrl);
+        ReturnUrl: returnUrl,
+        RememberMe: rememberMe);
 
     public string DeriveCodeChallenge(string codeVerifier)
     {
@@ -38,7 +39,7 @@ public class PkceFlow
 
     public string Protect(OAuthFlowState state)
     {
-        var payload = $"{state.State}|{state.CodeVerifier}|{state.ReturnUrl}";
+        var payload = $"{state.State}|{state.CodeVerifier}|{state.ReturnUrl}|{(state.RememberMe ? "1" : "0")}";
         return _protector.Protect(payload);
     }
 
@@ -48,9 +49,10 @@ public class PkceFlow
         try
         {
             var plain = _protector.Unprotect(protectedPayload);
-            var parts = plain.Split('|', 3);
-            if (parts.Length != 3) return null;
-            return new OAuthFlowState(parts[0], parts[1], parts[2]);
+            var parts = plain.Split('|', 4);
+            if (parts.Length < 3) return null;
+            var rememberMe = parts.Length == 4 && parts[3] == "1";
+            return new OAuthFlowState(parts[0], parts[1], parts[2], rememberMe);
         }
         catch (CryptographicException)
         {
