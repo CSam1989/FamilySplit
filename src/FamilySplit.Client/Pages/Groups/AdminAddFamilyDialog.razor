@@ -1,0 +1,85 @@
+@inject IAdminClient AdminClient
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.GroupAdd" Class="mr-2" />
+            Add family to group
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_isLoading)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+        }
+        else if (_error is not null)
+        {
+            <MudAlert Severity="Severity.Error">@_error</MudAlert>
+        }
+        else if (_availableFamilies.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info">All families are already in this group.</MudAlert>
+        }
+        else
+        {
+            <MudSelect T="Guid?" Label="Select family" @bind-Value="_selectedFamilyId"
+                       Variant="Variant.Outlined"
+                       AnchorOrigin="Origin.BottomCenter"
+                       Class="mt-2">
+                @foreach (var f in _availableFamilies)
+                {
+                    <MudSelectItem T="Guid?" Value="@f.Id">@f.Name</MudSelectItem>
+                }
+            </MudSelect>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary"
+                   Variant="Variant.Filled"
+                   Disabled="@(_selectedFamilyId is null || _availableFamilies.Count == 0)"
+                   OnClick="Submit">
+            Add
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    /// <summary>Family IDs already in the group — used to filter out existing members.</summary>
+    [Parameter] public HashSet<Guid> ExistingFamilyIds { get; set; } = [];
+
+    private bool _isLoading = true;
+    private string? _error;
+    private List<FamilyDto> _availableFamilies = [];
+    private Guid? _selectedFamilyId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var all = await AdminClient.ListFamiliesAsync();
+            _availableFamilies = all
+                .Where(f => !ExistingFamilyIds.Contains(f.Id))
+                .OrderBy(f => f.Name)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            _error = ErrorHelper.GetMessage(ex);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void Submit()
+    {
+        if (_selectedFamilyId is null) return;
+        MudDialog.Close(DialogResult.Ok(_selectedFamilyId.Value));
+    }
+}

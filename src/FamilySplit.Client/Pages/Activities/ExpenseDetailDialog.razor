@@ -1,0 +1,91 @@
+@using FamilySplit.Client.Services
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@Expense.Title</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudStack Spacing="1" Class="mb-4">
+            @if (Expense.Description is not null)
+            {
+                <MudText Typo="Typo.body2" Color="Color.Secondary">@Expense.Description</MudText>
+            }
+            <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+                <MudIcon Icon="@Icons.Material.Filled.Person" Size="Size.Small" Color="Color.Secondary" />
+                <MudText Typo="Typo.body2">Paid by <strong>@Expense.PaidByName</strong> (@Expense.PaidByFamilyName)</MudText>
+            </MudStack>
+            <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+                <MudIcon Icon="@Icons.Material.Filled.CalendarToday" Size="Size.Small" Color="Color.Secondary" />
+                <MudText Typo="Typo.body2">@Expense.ExpenseDate.ToString("dd MMM yyyy")</MudText>
+            </MudStack>
+        </MudStack>
+
+        <MudDivider Class="mb-4" />
+
+        <MudText Typo="Typo.subtitle2" Class="mb-2">Split breakdown</MudText>
+
+        @{
+            var activeParticipants = Expense.Participants.Where(p => !p.IsExcluded).ToList();
+            var totalWeight = activeParticipants.Sum(p => p.WeightSnapshot);
+        }
+
+        <MudTable Items="activeParticipants" Dense="true" Elevation="0" Hover="true">
+            <HeaderContent>
+                <MudTh>Participant</MudTh>
+                <MudTh>Family</MudTh>
+                <MudTh Style="text-align:right">Weight</MudTh>
+                <MudTh Style="text-align:right">Share</MudTh>
+                <MudTh Style="text-align:right">Amount</MudTh>
+            </HeaderContent>
+            <RowTemplate Context="p">
+                <MudTd DataLabel="Participant">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                        <MudAvatar Size="Size.Small" Color="Color.Primary">@p.DisplayName[0]</MudAvatar>
+                        <MudText Typo="Typo.body2">@p.DisplayName</MudText>
+                    </MudStack>
+                </MudTd>
+                <MudTd DataLabel="Family">
+                    <MudText Typo="Typo.body2">@p.FamilyName</MudText>
+                </MudTd>
+                <MudTd DataLabel="Weight" Style="text-align:right">
+                    <MudText Typo="Typo.body2">@p.WeightSnapshot.ToString("0.##")×</MudText>
+                </MudTd>
+                <MudTd DataLabel="Share" Style="text-align:right">
+                    @{
+                        var pct = totalWeight > 0 ? p.WeightSnapshot / totalWeight * 100 : 0;
+                    }
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">@pct.ToString("0.#")%</MudText>
+                </MudTd>
+                <MudTd DataLabel="Amount" Style="text-align:right">
+                    <MudText Typo="Typo.body2"><strong>@p.CalculatedAmount.ToString("F2") @Expense.Currency</strong></MudText>
+                </MudTd>
+            </RowTemplate>
+            <FooterContent>
+                <MudTd colspan="3" />
+                <MudTd Style="text-align:right">
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Total</MudText>
+                </MudTd>
+                <MudTd Style="text-align:right">
+                    <MudText Typo="Typo.subtitle2">
+                        <strong>@Expense.TotalAmount.ToString("F2") @Expense.Currency</strong>
+                    </MudText>
+                </MudTd>
+            </FooterContent>
+        </MudTable>
+
+        @if (Expense.Participants.Any(p => p.IsExcluded))
+        {
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
+                @Expense.Participants.Count(p => p.IsExcluded) participant(s) excluded from this split.
+            </MudText>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => MudDialog.Close())">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public ExpenseDetailDto Expense { get; set; } = default!;
+}

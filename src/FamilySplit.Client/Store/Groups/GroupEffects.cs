@@ -141,4 +141,36 @@ public class GroupEffects
             dispatcher.Dispatch(new DeleteGroupFailureAction(ErrorHelper.GetMessage(ex)));
         }
     }
+
+    [EffectMethod]
+    public async Task HandleAdminAddFamily(AdminAddFamilyToGroupAction action, IDispatcher dispatcher)
+    {
+        try
+        {
+            await _adminClient.AddFamilyToGroupAsync(action.GroupId, new AdminAddFamilyToGroupRequest(action.FamilyId));
+            dispatcher.Dispatch(new AdminAddFamilyToGroupSuccessAction(action.GroupId));
+            dispatcher.Dispatch(new LoadGroupDetailAction(action.GroupId));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to add family {FamilyId} to group {GroupId}", action.FamilyId, action.GroupId);
+            dispatcher.Dispatch(new AdminAddFamilyToGroupFailureAction(ErrorHelper.GetMessage(ex)));
+        }
+    }
+
+    [EffectMethod]
+    public async Task HandleAdminRemoveFamily(AdminRemoveFamilyFromGroupAction action, IDispatcher dispatcher)
+    {
+        try
+        {
+            await _adminClient.RemoveFamilyFromGroupAsync(action.GroupId, action.FamilyId);
+            dispatcher.Dispatch(new AdminRemoveFamilyFromGroupSuccessAction(action.GroupId));
+            dispatcher.Dispatch(new LoadGroupDetailAction(action.GroupId));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to remove family {FamilyId} from group {GroupId}", action.FamilyId, action.GroupId);
+            dispatcher.Dispatch(new AdminRemoveFamilyFromGroupFailureAction(ErrorHelper.GetMessage(ex)));
+        }
+    }
 }

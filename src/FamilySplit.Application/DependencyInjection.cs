@@ -23,9 +23,11 @@ public static class DependencyInjection
         services.AddScoped<Core.ParticipantSeeder>();
         services.AddScoped<Activities.ActivityService>();
 
-        // ── Future phases ─────────────────────────────────────────────────────
-        //   services.AddScoped<Expenses.ExpenseService>();
-        //   services.AddScoped<Settlements.SettlementService>();
+        // ── Phase 5: Expenses ─────────────────────────────────────────────────
+        services.AddScoped<Expenses.ExpenseService>();
+
+        // ── Phase 6: Settlements ──────────────────────────────────────────────
+        services.AddScoped<Settlements.SettlementService>();
 
         return services;
     }

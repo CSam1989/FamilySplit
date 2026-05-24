@@ -1,6 +1,8 @@
 using FamilySplit.Client;
 using FamilySplit.Client.Services;
 using FamilySplit.Client.Store.Activities;
+using FamilySplit.Client.Store.Expenses;
+using FamilySplit.Client.Store.Settlements;
 using FamilySplit.Client.Store.Admin;
 using FamilySplit.Client.Store.Auth;
 using FamilySplit.Client.Store.Family;
@@ -31,6 +33,8 @@ builder.Services.AddScoped<FamilyMemberEffects>();
 builder.Services.AddScoped<FamilyEffects>();
 builder.Services.AddScoped<GroupEffects>();
 builder.Services.AddScoped<ActivityEffects>();
+builder.Services.AddScoped<ExpenseEffects>();
+builder.Services.AddScoped<SettlementEffects>();
 
 // --- Auth (sessionStorage-backed) -------------------------------------------------
 builder.Services.AddScoped<AuthService>();
@@ -74,6 +78,16 @@ builder.Services
 
 builder.Services
     .AddRefitClient<IActivityClient>()
+    .ConfigureHttpClient(c => c.BaseAddress = new Uri(apiBaseUrl))
+    .AddHttpMessageHandler<JwtAuthHandler>();
+
+builder.Services
+    .AddRefitClient<IExpenseClient>()
+    .ConfigureHttpClient(c => c.BaseAddress = new Uri(apiBaseUrl))
+    .AddHttpMessageHandler<JwtAuthHandler>();
+
+builder.Services
+    .AddRefitClient<ISettlementClient>()
     .ConfigureHttpClient(c => c.BaseAddress = new Uri(apiBaseUrl))
     .AddHttpMessageHandler<JwtAuthHandler>();
 

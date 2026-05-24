@@ -27,6 +27,14 @@ public interface IAdminClient
 
     [Delete("/admin/groups/{groupId}")]
     Task DeleteGroupAsync(Guid groupId);
+
+    [Post("/admin/groups/{groupId}/families")]
+    Task AddFamilyToGroupAsync(Guid groupId, [Body] AdminAddFamilyToGroupRequest request);
+
+    [Delete("/admin/groups/{groupId}/families/{familyId}")]
+    Task RemoveFamilyFromGroupAsync(Guid groupId, Guid familyId);
 }
 
 public record CreateFamilyRequest(string Name);
+
+public record AdminAddFamilyToGroupRequest(Guid FamilyId);

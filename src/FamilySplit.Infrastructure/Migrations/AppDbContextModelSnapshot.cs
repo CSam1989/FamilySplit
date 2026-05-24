@@ -579,9 +579,9 @@ namespace FamilySplit.Infrastructure.Migrations
                         .HasColumnType("character varying(500)")
                         .HasColumnName("notes");
 
-                    b.Property<Guid>("PayerUserId")
+                    b.Property<Guid>("PayerFamilyId")
                         .HasColumnType("uuid")
-                        .HasColumnName("payer_user_id");
+                        .HasColumnName("payer_family_id");
 
                     b.Property<DateTimeOffset>("ProposedAt")
                         .ValueGeneratedOnAdd()
@@ -589,9 +589,9 @@ namespace FamilySplit.Infrastructure.Migrations
                         .HasColumnName("proposed_at")
                         .HasDefaultValueSql("now()");
 
-                    b.Property<Guid>("ReceiverUserId")
+                    b.Property<Guid>("ReceiverFamilyId")
                         .HasColumnType("uuid")
-                        .HasColumnName("receiver_user_id");
+                        .HasColumnName("receiver_family_id");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -603,9 +603,9 @@ namespace FamilySplit.Infrastructure.Migrations
 
                     b.HasIndex("ActivityId");
 
-                    b.HasIndex("PayerUserId");
+                    b.HasIndex("PayerFamilyId");
 
-                    b.HasIndex("ReceiverUserId");
+                    b.HasIndex("ReceiverFamilyId");
 
                     b.ToTable("settlements", null, t =>
                         {
@@ -859,23 +859,23 @@ namespace FamilySplit.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("FamilySplit.Domain.Entities.User", "Payer")
+                    b.HasOne("FamilySplit.Domain.Entities.Family", "PayerFamily")
                         .WithMany()
-                        .HasForeignKey("PayerUserId")
+                        .HasForeignKey("PayerFamilyId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("FamilySplit.Domain.Entities.User", "Receiver")
+                    b.HasOne("FamilySplit.Domain.Entities.Family", "ReceiverFamily")
                         .WithMany()
-                        .HasForeignKey("ReceiverUserId")
+                        .HasForeignKey("ReceiverFamilyId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Activity");
 
-                    b.Navigation("Payer");
+                    b.Navigation("PayerFamily");
 
-                    b.Navigation("Receiver");
+                    b.Navigation("ReceiverFamily");
                 });
 
             modelBuilder.Entity("FamilySplit.Domain.Entities.Activity", b =>

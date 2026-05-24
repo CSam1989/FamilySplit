@@ -135,6 +135,34 @@ public static class GroupReducers
     public static GroupState OnDeleteFailure(GroupState state, DeleteGroupFailureAction action) =>
         state with { IsLoading = false, ErrorMessage = action.ErrorMessage };
 
+    // ── Admin: Add family to group ────────────────────────────────────────────
+
+    [ReducerMethod(typeof(AdminAddFamilyToGroupAction))]
+    public static GroupState OnAdminAddFamily(GroupState state) =>
+        state with { IsLoading = true, ErrorMessage = null };
+
+    [ReducerMethod(typeof(AdminAddFamilyToGroupSuccessAction))]
+    public static GroupState OnAdminAddFamilySuccess(GroupState state) =>
+        state with { IsLoading = false };
+
+    [ReducerMethod]
+    public static GroupState OnAdminAddFamilyFailure(GroupState state, AdminAddFamilyToGroupFailureAction action) =>
+        state with { IsLoading = false, ErrorMessage = action.ErrorMessage };
+
+    // ── Admin: Remove family from group ──────────────────────────────────────
+
+    [ReducerMethod(typeof(AdminRemoveFamilyFromGroupAction))]
+    public static GroupState OnAdminRemoveFamily(GroupState state) =>
+        state with { IsLoading = true, ErrorMessage = null };
+
+    [ReducerMethod(typeof(AdminRemoveFamilyFromGroupSuccessAction))]
+    public static GroupState OnAdminRemoveFamilySuccess(GroupState state) =>
+        state with { IsLoading = false };
+
+    [ReducerMethod]
+    public static GroupState OnAdminRemoveFamilyFailure(GroupState state, AdminRemoveFamilyFromGroupFailureAction action) =>
+        state with { IsLoading = false, ErrorMessage = action.ErrorMessage };
+
     // ── Clear error ───────────────────────────────────────────────────────────
 
     [ReducerMethod(typeof(ClearGroupErrorAction))]

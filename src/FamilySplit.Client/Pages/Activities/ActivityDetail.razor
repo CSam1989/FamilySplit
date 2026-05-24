@@ -1,12 +1,17 @@
 @page "/groups/{GroupId:guid}/activities/{ActivityId:guid}"
-@using FamilySplit.Client.Store.Activities
 @using FamilySplit.Client.Store.Groups
-@using FamilySplit.Client.Services
+@using FamilySplit.Client.Store.Settlements
+@using FamilySplit.Client.Store.FamilyMembers
+@using FamilySplit.Client.Store.Family
 @using FamilySplit.Domain.Enums
 @inherits Fluxor.Blazor.Web.Components.FluxorComponent
 @inject IDispatcher Dispatcher
 @inject IState<ActivityState> State
+@inject IState<ExpenseState> ExpenseState
 @inject IState<GroupState> GroupState
+@inject IState<SettlementState> SettlementState
+@inject IState<FamilyMemberState> ProfileState
+@inject IState<FamilyState> FamilyState
 @inject IDialogService DialogService
 @inject NavigationManager Nav
 
@@ -33,7 +38,9 @@
 @{
     var activity = State.Value.SelectedActivity;
     if (activity is null) return;
-    var isOpen = activity.Status == ActivityStatus.Open;
+    var isOpen   = activity.Status == ActivityStatus.Open;
+    var isClosed = activity.Status == ActivityStatus.Closed;
+    var isSettled = activity.Status == ActivityStatus.Settled;
     var statusColor = activity.Status switch
     {
         ActivityStatus.Open             => Color.Success,
@@ -42,6 +49,7 @@
         ActivityStatus.Settled          => Color.Info,
         _                               => Color.Default
     };
+    var callerFamilyId = FamilyState.Value.MyFamily?.Id;
 }
 
 <MudBreadcrumbs Items="_crumbs" Class="mb-2" />
@@ -164,6 +172,102 @@ else
     </MudButton>
 }
 
+<!-- Expenses -->
+<MudText Typo="Typo.h6" Class="mb-3">
+    Expenses
+    <MudChip T="string" Size="Size.Small" Color="Color.Default" Class="ml-1">
+        @ExpenseState.Value.Expenses.Count
+    </MudChip>
+    @if (ExpenseState.Value.Expenses.Count > 0)
+    {
+        <MudChip T="string" Size="Size.Small" Color="Color.Primary" Class="ml-1">
+            @ExpenseState.Value.Expenses.Sum(e => e.TotalAmount).ToString("F2") @(ExpenseState.Value.Expenses.FirstOrDefault()?.Currency ?? "EUR")
+        </MudChip>
+    }
+</MudText>
+
+@if (ExpenseState.Value.ErrorMessage is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-3" ShowCloseIcon="true"
+              CloseIconClicked="@(() => Dispatcher.Dispatch(new ClearExpenseErrorAction()))">
+        @ExpenseState.Value.ErrorMessage
+    </MudAlert>
+}
+
+@if (ExpenseState.Value.IsLoading && ExpenseState.Value.Expenses.Count == 0)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-4" />
+}
+else if (ExpenseState.Value.Expenses.Count == 0)
+{
+    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">No expenses yet.</MudText>
+}
+else
+{
+    <MudTable Items="ExpenseState.Value.Expenses" Dense="true" Hover="true" Elevation="1" Class="mb-4">
+        <HeaderContent>
+            <MudTh>Title</MudTh>
+            <MudTh>Date</MudTh>
+            <MudTh>Paid by</MudTh>
+            <MudTh Style="text-align:right">Amount</MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate Context="e">
+            <MudTd DataLabel="Title">
+                <MudText Typo="Typo.body2">@e.Title</MudText>
+                @if (e.Description is not null)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">@e.Description</MudText>
+                }
+            </MudTd>
+            <MudTd DataLabel="Date">
+                <MudText Typo="Typo.body2">@e.ExpenseDate.ToString("dd MMM yyyy")</MudText>
+            </MudTd>
+            <MudTd DataLabel="Paid by">
+                <MudText Typo="Typo.body2">@e.PaidByName</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">@e.PaidByFamilyName</MudText>
+            </MudTd>
+            <MudTd DataLabel="Amount" Style="text-align:right">
+                <MudText Typo="Typo.body2"><strong>@e.TotalAmount.ToString("F2") @e.Currency</strong></MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">@e.ParticipantCount participants</MudText>
+            </MudTd>
+            <MudTd Style="text-align:right">
+                <MudStack Row="true" Spacing="0" Justify="Justify.FlexEnd">
+                    <MudTooltip Text="View breakdown">
+                        <MudIconButton Icon="@Icons.Material.Filled.BarChart"
+                                       Size="Size.Small"
+                                       OnClick="@(() => OpenExpenseDetail(e.Id))" />
+                    </MudTooltip>
+                    @if (activity.Status != ActivityStatus.Settled && e.Status != ExpenseStatus.Locked)
+                    {
+                        <MudTooltip Text="Edit">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                           Size="Size.Small"
+                                           OnClick="@(() => OpenEditExpenseDialog(e))" />
+                        </MudTooltip>
+                        <MudTooltip Text="Delete">
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                           Size="Size.Small"
+                                           Color="Color.Error"
+                                           OnClick="@(() => ConfirmDeleteExpense(e))" />
+                        </MudTooltip>
+                    }
+                </MudStack>
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@if (activity.Status != ActivityStatus.Settled)
+{
+    <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.AddShoppingCart"
+               OnClick="OpenAddExpenseDialog"
+               Class="mb-6">
+        Add expense
+    </MudButton>
+}
+
 <!-- Sub-activities (top-level only) -->
 @if (activity.ParentActivityId is null)
 {
@@ -211,6 +315,144 @@ else
     }
 }
 
+<!-- ═══════════════════════════════════════════════════════════════════════════ -->
+<!-- Settlements (visible on Closed or Settled activities, top-level only)     -->
+<!-- ═══════════════════════════════════════════════════════════════════════════ -->
+@if ((isClosed || isSettled) && activity.ParentActivityId is null)
+{
+    <MudDivider Class="my-6" />
+
+    <MudText Typo="Typo.h6" Class="mb-3">
+        Settlements
+        @if (isSettled)
+        {
+            <MudChip T="string" Size="Size.Small" Color="Color.Info" Class="ml-1">
+                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" Class="mr-1" />
+                Settled
+            </MudChip>
+        }
+    </MudText>
+
+    @if (SettlementState.Value.ErrorMessage is not null)
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-3" ShowCloseIcon="true"
+                  CloseIconClicked="@(() => Dispatcher.Dispatch(new ClearSettlementErrorAction()))">
+            @SettlementState.Value.ErrorMessage
+        </MudAlert>
+    }
+
+    <!-- Per-family balance summary -->
+    @if (SettlementState.Value.Balances.Count > 0)
+    {
+        <MudText Typo="Typo.subtitle2" Class="mb-2">Balance summary</MudText>
+        <MudGrid Spacing="2" Class="mb-4">
+            @foreach (var b in SettlementState.Value.Balances)
+            {
+                var balColor = b.Balance > 0 ? Color.Success : b.Balance < 0 ? Color.Error : Color.Default;
+                var balIcon  = b.Balance > 0 ? Icons.Material.Filled.TrendingUp
+                             : b.Balance < 0 ? Icons.Material.Filled.TrendingDown
+                             : Icons.Material.Filled.HorizontalRule;
+                <MudItem xs="12" sm="6" md="4">
+                    <MudPaper Elevation="1" Class="pa-3">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                            <MudIcon Icon="@balIcon" Color="@balColor" />
+                            <div style="flex:1">
+                                <MudText Typo="Typo.subtitle2">@b.FamilyName</MudText>
+                                <MudText Typo="Typo.body2" Color="@balColor">
+                                    @(b.Balance >= 0 ? "+" : "")@b.Balance.ToString("F2") @b.Currency
+                                </MudText>
+                            </div>
+                        </MudStack>
+                    </MudPaper>
+                </MudItem>
+            }
+        </MudGrid>
+    }
+
+    @if (SettlementState.Value.IsLoading || SettlementState.Value.IsGenerating)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-4" />
+    }
+    else if (isClosed && SettlementState.Value.Settlements.Count == 0)
+    {
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+            No settlements generated yet. Generate them to calculate what each family owes.
+        </MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Calculate"
+                   OnClick="GenerateSettlements"
+                   Disabled="SettlementState.Value.IsGenerating"
+                   Class="mb-4">
+            Generate settlements
+        </MudButton>
+    }
+    else if (SettlementState.Value.Settlements.Count == 0 && isSettled)
+    {
+        <MudAlert Severity="Severity.Success">All balances were already even — no transfers needed.</MudAlert>
+    }
+    else if (SettlementState.Value.Settlements.Count > 0)
+    {
+        <MudTable Items="SettlementState.Value.Settlements" Dense="true" Hover="true" Elevation="1" Class="mb-4">
+            <HeaderContent>
+                <MudTh>From</MudTh>
+                <MudTh>To</MudTh>
+                <MudTh Style="text-align:right">Amount</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate Context="s">
+                @{
+                    var sColor = s.Status switch
+                    {
+                        SettlementStatus.Proposed  => Color.Warning,
+                        SettlementStatus.PayerSent => Color.Info,
+                        SettlementStatus.Completed => Color.Success,
+                        SettlementStatus.Cancelled => Color.Error,
+                        _                          => Color.Default
+                    };
+                    var isCallerPayer    = callerFamilyId == s.PayerFamilyId;
+                    var isCallerReceiver = callerFamilyId == s.ReceiverFamilyId;
+                }
+                <MudTd DataLabel="From">
+                    <MudText Typo="Typo.body2">@s.PayerFamilyName</MudText>
+                </MudTd>
+                <MudTd DataLabel="To">
+                    <MudText Typo="Typo.body2">@s.ReceiverFamilyName</MudText>
+                </MudTd>
+                <MudTd DataLabel="Amount" Style="text-align:right">
+                    <strong>@s.Amount.ToString("F2") @s.Currency</strong>
+                </MudTd>
+                <MudTd DataLabel="Status">
+                    <MudChip T="string" Color="@sColor" Size="Size.Small">@s.Status</MudChip>
+                </MudTd>
+                <MudTd Style="text-align:right">
+                    <MudStack Row="true" Spacing="1" Justify="Justify.FlexEnd">
+                        @if (s.Status == SettlementStatus.Proposed && isCallerPayer)
+                        {
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                                       OnClick="@(() => ConfirmSent(s))">
+                                Mark sent
+                            </MudButton>
+                        }
+                        @if (s.Status == SettlementStatus.PayerSent && isCallerReceiver)
+                        {
+                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
+                                       OnClick="@(() => ConfirmReceived(s))">
+                                Confirm received
+                            </MudButton>
+                        }
+                        <MudTooltip Text="View detail">
+                            <MudIconButton Icon="@Icons.Material.Filled.Info"
+                                           Size="Size.Small"
+                                           OnClick="@(() => OpenSettlementDetail(s.Id))" />
+                        </MudTooltip>
+                    </MudStack>
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+}
+
 @code {
     [Parameter] public Guid GroupId { get; set; }
     [Parameter] public Guid ActivityId { get; set; }
@@ -222,6 +464,11 @@ else
         base.OnInitialized();
         BuildCrumbs();
         Dispatcher.Dispatch(new LoadActivityDetailAction(GroupId, ActivityId));
+        Dispatcher.Dispatch(new LoadExpensesAction(GroupId, ActivityId));
+        // Ensure the caller's family is loaded (needed for settlement permission checks).
+        if (FamilyState.Value.MyFamily is null)
+            Dispatcher.Dispatch(new LoadMyFamilyAction());
+        LoadSettlementsIfNeeded();
     }
 
     protected override void OnParametersSet()
@@ -230,7 +477,37 @@ else
         {
             BuildCrumbs();
             Dispatcher.Dispatch(new LoadActivityDetailAction(GroupId, ActivityId));
+            Dispatcher.Dispatch(new LoadExpensesAction(GroupId, ActivityId));
+            Dispatcher.Dispatch(new ClearSettlementsAction());
         }
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        base.OnAfterRender(firstRender);
+
+        // Once the activity loads, we know if it's closed/settled; load settlements then.
+        var activity = State.Value.SelectedActivity;
+        if (activity is not null
+            && activity.ParentActivityId is null
+            && (activity.Status == ActivityStatus.Closed || activity.Status == ActivityStatus.Settled)
+            && SettlementState.Value.Settlements.Count == 0
+            && !SettlementState.Value.IsLoading
+            && !SettlementState.Value.IsGenerating)
+        {
+            LoadSettlementsIfNeeded();
+        }
+    }
+
+    private void LoadSettlementsIfNeeded()
+    {
+        var activity = State.Value.SelectedActivity;
+        if (activity is null) return;
+        if (activity.ParentActivityId is not null) return;
+        if (activity.Status != ActivityStatus.Closed && activity.Status != ActivityStatus.Settled) return;
+
+        Dispatcher.Dispatch(new LoadSettlementsAction(GroupId, ActivityId));
+        Dispatcher.Dispatch(new LoadBalancesAction(GroupId, ActivityId));
     }
 
     private void BuildCrumbs()
@@ -304,7 +581,6 @@ else
         var activity = State.Value.SelectedActivity!;
         var existingIds = activity.Participants.Select(p => p.FamilyMemberId).ToHashSet();
 
-        // Collect all members in the group that are NOT yet participants.
         var groupDetail = GroupState.Value.SelectedGroup;
         if (groupDetail is null) return;
 
@@ -344,5 +620,140 @@ else
 
         if (confirmed == true)
             Dispatcher.Dispatch(new RemoveParticipantAction(GroupId, ActivityId, p.FamilyMemberId));
+    }
+
+    // ── Expenses ──────────────────────────────────────────────────────────────
+
+    private async Task OpenAddExpenseDialog()
+    {
+        var dialog = await DialogService.ShowAsync<ExpenseDialog>("Add expense",
+            new DialogParameters<ExpenseDialog> { { x => x.IsEdit, false } });
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: ExpenseFormModel form })
+        {
+            Dispatcher.Dispatch(new CreateExpenseAction(GroupId, ActivityId,
+                new CreateExpenseRequest(
+                    form.Title,
+                    form.Description,
+                    form.TotalAmount,
+                    form.Currency,
+                    DateOnly.FromDateTime(form.ExpenseDate),
+                    null)));
+        }
+    }
+
+    private async Task OpenEditExpenseDialog(ExpenseSummaryDto expense)
+    {
+        var dialog = await DialogService.ShowAsync<ExpenseDialog>("Edit expense",
+            new DialogParameters<ExpenseDialog>
+            {
+                { x => x.IsEdit,             true },
+                { x => x.InitialTitle,       expense.Title },
+                { x => x.InitialDescription, expense.Description },
+                { x => x.InitialAmount,      expense.TotalAmount },
+                { x => x.InitialCurrency,    expense.Currency },
+                { x => x.InitialDate,        expense.ExpenseDate },
+            });
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: ExpenseFormModel form })
+        {
+            Dispatcher.Dispatch(new UpdateExpenseAction(GroupId, ActivityId, expense.Id,
+                new UpdateExpenseRequest(
+                    form.Title,
+                    form.Description,
+                    form.TotalAmount,
+                    form.Currency,
+                    DateOnly.FromDateTime(form.ExpenseDate),
+                    null)));
+        }
+    }
+
+    private async Task OpenExpenseDetail(Guid expenseId)
+    {
+        Dispatcher.Dispatch(new LoadExpenseDetailAction(GroupId, ActivityId, expenseId));
+
+        for (var i = 0; i < 30; i++)
+        {
+            if (ExpenseState.Value.SelectedExpense?.Id == expenseId) break;
+            await Task.Delay(100);
+        }
+
+        var expense = ExpenseState.Value.SelectedExpense;
+        if (expense is null) return;
+
+        await DialogService.ShowAsync<ExpenseDetailDialog>("Expense breakdown",
+            new DialogParameters<ExpenseDetailDialog>
+            {
+                { x => x.Expense, expense }
+            });
+    }
+
+    private async Task ConfirmDeleteExpense(ExpenseSummaryDto expense)
+    {
+        bool? confirmed = await DialogService.ShowMessageBox(
+            "Delete expense",
+            $"Delete \"{expense.Title}\" ({expense.TotalAmount:F2} {expense.Currency})? This cannot be undone.",
+            yesText: "Delete", cancelText: "Cancel");
+
+        if (confirmed == true)
+            Dispatcher.Dispatch(new DeleteExpenseAction(GroupId, ActivityId, expense.Id));
+    }
+
+    // ── Settlements ───────────────────────────────────────────────────────────
+
+    private async Task GenerateSettlements()
+    {
+        bool? confirmed = await DialogService.ShowMessageBox(
+            "Generate settlements",
+            "Calculate and propose the optimal payment transfers for this activity? This will use the current expense data.",
+            yesText: "Generate", cancelText: "Cancel");
+
+        if (confirmed == true)
+        {
+            Dispatcher.Dispatch(new GenerateSettlementsAction(GroupId, ActivityId));
+            Dispatcher.Dispatch(new LoadBalancesAction(GroupId, ActivityId));
+        }
+    }
+
+    private async Task ConfirmSent(SettlementSummaryDto settlement)
+    {
+        bool? confirmed = await DialogService.ShowMessageBox(
+            "Confirm payment sent",
+            $"Confirm that {settlement.PayerFamilyName} has sent {settlement.Amount:F2} {settlement.Currency} to {settlement.ReceiverFamilyName}?",
+            yesText: "Confirm", cancelText: "Cancel");
+
+        if (confirmed == true)
+            Dispatcher.Dispatch(new ConfirmSentAction(GroupId, ActivityId, settlement.Id));
+    }
+
+    private async Task ConfirmReceived(SettlementSummaryDto settlement)
+    {
+        bool? confirmed = await DialogService.ShowMessageBox(
+            "Confirm payment received",
+            $"Confirm that {settlement.ReceiverFamilyName} has received {settlement.Amount:F2} {settlement.Currency} from {settlement.PayerFamilyName}?",
+            yesText: "Confirm", cancelText: "Cancel");
+
+        if (confirmed == true)
+            Dispatcher.Dispatch(new ConfirmReceivedAction(GroupId, ActivityId, settlement.Id));
+    }
+
+    private async Task OpenSettlementDetail(Guid settlementId)
+    {
+        Dispatcher.Dispatch(new LoadSettlementDetailAction(GroupId, ActivityId, settlementId));
+
+        for (var i = 0; i < 30; i++)
+        {
+            if (SettlementState.Value.SelectedSettlement?.Id == settlementId) break;
+            await Task.Delay(100);
+        }
+
+        var settlement = SettlementState.Value.SelectedSettlement;
+        if (settlement is null) return;
+
+        await DialogService.ShowAsync<SettlementDetailDialog>("Settlement detail",
+            new DialogParameters<SettlementDetailDialog>
+            {
+                { x => x.Settlement, settlement }
+            });
     }
 }

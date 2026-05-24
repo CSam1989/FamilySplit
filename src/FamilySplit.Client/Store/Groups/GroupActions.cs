@@ -42,5 +42,15 @@ public record DeleteGroupAction(Guid GroupId);
 public record DeleteGroupSuccessAction(Guid GroupId);
 public record DeleteGroupFailureAction(string ErrorMessage);
 
+// ── Admin: Add family to group ────────────────────────────────────────────────
+public record AdminAddFamilyToGroupAction(Guid GroupId, Guid FamilyId);
+public record AdminAddFamilyToGroupSuccessAction(Guid GroupId);
+public record AdminAddFamilyToGroupFailureAction(string ErrorMessage);
+
+// ── Admin: Remove family from group ──────────────────────────────────────────
+public record AdminRemoveFamilyFromGroupAction(Guid GroupId, Guid FamilyId);
+public record AdminRemoveFamilyFromGroupSuccessAction(Guid GroupId);
+public record AdminRemoveFamilyFromGroupFailureAction(string ErrorMessage);
+
 // ── Clear error ───────────────────────────────────────────────────────────────
 public record ClearGroupErrorAction;

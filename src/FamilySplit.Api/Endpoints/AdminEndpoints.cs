@@ -76,6 +76,24 @@ public static class AdminEndpoints
                 return Results.NoContent();
             });
 
+        // POST /admin/groups/{groupId}/families — add a family to a group
+        grp.MapPost("/groups/{groupId:guid}/families",
+            async (Guid groupId, AdminAddFamilyToGroupRequest req, AdminService svc, HttpContext ctx) =>
+            {
+                var callerId = ctx.User.GetUserId();
+                await svc.AddFamilyToGroupAsync(groupId, req.FamilyId, callerId);
+                return Results.NoContent();
+            });
+
+        // DELETE /admin/groups/{groupId}/families/{familyId} — remove a family from a group
+        grp.MapDelete("/groups/{groupId:guid}/families/{familyId:guid}",
+            async (Guid groupId, Guid familyId, AdminService svc, HttpContext ctx) =>
+            {
+                var callerId = ctx.User.GetUserId();
+                await svc.RemoveFamilyFromGroupAsync(groupId, familyId, callerId);
+                return Results.NoContent();
+            });
+
         return app;
     }
 }

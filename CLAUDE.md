@@ -135,6 +135,8 @@ Expenses are split by weight, calculated from date of birth at expense-save time
 | `GroupsEndpoints.cs` | `/groups` | Group CRUD, join, invite code regeneration |
 | `GroupMembersEndpoints.cs` | — | No-op stub (replaced by Family endpoints) |
 | `ActivityEndpoints.cs` | `/groups/{groupId}/activities` | Activity CRUD, sub-activities, close, participant add/remove |
+| `ExpenseEndpoints.cs` | `/groups/{groupId}/activities/{activityId}/expenses` | Expense CRUD (list, get, create, update, delete) |
+| `SettlementEndpoints.cs` | `/groups/{groupId}/activities/{activityId}/settlements` | Settlement generate, list, detail, confirm-sent, confirm-received; plus `/balances` GET |
 
 ### Authorization
 All endpoints except `/auth/*`, `/health`, and Scalar/OpenAPI require a valid JWT (`RequireAuthorization()`). Global-admin checks are enforced inside `AdminService.RequireGlobalAdminAsync()`.
@@ -168,6 +170,30 @@ All endpoints except `/auth/*`, `/health`, and Scalar/OpenAPI require a valid JW
 - `UpdateAsync(groupId, req, callerId)` → Admin only
 - `JoinAsync(req, callerId)` → join via invite code (adds Member GroupFamily for caller's Family)
 - `RegenerateInviteCodeAsync(groupId, callerId)` → Admin only
+
+**`ExpenseService`** — expense operations (any group member)
+- `ListAsync(activityId, callerId)` → `List<ExpenseSummaryDto>`
+- `GetDetailAsync(expenseId, callerId)` → `ExpenseDetailDto`
+- `CreateAsync(activityId, req, callerId)` → `ExpenseDetailDto` — seeds `ExpenseParticipant` rows from current `ActivityParticipant` list, snapshots `WeightCalculator.GetWeight()` at `ExpenseDate`, then runs `SplitCalculator.CalculateShares()`
+- `UpdateAsync(expenseId, req, callerId)` → `ExpenseDetailDto` — if `TotalAmount` or `ExpenseDate` changed, re-snapshots weights and recalculates shares
+- `DeleteAsync(expenseId, callerId)` → `Task` — allowed on non-Settled activity and non-Locked expense
+
+**`SettlementService`** — settlement operations (any group member)
+- `GetBalancesAsync(activityId, callerId)` → `List<FamilyBalanceDto>` — read-only net balance per Family (positive = creditor, negative = debtor)
+- `GenerateAsync(activityId, callerId)` → `List<SettlementSummaryDto>` — runs `BalanceCalculator` + `SettlementOptimiser`, persists `Settlement` rows; idempotent (returns existing if already generated); marks Activity Settled immediately if all balances are zero
+- `ListAsync(activityId, callerId)` → `List<SettlementSummaryDto>`
+- `GetDetailAsync(settlementId, callerId)` → `SettlementDetailDto` with `ApprovalStep` history
+- `ConfirmSentAsync(settlementId, callerId)` → `SettlementDetailDto` — caller must be payer-family member; Proposed → PayerSent; creates `ApprovalStep(PayerSent)`
+- `ConfirmReceivedAsync(settlementId, callerId)` → `SettlementDetailDto` — caller must be receiver-family member; PayerSent → Completed; creates `ApprovalStep(ReceiverConfirmed)`; when all settlements in activity are Completed, transitions Activity → Settled
+
+**`BalanceCalculator`** — pure static balance logic (`Application/Core/BalanceCalculator.cs`)
+- `Compute(expenses, participants)` → `Dictionary<Guid familyId, decimal balance>` — positive = creditor (owed money), negative = debtor (owes money)
+
+**`SettlementOptimiser`** — pure static settlement optimiser (`Application/Core/SettlementOptimiser.cs`)
+- `Optimise(balances)` → `List<Transfer>` — greedy min-transfer algorithm; at most N-1 transfers for N families
+
+**`SplitCalculator`** — pure static split logic (`Application/Core/SplitCalculator.cs`)
+- `CalculateShares(totalAmount, participants)` — distributes `totalAmount` by `WeightSnapshot` ratios; rounding remainder applied to the heaviest participant; excluded participants get 0
 
 **`ActivityService`** — activity operations (any group member)
 - `ListAsync(groupId, callerId)` → top-level activities for a group (no-parent)
@@ -256,6 +282,8 @@ DbSet<GroupFamily>  GroupFamilies
 | `IAdminClient` | `/admin/families` | Global-admin family management |
 | `IGroupClient` | `/groups` | Group CRUD + join + invite code |
 | `IActivityClient` | `/groups/{groupId}/activities` | Activity CRUD + sub-activities + participants + close |
+| `IExpenseClient` | `/groups/{groupId}/activities/{activityId}/expenses` | Expense CRUD |
+| `ISettlementClient` | `/groups/{groupId}/activities/{activityId}/settlements` | Settlement generation + approval flow |
 | `IHandoffApi` | `/auth/handoff` | JWT retrieval (uses credentials) |
 
 ### Fluxor Stores
@@ -266,6 +294,8 @@ DbSet<GroupFamily>  GroupFamilies
 | `FamilyState` | `MyFamily: FamilyDto?` | `LoadMyFamilyAction`, `UpdateFamilyNameAction`, `AddFamilyMemberAction`, `UpdateFamilyMemberAction`, `RemoveFamilyMemberAction` |
 | `GroupState` | `Groups`, `SelectedGroup`, `IsLoading`, `ErrorMessage` | `LoadGroupsAction`, `LoadGroupDetailAction`, `CreateGroupAction`, `UpdateGroupAction`, `JoinGroupAction`, `RegenerateInviteCodeAction` |
 | `ActivityState` | `Activities`, `SelectedActivity`, `IsLoading`, `ErrorMessage` | `LoadActivitiesAction`, `LoadActivityDetailAction`, `CreateActivityAction`, `CreateSubActivityAction`, `UpdateActivityAction`, `CloseActivityAction`, `AddParticipantAction`, `RemoveParticipantAction` |
+| `ExpenseState` | `Expenses`, `SelectedExpense`, `IsLoading`, `ErrorMessage` | `LoadExpensesAction`, `LoadExpenseDetailAction`, `CreateExpenseAction`, `UpdateExpenseAction`, `DeleteExpenseAction`, `ClearExpensesAction` |
+| `SettlementState` | `Settlements`, `Balances`, `SelectedSettlement`, `IsLoading`, `IsGenerating`, `ErrorMessage` | `LoadSettlementsAction`, `LoadBalancesAction`, `GenerateSettlementsAction`, `LoadSettlementDetailAction`, `ConfirmSentAction`, `ConfirmReceivedAction`, `ClearSettlementsAction` |
 
 ### Key pages
 
@@ -274,7 +304,7 @@ DbSet<GroupFamily>  GroupFamilies
 | `/` | `Index.razor` | Dashboard / home |
 | `/groups` | `GroupList.razor` | List of caller's groups (shows family count) |
 | `/groups/{id}` | `GroupDetail.razor` | Group detail — families with nested members + activity list |
-| `/groups/{groupId}/activities/{activityId}` | `ActivityDetail.razor` | Activity detail — participants, sub-activities, close/edit |
+| `/groups/{groupId}/activities/{activityId}` | `ActivityDetail.razor` | Activity detail — participants, sub-activities, close/edit; settlements section on Closed/Settled activities |
 | `/families/mine` (also `/profile`) | `ManageFamily.razor` | Own-family management — rename, add/edit/remove members |
 | `/auth/return` | `AuthReturn.razor` | JWT handoff page |
 | `/not-registered` | `NotRegistered.razor` | Shown when login email has no FamilyMember |
@@ -335,6 +365,15 @@ After first login, set global admin:
 ```sql
 UPDATE users SET is_global_admin = true WHERE email = 'you@example.com';
 ```
+
+### Phase 6 migration
+
+Phase 6 refactored `Settlement` to link Families directly (instead of Users). Apply the migration:
+```bash
+cd src/FamilySplit.Infrastructure
+dotnet ef database update --startup-project ../FamilySplit.Api
+```
+This runs `20260523000000_Phase6SettlementsRefactorToFamilies` which drops `payer_user_id`/`receiver_user_id` and adds `payer_family_id`/`receiver_family_id` on the `settlements` table.
 
 ### EF Core migrations
 
@@ -398,5 +437,5 @@ Client-side controls must mirror every server-side permission check — if a use
 | 3 | ✅ Complete | Groups (CRUD, invite codes), FamilyMember↔User link |
 | 3.5 | ✅ Complete | Family entity, GlobalAdmin, GroupFamily replaces GroupMembership; AdminService + FamilyService; Family management UI |
 | 4 | ✅ Complete | Activities (top-level + sub-activities depth-1, participant management, close flow absorbs open subs) |
-| 5 | 🔲 Planned | Expenses (attach to activity, record weight snapshots) |
-| 6 | 🔲 Planned | Settlements (balance calculation per Family, optimised payment graph) |
+| 5 | ✅ Complete | Expenses (attach to activity, weight snapshots, SplitCalculator, per-participant breakdown UI) |
+| 6 | ✅ Complete | Settlements (BalanceCalculator, SettlementOptimiser, ConfirmSent/ConfirmReceived approval flow, Activity→Settled transition, balance + settlement UI in ActivityDetail) |

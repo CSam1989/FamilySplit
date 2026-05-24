@@ -4,6 +4,7 @@ using FamilySplit.Application.Exceptions;
 using FamilySplit.Application.Families;
 using FamilySplit.Application.Families.Dtos;
 using FamilySplit.Domain.Entities;
+using FamilySplit.Domain.Enums;
 using FamilySplit.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
@@ -200,6 +201,51 @@ public class AdminService
             ?? throw Throw422("MemberId", "Family member not found.");
 
         member.IsActive = false;
+        await _db.SaveChangesAsync();
+    }
+
+    // ── Add a family to a group ───────────────────────────────────────────────
+
+    public async Task AddFamilyToGroupAsync(Guid groupId, Guid familyId, Guid callerId)
+    {
+        await RequireGlobalAdminAsync(callerId);
+
+        var groupExists = await _db.Groups.AnyAsync(g => g.Id == groupId);
+        if (!groupExists)
+            throw Throw422("GroupId", "Group not found.");
+
+        var familyExists = await _db.Families.AnyAsync(f => f.Id == familyId);
+        if (!familyExists)
+            throw Throw422("FamilyId", "Family not found.");
+
+        var alreadyMember = await _db.GroupFamilies
+            .AnyAsync(gf => gf.GroupId == groupId && gf.FamilyId == familyId);
+        if (alreadyMember)
+            throw Throw422("FamilyId", "This family is already in the group.");
+
+        _db.GroupFamilies.Add(new GroupFamily
+        {
+            Id       = Guid.NewGuid(),
+            GroupId  = groupId,
+            FamilyId = familyId,
+            Role     = MemberRole.Member,
+            JoinedAt = DateTimeOffset.UtcNow,
+        });
+        await _db.SaveChangesAsync();
+    }
+
+    // ── Remove a family from a group ──────────────────────────────────────────
+
+    public async Task RemoveFamilyFromGroupAsync(Guid groupId, Guid familyId, Guid callerId)
+    {
+        await RequireGlobalAdminAsync(callerId);
+
+        var groupFamily = await _db.GroupFamilies
+            .Where(gf => gf.GroupId == groupId && gf.FamilyId == familyId)
+            .FirstOrDefaultAsync()
+            ?? throw Throw422("FamilyId", "This family is not in the group.");
+
+        _db.GroupFamilies.Remove(groupFamily);
         await _db.SaveChangesAsync();
     }
 

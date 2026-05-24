@@ -108,9 +108,8 @@ app.MapFamilyEndpoints();         // /families/mine — own-family management
 app.MapGroupEndpoints();          // /groups — CRUD + join + invite-code
 app.MapGroupMemberEndpoints();    // no-op stub (members managed via Family endpoints)
 app.MapActivityEndpoints();       // /groups/{groupId}/activities — CRUD + participants + close
-// Phase 5+ endpoint groups land here:
-//   app.MapExpenseEndpoints();
-//   app.MapSettlementEndpoints();
+app.MapExpenseEndpoints();        // /groups/{groupId}/activities/{activityId}/expenses — Phase 5
+app.MapSettlementEndpoints();     // /groups/{groupId}/activities/{activityId}/settlements — Phase 6
 
 
 // --- OpenAPI + Scalar UI (dev only) ----------------------------------------------

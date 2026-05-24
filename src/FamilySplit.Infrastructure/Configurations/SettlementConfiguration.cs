@@ -13,8 +13,8 @@ public class SettlementConfiguration : IEntityTypeConfiguration<Settlement>
 
         b.Property(x => x.Id).HasColumnName("id");
         b.Property(x => x.ActivityId).HasColumnName("activity_id").IsRequired();
-        b.Property(x => x.PayerUserId).HasColumnName("payer_user_id").IsRequired();
-        b.Property(x => x.ReceiverUserId).HasColumnName("receiver_user_id").IsRequired();
+        b.Property(x => x.PayerFamilyId).HasColumnName("payer_family_id").IsRequired();
+        b.Property(x => x.ReceiverFamilyId).HasColumnName("receiver_family_id").IsRequired();
         b.Property(x => x.Amount).HasColumnName("amount").HasColumnType("decimal(12,2)").IsRequired();
         b.Property(x => x.Currency).HasColumnName("currency").HasMaxLength(3).IsFixedLength().IsRequired();
         b.Property(x => x.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(20).IsRequired();
@@ -29,14 +29,14 @@ public class SettlementConfiguration : IEntityTypeConfiguration<Settlement>
             .HasForeignKey(x => x.ActivityId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        b.HasOne(x => x.Payer)
+        b.HasOne(x => x.PayerFamily)
             .WithMany()
-            .HasForeignKey(x => x.PayerUserId)
+            .HasForeignKey(x => x.PayerFamilyId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        b.HasOne(x => x.Receiver)
+        b.HasOne(x => x.ReceiverFamily)
             .WithMany()
-            .HasForeignKey(x => x.ReceiverUserId)
+            .HasForeignKey(x => x.ReceiverFamilyId)
             .OnDelete(DeleteBehavior.Restrict);
 
         b.HasIndex(x => x.ActivityId);

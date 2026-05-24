@@ -84,10 +84,22 @@
 </MudPaper>
 
 <!-- Participating families -->
-<MudText Typo="Typo.h6" Class="mb-3">
-    Families
-    <MudChip T="string" Size="Size.Small" Color="Color.Default" Class="ml-1">@group.Families.Count</MudChip>
-</MudText>
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3" Spacing="2">
+    <MudText Typo="Typo.h6">
+        Families
+        <MudChip T="string" Size="Size.Small" Color="Color.Default" Class="ml-1">@group.Families.Count</MudChip>
+    </MudText>
+    @if (AuthState.Value.IsGlobalAdmin)
+    {
+        <MudButton Variant="Variant.Outlined"
+                   Size="Size.Small"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.GroupAdd"
+                   OnClick="OpenAddFamilyDialog">
+            Add family
+        </MudButton>
+    }
+</MudStack>
 
 @foreach (var family in group.Families)
 {
@@ -106,6 +118,15 @@
             <MudText Typo="Typo.caption" Color="Color.Secondary" Class="ml-auto">
                 Joined @family.JoinedAt.ToLocalTime().ToString("dd MMM yyyy")
             </MudText>
+            @if (AuthState.Value.IsGlobalAdmin)
+            {
+                <MudTooltip Text="Remove family from group">
+                    <MudIconButton Icon="@Icons.Material.Filled.GroupRemove"
+                                   Size="Size.Small"
+                                   Color="Color.Error"
+                                   OnClick="@(() => ConfirmRemoveFamily(family))" />
+                </MudTooltip>
+            }
         </MudStack>
 
         @if (family.Members.Count == 0)
@@ -366,5 +387,35 @@ else
 
         if (confirmed == true)
             Dispatcher.Dispatch(new DeleteGroupAction(GroupId));
+    }
+
+    private async Task OpenAddFamilyDialog()
+    {
+        var existingIds = (State.Value.SelectedGroup?.Families ?? [])
+            .Select(f => f.FamilyId)
+            .ToHashSet();
+
+        var parameters = new DialogParameters<AdminAddFamilyDialog>
+        {
+            { x => x.ExistingFamilyIds, existingIds }
+        };
+
+        var dialog = await DialogService.ShowAsync<AdminAddFamilyDialog>("Add family to group", parameters);
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false, Data: Guid familyId })
+            Dispatcher.Dispatch(new AdminAddFamilyToGroupAction(GroupId, familyId));
+    }
+
+    private async Task ConfirmRemoveFamily(GroupFamilyDto family)
+    {
+        bool? confirmed = await DialogService.ShowMessageBox(
+            "Remove family",
+            $"Remove \"{family.FamilyName}\" from this group? They will no longer participate in new activities.",
+            yesText: "Remove",
+            cancelText: "Cancel");
+
+        if (confirmed == true)
+            Dispatcher.Dispatch(new AdminRemoveFamilyFromGroupAction(GroupId, family.FamilyId));
     }
 }
