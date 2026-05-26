@@ -1,8 +1,579 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   FamilySplit — Mobile-first Design System
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* ── Custom properties ───────────────────────────────────────────────────── */
+:root {
+    --fs-primary:        #4F46E5;
+    --fs-primary-light:  #EEF2FF;
+    --fs-primary-dark:   #3730A3;
+    --fs-green:          #10B981;
+    --fs-green-light:    #D1FAE5;
+    --fs-red:            #EF4444;
+    --fs-red-light:      #FEE2E2;
+    --fs-amber:          #F59E0B;
+    --fs-amber-light:    #FEF3C7;
+
+    --fs-bg:             #F8FAFC;
+    --fs-surface:        #FFFFFF;
+    --fs-border:         #E2E8F0;
+    --fs-border-subtle:  #F1F5F9;
+
+    --fs-text-primary:   #0F172A;
+    --fs-text-secondary: #64748B;
+    --fs-text-tertiary:  #94A3B8;
+    --fs-text-inverse:   #FFFFFF;
+
+    --fs-shadow-sm:   0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    --fs-shadow-md:   0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
+    --fs-shadow-lg:   0 10px 30px rgba(0,0,0,0.10), 0 4px 8px rgba(0,0,0,0.05);
+    --fs-shadow-fab:  0 6px 20px rgba(79,70,229,0.40);
+
+    --fs-radius-sm:   8px;
+    --fs-radius-md:   12px;
+    --fs-radius-lg:   16px;
+    --fs-radius-xl:   20px;
+    --fs-radius-full: 9999px;
+
+    --fs-nav-height:  64px;
+    --fs-appbar-height: 56px;
+    --fs-fab-size:    54px;
+}
+
+/* ── Base reset ──────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
 html, body {
     margin: 0;
     padding: 0;
     height: 100%;
-    font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: var(--fs-bg);
+    color: var(--fs-text-primary);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
-/* MudBlazor handles most styling; this file is intentionally light. */
+/* ── MudBlazor font override ─────────────────────────────────────────────── */
+.mud-typography,
+.mud-button-label,
+.mud-input,
+.mud-chip-text,
+.mud-nav-link,
+.mud-list-item-text {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+}
+
+/* ── Loading screen ──────────────────────────────────────────────────────── */
+.app-loading-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    gap: 16px;
+    background: var(--fs-bg);
+}
+
+.app-loading-logo {
+    animation: pulse 1.8s ease-in-out infinite;
+}
+
+.app-loading-text {
+    font-family: 'Inter', sans-serif;
+    font-weight: 700;
+    font-size: 1.25rem;
+    color: var(--fs-text-secondary);
+    letter-spacing: -0.01em;
+    margin: 0;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.7; transform: scale(0.96); }
+}
+
+/* ── Error UI ────────────────────────────────────────────────────────────── */
+#blazor-error-ui {
+    display: none;
+    background: var(--fs-red);
+    color: white;
+    padding: 0.75rem 1.25rem;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 9999;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.875rem;
+}
+
+#blazor-error-ui .reload,
+#blazor-error-ui .dismiss {
+    color: white;
+    text-decoration: underline;
+    cursor: pointer;
+    margin-left: 1rem;
+}
+
+/* ── AppBar overrides ────────────────────────────────────────────────────── */
+.mud-appbar {
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+    border-bottom: 1px solid var(--fs-border) !important;
+}
+
+.fs-appbar-title {
+    font-weight: 700 !important;
+    letter-spacing: -0.02em !important;
+    font-size: 1.125rem !important;
+}
+
+/* ── Drawer / Sidebar overrides ──────────────────────────────────────────── */
+.mud-drawer {
+    border-right: 1px solid var(--fs-border) !important;
+}
+
+.fs-sidebar-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 20px 16px 8px;
+}
+
+.fs-sidebar-logo-mark {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    background: var(--fs-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.fs-sidebar-logo-text {
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--fs-text-primary);
+    letter-spacing: -0.02em;
+}
+
+/* ── Bottom navigation ───────────────────────────────────────────────────── */
+.fs-bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: var(--fs-nav-height);
+    background: var(--fs-surface);
+    border-top: 1px solid var(--fs-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    z-index: 1100;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.06);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+}
+
+.fs-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    height: 100%;
+    cursor: pointer;
+    color: var(--fs-text-tertiary);
+    text-decoration: none;
+    font-size: 10px;
+    font-weight: 500;
+    gap: 3px;
+    transition: color 0.15s ease;
+    position: relative;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+}
+
+.fs-nav-item:hover {
+    color: var(--fs-text-secondary);
+}
+
+.fs-nav-item.active {
+    color: var(--fs-primary);
+}
+
+.fs-nav-icon {
+    font-size: 22px;
+    line-height: 1;
+    transition: transform 0.15s ease;
+}
+
+.fs-nav-item.active .fs-nav-icon {
+    transform: translateY(-1px);
+}
+
+.fs-nav-label {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+}
+
+/* Active indicator dot */
+.fs-nav-item.active::after {
+    content: '';
+    position: absolute;
+    top: 6px;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--fs-primary);
+    opacity: 0;
+}
+
+/* ── FAB (center of bottom nav) ──────────────────────────────────────────── */
+.fs-nav-fab-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+}
+
+.fs-nav-fab {
+    width: var(--fs-fab-size);
+    height: var(--fs-fab-size);
+    border-radius: var(--fs-radius-md);
+    background: var(--fs-primary);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--fs-shadow-fab);
+    cursor: pointer;
+    border: none;
+    outline: none;
+    margin-top: -20px;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+    text-decoration: none;
+}
+
+.fs-nav-fab:hover {
+    background: var(--fs-primary-dark);
+    box-shadow: 0 8px 24px rgba(79,70,229,0.50);
+    transform: translateY(-1px);
+}
+
+.fs-nav-fab:active {
+    transform: scale(0.94) translateY(0);
+    box-shadow: 0 3px 10px rgba(79,70,229,0.35);
+}
+
+.fs-nav-fab-icon {
+    font-size: 26px;
+    font-weight: 300;
+    color: white;
+}
+
+/* ── Main content padding ────────────────────────────────────────────────── */
+@media (max-width: 959px) {
+    .fs-page-content {
+        padding-bottom: calc(var(--fs-nav-height) + env(safe-area-inset-bottom, 0px) + 16px) !important;
+    }
+}
+
+/* ── Cards ───────────────────────────────────────────────────────────────── */
+.fs-card {
+    background: var(--fs-surface);
+    border-radius: var(--fs-radius-lg);
+    border: 1px solid var(--fs-border);
+    box-shadow: var(--fs-shadow-sm);
+    overflow: hidden;
+}
+
+.fs-card-pressable {
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.fs-card-pressable:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--fs-shadow-md);
+}
+
+.fs-card-pressable:active {
+    transform: scale(0.99);
+    box-shadow: var(--fs-shadow-sm);
+}
+
+/* ── Balance chip ────────────────────────────────────────────────────────── */
+.fs-balance-positive {
+    color: var(--fs-green) !important;
+    background: var(--fs-green-light) !important;
+}
+
+.fs-balance-negative {
+    color: var(--fs-red) !important;
+    background: var(--fs-red-light) !important;
+}
+
+.fs-balance-neutral {
+    color: var(--fs-text-secondary) !important;
+    background: var(--fs-border-subtle) !important;
+}
+
+/* ── Avatar ──────────────────────────────────────────────────────────────── */
+.fs-avatar {
+    border-radius: var(--fs-radius-sm);
+    background: var(--fs-primary-light);
+    color: var(--fs-primary);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.875rem;
+    flex-shrink: 0;
+}
+
+/* ── Section header ──────────────────────────────────────────────────────── */
+.fs-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.fs-section-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--fs-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+/* ── Hero banner ─────────────────────────────────────────────────────────── */
+.fs-hero {
+    background: linear-gradient(135deg, var(--fs-primary) 0%, var(--fs-primary-dark) 100%);
+    border-radius: var(--fs-radius-xl);
+    padding: 24px;
+    color: white;
+    position: relative;
+    overflow: hidden;
+}
+
+.fs-hero::before {
+    content: '';
+    position: absolute;
+    top: -40px;
+    right: -40px;
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.06);
+}
+
+.fs-hero::after {
+    content: '';
+    position: absolute;
+    bottom: -60px;
+    left: 40px;
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.04);
+}
+
+/* ── Stat pill ───────────────────────────────────────────────────────────── */
+.fs-stat-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255,255,255,0.15);
+    border-radius: var(--fs-radius-full);
+    padding: 4px 12px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    backdrop-filter: blur(4px);
+}
+
+/* ── Group card ──────────────────────────────────────────────────────────── */
+.fs-group-card {
+    background: var(--fs-surface);
+    border-radius: var(--fs-radius-lg);
+    border: 1px solid var(--fs-border);
+    padding: 16px;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    text-decoration: none;
+    display: block;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.fs-group-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--fs-shadow-md);
+}
+
+.fs-group-card:active {
+    transform: scale(0.99);
+}
+
+/* ── Empty state ─────────────────────────────────────────────────────────── */
+.fs-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 24px;
+    text-align: center;
+    gap: 8px;
+}
+
+.fs-empty-icon {
+    font-size: 48px;
+    opacity: 0.25;
+    margin-bottom: 8px;
+}
+
+/* ── Sign-in card ────────────────────────────────────────────────────────── */
+.fs-signin-card {
+    background: var(--fs-surface);
+    border-radius: var(--fs-radius-xl);
+    border: 1px solid var(--fs-border);
+    padding: 32px 24px;
+    text-align: center;
+    box-shadow: var(--fs-shadow-sm);
+}
+
+/* ── Animations ──────────────────────────────────────────────────────────── */
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.fs-fade-in {
+    animation: fadeInUp 0.3s ease both;
+}
+
+.fs-fade-in-delay-1 { animation-delay: 0.05s; }
+.fs-fade-in-delay-2 { animation-delay: 0.10s; }
+.fs-fade-in-delay-3 { animation-delay: 0.15s; }
+.fs-fade-in-delay-4 { animation-delay: 0.20s; }
+
+/* ── Responsive show/hide (CSS-only, no JS flash) ───────────────────────── */
+/* MudBlazor md breakpoint = 960px */
+@media (min-width: 960px) {
+    .fs-mobile-only { display: none !important; }
+}
+@media (max-width: 959px) {
+    .fs-desktop-only { display: none !important; }
+}
+
+/* ── Utility ─────────────────────────────────────────────────────────────── */
+.fs-text-money {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+}
+
+.fs-truncate {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ── Bottom-sheet dialog (mobile) ───────────────────────────────────────── */
+@media (max-width: 959px) {
+    .mud-dialog-container {
+        align-items: flex-end !important;
+        padding: 0 !important;
+    }
+    .mud-dialog {
+        border-radius: 20px 20px 0 0 !important;
+        max-height: 92dvh !important;
+        overflow-y: auto !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        padding-top: 8px !important;
+    }
+    /* drag-handle pip */
+    .mud-dialog::before {
+        content: '';
+        display: block;
+        width: 36px;
+        height: 4px;
+        border-radius: 2px;
+        background: var(--fs-border);
+        margin: 0 auto 4px;
+    }
+    .mud-dialog-title {
+        padding: 12px 20px 8px !important;
+    }
+    .mud-dialog-content {
+        padding: 8px 20px 16px !important;
+    }
+    .mud-dialog-actions {
+        padding: 8px 16px calc(env(safe-area-inset-bottom, 0px) + 12px) !important;
+        gap: 8px !important;
+    }
+    /* Full-width, thumb-friendly action buttons */
+    .mud-dialog-actions .mud-button-root {
+        flex: 1 !important;
+        height: 48px !important;
+        font-size: 1rem !important;
+    }
+}
+
+/* ── MudBlazor component overrides ──────────────────────────────────────── */
+.mud-paper {
+    border-radius: var(--fs-radius-lg) !important;
+}
+
+.mud-button {
+    font-family: 'Inter', sans-serif !important;
+    font-weight: 500 !important;
+    letter-spacing: 0 !important;
+    text-transform: none !important;
+    border-radius: var(--fs-radius-md) !important;
+}
+
+.mud-chip {
+    border-radius: var(--fs-radius-full) !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.75rem !important;
+    font-weight: 500 !important;
+}
+
+.mud-nav-link {
+    border-radius: var(--fs-radius-md) !important;
+    margin: 2px 8px !important;
+    font-weight: 500 !important;
+}
+
+.mud-nav-link.active {
+    background: var(--fs-primary-light) !important;
+    color: var(--fs-primary) !important;
+}
+
+/* Scrollbar styling (desktop) */
+@media (pointer: fine) {
+    ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+        background: var(--fs-border);
+        border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+        background: var(--fs-text-tertiary);
+    }
+}

@@ -103,11 +103,44 @@ public class SettlementEffects
             // Reload settlements list so statuses update; also reload activity (may become Settled).
             dispatcher.Dispatch(new LoadSettlementsAction(action.GroupId, action.ActivityId));
             dispatcher.Dispatch(new LoadActivityDetailAction(action.GroupId, action.ActivityId));
+            // Refresh group-level and dashboard lists.
+            dispatcher.Dispatch(new LoadGroupSettlementsAction(action.GroupId));
+            dispatcher.Dispatch(new LoadMyPendingSettlementsAction());
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to confirm received for settlement {SettlementId}", action.SettlementId);
             dispatcher.Dispatch(new ConfirmReceivedFailureAction(ErrorHelper.GetMessage(ex)));
+        }
+    }
+
+    [EffectMethod]
+    public async Task HandleLoadGroupSettlements(LoadGroupSettlementsAction action, IDispatcher dispatcher)
+    {
+        try
+        {
+            var settlements = await _client.ListForGroupAsync(action.GroupId);
+            dispatcher.Dispatch(new LoadGroupSettlementsSuccessAction(settlements));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load group settlements for {GroupId}", action.GroupId);
+            dispatcher.Dispatch(new LoadGroupSettlementsFailureAction(ErrorHelper.GetMessage(ex)));
+        }
+    }
+
+    [EffectMethod(typeof(LoadMyPendingSettlementsAction))]
+    public async Task HandleLoadMyPending(IDispatcher dispatcher)
+    {
+        try
+        {
+            var settlements = await _client.ListMyPendingAsync();
+            dispatcher.Dispatch(new LoadMyPendingSettlementsSuccessAction(settlements));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load pending settlements for dashboard");
+            dispatcher.Dispatch(new LoadMyPendingSettlementsFailureAction(ErrorHelper.GetMessage(ex)));
         }
     }
 }

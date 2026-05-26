@@ -1,69 +1,455 @@
 @page "/"
 @using FamilySplit.Client.Store.Auth
+@using FamilySplit.Client.Store.Groups
+@using FamilySplit.Client.Store.Family
+@using FamilySplit.Client.Store.Dashboard
+@using FamilySplit.Client.Store.Settlements
+@using FamilySplit.Client.Pages.Activities
+@using FamilySplit.Domain.Enums
 @inherits Fluxor.Blazor.Web.Components.FluxorComponent
 @inject IDispatcher Dispatcher
 @inject IState<AuthState> AuthState
+@inject IState<GroupState> GroupState
+@inject IState<FamilyState> FamilyState
+@inject IState<DashboardState> DashboardState
+@inject IState<SettlementState> SettlementState
 @inject AuthService Auth
 @inject NavigationManager Nav
 @inject IConfiguration Config
+@inject IDialogService DialogService
 
-<PageTitle>FamilySplit · Dashboard</PageTitle>
+<PageTitle>FamilySplit · Home</PageTitle>
 
-<MudText Typo="Typo.h4" GutterBottom="true">FamilySplit</MudText>
-<MudText Typo="Typo.body1" Class="mb-6">
-    Group-based expense splitting with age-weighted family shares.
-</MudText>
+@if (AuthState.Value.IsLoading)
+{
+    <!-- Loading skeleton -->
+    <div style="display:flex;flex-direction:column;gap:16px">
+        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="140px"
+                     Style="border-radius:var(--fs-radius-xl)" />
+        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="80px"
+                     Style="border-radius:var(--fs-radius-lg)" />
+        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="80px"
+                     Style="border-radius:var(--fs-radius-lg)" />
+    </div>
+}
+else if (!AuthState.Value.IsAuthenticated)
+{
+    <!-- ── Sign-in screen ──────────────────────────────────────────────── -->
+    <div style="min-height:70vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0" class="fs-fade-in">
 
-<MudGrid>
-    <MudItem xs="12" md="6">
-        <MudPaper Class="pa-4" Elevation="1">
-            <MudText Typo="Typo.h6">Authentication</MudText>
+        <div style="margin-bottom:32px;text-align:center">
+            <div style="width:72px;height:72px;border-radius:20px;background:var(--fs-primary);display:flex;align-items:center;justify-content:center;margin:0 auto 20px">
+                <svg width="40" height="40" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M14 24C14 18.477 18.477 14 24 14C29.523 14 34 18.477 34 24C34 29.523 29.523 34 24 34" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+                    <path d="M24 34C21.239 34 19 31.761 19 29C19 26.239 21.239 24 24 24C26.761 24 29 26.239 29 29" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+                    <circle cx="24" cy="24" r="2" fill="white"/>
+                </svg>
+            </div>
+            <MudText Typo="Typo.h3" Style="font-weight:800;letter-spacing:-0.03em;margin-bottom:8px">
+                FamilySplit
+            </MudText>
+            <MudText Typo="Typo.body1" Style="color:var(--fs-text-secondary);max-width:280px;margin:0 auto;line-height:1.6">
+                Split expenses fairly between families — weighted by age, settled simply.
+            </MudText>
+        </div>
 
-            @if (AuthState.Value.IsLoading)
+        <div class="fs-signin-card" style="width:100%;max-width:360px">
+            <MudText Typo="Typo.h5" Style="margin-bottom:6px">Welcome back</MudText>
+            <MudText Typo="Typo.body2" Style="color:var(--fs-text-secondary);margin-bottom:24px">
+                Sign in to see your groups and expenses
+            </MudText>
+
+            <MudCheckBox @bind-Value="_rememberMe"
+                         Label="Remember me on this device"
+                         Color="Color.Primary"
+                         Style="margin-bottom:16px" />
+
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       FullWidth="true"
+                       Size="Size.Large"
+                       Style="height:48px;font-size:0.9375rem;font-weight:600"
+                       OnClick="SignIn">
+                <div style="display:flex;align-items:center;gap:10px">
+                    <svg width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#fff"/>
+                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#fff" opacity=".85"/>
+                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#fff" opacity=".7"/>
+                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#fff" opacity=".7"/>
+                    </svg>
+                    Continue with Google
+                </div>
+            </MudButton>
+        </div>
+    </div>
+}
+else
+{
+    var user         = AuthState.Value.CurrentUser!;
+    var family       = FamilyState.Value.MyFamily;
+    var groups       = GroupState.Value.Groups;
+    var isLoadingGroups = GroupState.Value.IsLoading;
+    var statsMap     = DashboardState.Value.Stats.ToDictionary(s => s.GroupId);
+    var statsLoading = DashboardState.Value.IsLoading;
+    var firstName    = user.DisplayName.Split(' ')[0];
+
+    <div class="fs-hero fs-fade-in" style="margin-bottom:24px">
+        <div style="position:relative;z-index:1">
+            <MudText Style="font-size:0.8125rem;font-weight:500;color:rgba(255,255,255,0.7);margin-bottom:4px;letter-spacing:0.01em">
+                Good @GetTimeOfDay(), @firstName 👋
+            </MudText>
+            <MudText Style="font-size:1.5rem;font-weight:700;color:white;letter-spacing:-0.02em;margin-bottom:16px">
+                Your expense hub
+            </MudText>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <span class="fs-stat-pill">
+                    <MudIcon Icon="@Icons.Material.Rounded.Groups" Style="font-size:14px" />
+                    @groups.Count @(groups.Count == 1 ? "group" : "groups")
+                </span>
+                @if (family is not null)
+                {
+                    <span class="fs-stat-pill">
+                        <MudIcon Icon="@Icons.Material.Rounded.FamilyRestroom" Style="font-size:14px" />
+                        @family.Name
+                    </span>
+                }
+                @if (user.IsGlobalAdmin)
+                {
+                    <span class="fs-stat-pill" style="background:rgba(239,68,68,0.25)">
+                        <MudIcon Icon="@Icons.Material.Rounded.AdminPanelSettings" Style="font-size:14px" />
+                        Admin
+                    </span>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Groups section -->
+    <div class="fs-fade-in fs-fade-in-delay-1">
+        <div class="fs-section-header">
+            <span class="fs-section-title">Your Groups</span>
+            <MudButton Variant="Variant.Text"
+                       Color="Color.Primary"
+                       Size="Size.Small"
+                       Href="/groups"
+                       Style="font-size:0.8125rem;font-weight:600;min-width:0;padding:0 4px">
+                See all
+            </MudButton>
+        </div>
+
+        @if (isLoadingGroups)
+        {
+            <div style="display:flex;flex-direction:column;gap:10px">
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="110px"
+                             Style="border-radius:var(--fs-radius-lg)" />
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="110px"
+                             Style="border-radius:var(--fs-radius-lg)" />
+            </div>
+        }
+        else if (!groups.Any())
+        {
+            <div class="fs-card fs-fade-in-delay-2">
+                <div class="fs-empty-state">
+                    <MudIcon Icon="@Icons.Material.Outlined.Groups"
+                             Style="font-size:48px;color:var(--fs-text-tertiary);margin-bottom:8px" />
+                    <MudText Typo="Typo.subtitle2" Style="color:var(--fs-text-primary);margin-bottom:4px">
+                        No groups yet
+                    </MudText>
+                    <MudText Typo="Typo.body2" Style="color:var(--fs-text-secondary);margin-bottom:16px">
+                        Create a group or ask a friend for an invite code
+                    </MudText>
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               Size="Size.Small"
+                               Href="/groups">
+                        Get started
+                    </MudButton>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div style="display:flex;flex-direction:column;gap:10px">
+                @foreach (var (group, i) in groups.Take(5).Select((g, i) => (g, i)))
+                {
+                    var stat = statsMap.GetValueOrDefault(group.Id);
+
+                    <a href="/groups/@group.Id" class="fs-group-card fs-fade-in fs-fade-in-delay-@(i + 1)"
+                       style="display:block;text-decoration:none">
+                        <!-- Top row: avatar + name + chevron -->
+                        <div style="display:flex;align-items:center;gap:12px">
+                            <div style="width:44px;height:44px;border-radius:12px;background:@GroupColor(group.Name);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                                <span style="font-size:1.125rem;font-weight:700;color:white">@group.Name[0]</span>
+                            </div>
+                            <div style="flex:1;min-width:0">
+                                <div style="font-size:0.9375rem;font-weight:600;color:var(--fs-text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                                    @group.Name
+                                </div>
+                                <div style="font-size:0.8125rem;color:var(--fs-text-secondary);margin-top:1px">
+                                    @group.FamilyCount @(group.FamilyCount == 1 ? "family" : "families")
+                                    @if (group.Description is { Length: > 0 } desc)
+                                    {
+                                        <span style="color:var(--fs-border)"> · </span>
+                                        <span>@desc</span>
+                                    }
+                                </div>
+                            </div>
+                            <MudIcon Icon="@Icons.Material.Rounded.ChevronRight"
+                                     Style="color:var(--fs-text-tertiary);font-size:20px;flex-shrink:0" />
+                        </div>
+
+                        <!-- Stats row -->
+                        @if (stat is not null)
+                        {
+                            <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--fs-border);display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+
+                                <!-- Activity count -->
+                                <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;color:var(--fs-text-secondary);background:var(--fs-surface-2);border-radius:6px;padding:3px 8px">
+                                    <MudIcon Icon="@Icons.Material.Rounded.EventNote" Style="font-size:12px" />
+                                    @stat.TotalActivities @(stat.TotalActivities == 1 ? "activity" : "activities")
+                                    @if (stat.OpenActivities > 0)
+                                    {
+                                        <span style="color:var(--fs-primary);font-weight:600">(@stat.OpenActivities open)</span>
+                                    }
+                                </span>
+
+                                <!-- Spend chips: all-time + active -->
+                                @if (stat.TotalGroupSpend > 0)
+                                {
+                                    <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;color:var(--fs-text-secondary);background:var(--fs-surface-2);border-radius:6px;padding:3px 8px">
+                                        <MudIcon Icon="@Icons.Material.Rounded.Receipt" Style="font-size:12px" />
+                                        @FormatAmount(stat.TotalGroupSpend, stat.Currency)
+                                        <span style="color:var(--fs-border)">·</span>
+                                        your share @FormatAmount(stat.MyFamilyShare, stat.Currency)
+                                    </span>
+                                }
+                                @if (stat.ActiveGroupSpend > 0)
+                                {
+                                    <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;color:var(--fs-text-secondary);background:var(--fs-surface-2);border-radius:6px;padding:3px 8px">
+                                        <MudIcon Icon="@Icons.Material.Rounded.ReceiptLong" Style="font-size:12px" />
+                                        active @FormatAmount(stat.ActiveGroupSpend, stat.Currency)
+                                        <span style="color:var(--fs-border)">·</span>
+                                        your share @FormatAmount(stat.ActiveFamilyShare, stat.Currency)
+                                    </span>
+                                }
+
+                                <!-- Net balance chip -->
+                                @if (stat.TotalActivities > 0)
+                                {
+                                    @if (stat.NetBalance > 0)
+                                    {
+                                        <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;font-weight:600;color:#059669;background:rgba(5,150,105,0.1);border-radius:6px;padding:3px 8px">
+                                            <MudIcon Icon="@Icons.Material.Rounded.TrendingUp" Style="font-size:12px" />
+                                            @FormatAmount(stat.NetBalance, stat.Currency) to receive
+                                        </span>
+                                    }
+                                    else if (stat.NetBalance < 0)
+                                    {
+                                        <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;font-weight:600;color:#DC2626;background:rgba(220,38,38,0.1);border-radius:6px;padding:3px 8px">
+                                            <MudIcon Icon="@Icons.Material.Rounded.TrendingDown" Style="font-size:12px" />
+                                            @FormatAmount(Math.Abs(stat.NetBalance), stat.Currency) to pay
+                                        </span>
+                                    }
+                                    else if (stat.SettledActivities == stat.TotalActivities && stat.TotalActivities > 0)
+                                    {
+                                        <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;font-weight:600;color:#059669;background:rgba(5,150,105,0.1);border-radius:6px;padding:3px 8px">
+                                            <MudIcon Icon="@Icons.Material.Rounded.CheckCircle" Style="font-size:12px" />
+                                            All settled
+                                        </span>
+                                    }
+                                }
+
+                                <!-- Pending settlement action badge -->
+                                @if (stat.PendingSettlements > 0)
+                                {
+                                    <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;font-weight:600;color:#D97706;background:rgba(217,119,6,0.12);border-radius:6px;padding:3px 8px">
+                                        <MudIcon Icon="@Icons.Material.Rounded.Pending" Style="font-size:12px" />
+                                        @stat.PendingSettlements @(stat.PendingSettlements == 1 ? "payment" : "payments") pending
+                                    </span>
+                                }
+
+                            </div>
+                        }
+                        else if (statsLoading)
+                        {
+                            <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--fs-border)">
+                                <MudSkeleton Width="200px" Height="20px" />
+                            </div>
+                        }
+                    </a>
+                }
+
+                @if (groups.Count > 5)
+                {
+                    <MudButton Variant="Variant.Text"
+                               FullWidth="true"
+                               Color="Color.Primary"
+                               Href="/groups"
+                               Style="font-size:0.875rem;font-weight:500">
+                        View @(groups.Count - 5) more groups
+                    </MudButton>
+                }
+            </div>
+        }
+    </div>
+
+    <!-- Settlements section -->
+    @if (groups.Any())
+    {
+        <div class="fs-fade-in fs-fade-in-delay-2" style="margin-top:24px">
+            <div class="fs-section-header">
+                <span class="fs-section-title">Settlements</span>
+                @if (SettlementState.Value.MyPendingSettlements.Count > 0)
+                {
+                    <span class="fs-stat-pill" style="background:rgba(217,119,6,0.25)">
+                        <MudIcon Icon="@Icons.Material.Rounded.Pending" Style="font-size:12px" />
+                        @SettlementState.Value.MyPendingSettlements.Count pending
+                    </span>
+                }
+            </div>
+
+            @if (SettlementState.Value.IsLoadingMyPending)
             {
-                <MudProgressCircular Indeterminate="true" Class="mt-2" />
+                <div style="display:flex;flex-direction:column;gap:8px">
+                    <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="72px"
+                                 Style="border-radius:var(--fs-radius-lg)" />
+                    <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="72px"
+                                 Style="border-radius:var(--fs-radius-lg)" />
+                </div>
             }
-            else if (AuthState.Value.CurrentUser is { } user)
+            else if (!SettlementState.Value.MyPendingSettlements.Any())
             {
-                <MudText Typo="Typo.body2" Class="mt-2">
-                    Signed in as <strong>@user.DisplayName</strong> (@user.Email)
-                </MudText>
-                <MudText Typo="Typo.caption">
-                    User id: @user.Id · provider: @user.Provider
-                    @if (user.IsGlobalAdmin)
-                    {
-                        <MudChip T="string" Color="Color.Error" Size="Size.Small" Class="ml-1">Global Admin</MudChip>
-                    }
-                </MudText>
-                <MudButton Variant="Variant.Outlined" Color="Color.Default" Class="mt-4" OnClick="SignOut">
-                    Sign out
-                </MudButton>
+                <div class="fs-card" style="padding:14px 16px">
+                    <div style="display:flex;align-items:center;gap:10px">
+                        <MudIcon Icon="@Icons.Material.Rounded.CheckCircle"
+                                 Style="font-size:22px;color:#059669" />
+                        <MudText Typo="Typo.body2" Style="color:var(--fs-text-secondary)">
+                            No pending settlements — you're all square!
+                        </MudText>
+                    </div>
+                </div>
             }
             else
             {
-                <MudText Typo="Typo.body2" Class="mt-2">Not signed in.</MudText>
-                <MudCheckBox @bind-Value="_rememberMe" Label="Remember me" Class="mt-3" />
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-2"
-                           StartIcon="@Icons.Material.Filled.Login"
-                           OnClick="SignIn">
-                    Sign in with Google
-                </MudButton>
+                var callerFamilyId = FamilyState.Value.MyFamily?.Id;
+
+                <div style="display:flex;flex-direction:column;gap:8px">
+                    @foreach (var s in SettlementState.Value.MyPendingSettlements)
+                    {
+                        var isCallerPayer    = callerFamilyId == s.PayerFamilyId;
+                        var isCallerReceiver = callerFamilyId == s.ReceiverFamilyId;
+                        var groupName        = GroupState.Value.Groups.FirstOrDefault(g => g.Id == s.GroupId)?.Name ?? "Group";
+                        var payerStyle       = isCallerPayer    ? "font-weight:600" : "font-weight:400";
+                        var receiverStyle    = isCallerReceiver ? "font-weight:600" : "font-weight:400";
+                        var (chipColor, chipIcon) = s.Status switch
+                        {
+                            SettlementStatus.Proposed  => (Color.Warning, Icons.Material.Rounded.Pending),
+                            SettlementStatus.PayerSent => (Color.Info,    Icons.Material.Rounded.Send),
+                            _                          => (Color.Default, Icons.Material.Rounded.Circle),
+                        };
+
+                        <div class="fs-card" style="padding:14px 16px">
+
+                            <!-- Group + activity breadcrumb -->
+                            <div style="font-size:0.75rem;color:var(--fs-text-tertiary);margin-bottom:8px;display:flex;align-items:center;gap:4px">
+                                <MudIcon Icon="@Icons.Material.Rounded.Groups" Style="font-size:13px" />
+                                @groupName
+                                <span style="color:var(--fs-border)">·</span>
+                                <MudIcon Icon="@Icons.Material.Rounded.EventNote" Style="font-size:13px" />
+                                @s.ActivityName
+                            </div>
+
+                            <!-- Payer → Receiver + amount -->
+                            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                                <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:0">
+                                    <div style="width:28px;height:28px;border-radius:8px;background:@GroupColor(s.PayerFamilyName);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                                        <span style="font-size:0.75rem;font-weight:700;color:white">@s.PayerFamilyName[0]</span>
+                                    </div>
+                                    <span style="font-size:0.875rem;@payerStyle;color:var(--fs-text-primary)">@s.PayerFamilyName</span>
+                                    <MudIcon Icon="@Icons.Material.Rounded.ArrowForward" Style="font-size:16px;color:var(--fs-text-tertiary)" />
+                                    <div style="width:28px;height:28px;border-radius:8px;background:@GroupColor(s.ReceiverFamilyName);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                                        <span style="font-size:0.75rem;font-weight:700;color:white">@s.ReceiverFamilyName[0]</span>
+                                    </div>
+                                    <span style="font-size:0.875rem;@receiverStyle;color:var(--fs-text-primary)">@s.ReceiverFamilyName</span>
+                                </div>
+
+                                <span style="font-size:0.9375rem;font-weight:700;color:var(--fs-text-primary);flex-shrink:0">
+                                    @FormatAmount(s.Amount, s.Currency)
+                                </span>
+
+                                <MudChip T="string" Color="@chipColor" Size="Size.Small" Icon="@chipIcon" Style="flex-shrink:0">
+                                    @(s.Status == SettlementStatus.PayerSent ? "Sent" : "Proposed")
+                                </MudChip>
+                            </div>
+
+                            <!-- Action buttons -->
+                            @if (s.Status == SettlementStatus.Proposed && isCallerPayer)
+                            {
+                                <div style="margin-top:10px">
+                                    <MudButton Variant="Variant.Filled"
+                                               Color="Color.Primary"
+                                               Size="Size.Small"
+                                               StartIcon="@Icons.Material.Rounded.Send"
+                                               OnClick="@(() => DashboardConfirmSent(s))">
+                                        Mark sent
+                                    </MudButton>
+                                </div>
+                            }
+                            @if (s.Status == SettlementStatus.PayerSent && isCallerReceiver)
+                            {
+                                <div style="margin-top:10px">
+                                    <MudButton Variant="Variant.Filled"
+                                               Color="Color.Success"
+                                               Size="Size.Small"
+                                               StartIcon="@Icons.Material.Rounded.CheckCircle"
+                                               OnClick="@(() => DashboardConfirmReceived(s))">
+                                        Mark received
+                                    </MudButton>
+                                </div>
+                            }
+
+                        </div>
+                    }
+                </div>
             }
-        </MudPaper>
-    </MudItem>
-    <MudItem xs="12" md="6">
-        <MudPaper Class="pa-4" Elevation="1">
-            <MudText Typo="Typo.h6">Roadmap</MudText>
-            <MudList T="string" Dense="true">
-                <MudListItem T="string" Text="Phase 3.5 ✅ — Family entity, Global admin, Family management UI" />
-                <MudListItem T="string" Text="Phase 4 ✅ — Activities, sub-activities &amp; participant management" />
-                <MudListItem T="string" Text="Phase 5 — Expenses &amp; splits" />
-                <MudListItem T="string" Text="Phase 6 — Settlements" />
-            </MudList>
-            <MudButton Href="health" Variant="Variant.Text" Class="mt-2">Check API health</MudButton>
-        </MudPaper>
-    </MudItem>
-</MudGrid>
+        </div>
+    }
+
+    <!-- Quick actions (desktop only) -->
+    <MudHidden Breakpoint="Breakpoint.MdAndUp" Invert="true">
+        <div class="fs-fade-in fs-fade-in-delay-2" style="margin-top:24px">
+            <div class="fs-section-header">
+                <span class="fs-section-title">Quick actions</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Rounded.ReceiptLong"
+                           FullWidth="true"
+                           OnClick="OpenQuickAddExpenseAsync"
+                           Style="height:48px;font-weight:500">
+                    Add expense
+                </MudButton>
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Rounded.Add"
+                           FullWidth="true"
+                           Href="/groups"
+                           Style="height:48px;font-weight:500">
+                    New group
+                </MudButton>
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Default"
+                           StartIcon="@Icons.Material.Rounded.GroupAdd"
+                           FullWidth="true"
+                           Href="/groups"
+                           Style="height:48px;font-weight:500">
+                    Join group
+                </MudButton>
+            </div>
+        </div>
+    </MudHidden>
+}
 
 @code {
     private bool _rememberMe;
@@ -71,17 +457,108 @@
     protected override void OnInitialized()
     {
         base.OnInitialized();
-        // Auth check is driven by NavMenu; nothing extra needed here.
+    }
+
+    // Tracks whether we've already fired the initial data load so we don't
+    // dispatch repeatedly on every render while auth is still resolving.
+    private bool _dataLoadDispatched;
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (!_dataLoadDispatched && AuthState.Value.IsAuthenticated)
+        {
+            _dataLoadDispatched = true;
+
+            if (!GroupState.Value.Groups.Any() && !GroupState.Value.IsLoading)
+                Dispatcher.Dispatch(new LoadGroupsAction());
+
+            if (FamilyState.Value.MyFamily is null && !FamilyState.Value.IsLoading)
+                Dispatcher.Dispatch(new LoadMyFamilyAction());
+
+            if (!DashboardState.Value.Stats.Any() && !DashboardState.Value.IsLoading)
+                Dispatcher.Dispatch(new LoadDashboardStatsAction());
+
+            if (!SettlementState.Value.IsLoadingMyPending)
+                Dispatcher.Dispatch(new LoadMyPendingSettlementsAction());
+        }
+    }
+
+    // ── Settlement confirm actions (from dashboard) ───────────────────────────
+
+    private async Task DashboardConfirmSent(GroupSettlementSummaryDto settlement)
+    {
+        bool? confirmed = await DialogService.ShowMessageBox(
+            "Confirm payment sent",
+            $"Confirm that {settlement.PayerFamilyName} has sent {FormatAmount(settlement.Amount, settlement.Currency)} to {settlement.ReceiverFamilyName}?",
+            yesText: "Confirm sent",
+            cancelText: "Cancel");
+
+        if (confirmed == true)
+            Dispatcher.Dispatch(new ConfirmSentAction(settlement.GroupId, settlement.ActivityId, settlement.Id));
+    }
+
+    private async Task DashboardConfirmReceived(GroupSettlementSummaryDto settlement)
+    {
+        bool? confirmed = await DialogService.ShowMessageBox(
+            "Confirm payment received",
+            $"Confirm that {settlement.ReceiverFamilyName} has received {FormatAmount(settlement.Amount, settlement.Currency)} from {settlement.PayerFamilyName}?",
+            yesText: "Confirm received",
+            cancelText: "Cancel");
+
+        if (confirmed == true)
+            Dispatcher.Dispatch(new ConfirmReceivedAction(settlement.GroupId, settlement.ActivityId, settlement.Id));
+    }
+
+    private async Task OpenQuickAddExpenseAsync()
+    {
+        var options = new DialogOptions
+        {
+            FullScreen       = false,
+            Position         = DialogPosition.BottomCenter,
+            MaxWidth         = MaxWidth.Small,
+            FullWidth        = true,
+            CloseOnEscapeKey = true,
+            BackdropClick    = true,
+        };
+        await DialogService.ShowAsync<QuickExpenseDialog>("Add expense", options);
     }
 
     private async Task SignIn()
     {
         await Auth.SetRememberAsync(_rememberMe);
-        var apiBaseUrl = Config["Api:BaseUrl"] ?? "https://localhost:5081";
-        var returnUrl  = Nav.BaseUri.TrimEnd('/');
+        var apiBaseUrl  = Config["Api:BaseUrl"] ?? "https://localhost:5081";
+        var returnUrl   = Nav.BaseUri.TrimEnd('/');
         var rememberParam = _rememberMe ? "&remember=true" : string.Empty;
         Nav.NavigateTo($"{apiBaseUrl}/auth/login/Google?returnUrl={Uri.EscapeDataString(returnUrl)}{rememberParam}", forceLoad: true);
     }
 
-    private void SignOut() => Dispatcher.Dispatch(new SignOutAction());
+    private static string GetTimeOfDay()
+    {
+        var h = DateTime.Now.Hour;
+        return h < 12 ? "morning" : h < 18 ? "afternoon" : "evening";
+    }
+
+    // Deterministic colour from group name
+    private static string GroupColor(string name)
+    {
+        var colors = new[]
+        {
+            "#4F46E5", "#7C3AED", "#DB2777", "#DC2626",
+            "#D97706", "#059669", "#0891B2", "#0284C7",
+        };
+        var idx = Math.Abs(name.GetHashCode()) % colors.Length;
+        return colors[idx];
+    }
+
+    private static string FormatAmount(decimal amount, string currency)
+    {
+        var symbol = currency switch
+        {
+            "EUR" => "€",
+            "USD" => "$",
+            "GBP" => "£",
+            _     => currency + " ",
+        };
+        return $"{symbol}{amount:N2}";
+    }
 }

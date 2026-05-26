@@ -73,6 +73,15 @@ public class SettlementService
         if (activity.Status == ActivityStatus.AbsorbedByParent)
             throw Throw422("Status", "Cannot settle a sub-activity that was absorbed by its parent.");
 
+        // Any sub-activity (even one pre-closed before the parent) must roll its
+        // expenses into the parent settlement — it cannot be settled independently.
+        var parentId = await _db.Activities
+            .Where(a => a.Id == activityId)
+            .Select(a => a.ParentActivityId)
+            .FirstOrDefaultAsync();
+        if (parentId is not null)
+            throw Throw422("Status", "Sub-activities cannot be settled independently. Generate settlements from the parent activity instead.");
+
         // Idempotency: if settlements already exist, return them.
         var existing = await _db.Settlements
             .Where(s => s.ActivityId == activityId)
@@ -113,6 +122,143 @@ public class SettlementService
         await _db.SaveChangesAsync();
 
         return await BuildSummaryListAsync(activityId);
+    }
+
+    // ── List active settlements for a group (all activities) ─────────────────
+
+    public async Task<List<GroupSettlementSummaryDto>> ListForGroupAsync(Guid groupId, Guid callerId)
+    {
+        await RequireGroupMemberAsync(groupId, callerId);
+
+        // Top-level activities only (sub-activities don't have independent settlements).
+        var activities = await _db.Activities
+            .Where(a => a.GroupId == groupId && a.ParentActivityId == null)
+            .Select(a => new { a.Id, a.Name })
+            .ToListAsync();
+
+        if (activities.Count == 0) return [];
+
+        var activityIds = activities.Select(a => a.Id).ToList();
+        var nameMap     = activities.ToDictionary(a => a.Id, a => a.Name);
+
+        // Only unsettled settlements (Proposed or PayerSent) — once Completed/Cancelled they leave the view.
+        var rows = await (
+            from s in _db.Settlements
+            join pf in _db.Families on s.PayerFamilyId    equals pf.Id
+            join rf in _db.Families on s.ReceiverFamilyId equals rf.Id
+            where activityIds.Contains(s.ActivityId)
+               && s.Status != SettlementStatus.Completed
+               && s.Status != SettlementStatus.Cancelled
+            orderby s.ProposedAt
+            select new
+            {
+                s.Id,
+                s.ActivityId,
+                s.PayerFamilyId,
+                PayerFamilyName    = pf.Name,
+                s.ReceiverFamilyId,
+                ReceiverFamilyName = rf.Name,
+                s.Amount,
+                s.Currency,
+                s.Status,
+                s.ProposedAt,
+            }
+        ).ToListAsync();
+
+        return rows
+            .Select(r => new GroupSettlementSummaryDto(
+                r.Id,
+                groupId,
+                r.ActivityId,
+                nameMap.GetValueOrDefault(r.ActivityId, "Unknown"),
+                r.PayerFamilyId,
+                r.PayerFamilyName,
+                r.ReceiverFamilyId,
+                r.ReceiverFamilyName,
+                Math.Round(r.Amount, 2, MidpointRounding.AwayFromZero),
+                r.Currency,
+                r.Status,
+                r.ProposedAt))
+            .OrderBy(r => r.ActivityName)
+            .ThenBy(r => r.ProposedAt)
+            .ToList();
+    }
+
+    // ── List all pending settlements for the caller (across all groups) ───────
+
+    public async Task<List<GroupSettlementSummaryDto>> ListMyPendingAsync(Guid callerId)
+    {
+        // Resolve caller's family.
+        var callerFamilyId = await _db.FamilyMembers
+            .Where(m => m.UserId == callerId && m.IsActive)
+            .Select(m => (Guid?)m.FamilyId)
+            .FirstOrDefaultAsync()
+            ?? throw new ForbiddenException();
+
+        // Groups the caller's family belongs to.
+        var groupIds = await _db.GroupFamilies
+            .Where(gf => gf.FamilyId == callerFamilyId)
+            .Select(gf => gf.GroupId)
+            .ToListAsync();
+
+        if (groupIds.Count == 0) return [];
+
+        // Top-level activities across those groups (no sub-activities).
+        var activities = await _db.Activities
+            .Where(a => groupIds.Contains(a.GroupId) && a.ParentActivityId == null)
+            .Select(a => new { a.Id, a.GroupId, a.Name })
+            .ToListAsync();
+
+        if (activities.Count == 0) return [];
+
+        var activityIds = activities.Select(a => a.Id).ToList();
+        var activityMap = activities.ToDictionary(a => a.Id, a => new { a.GroupId, a.Name });
+
+        var rows = await (
+            from s in _db.Settlements
+            join pf in _db.Families on s.PayerFamilyId    equals pf.Id
+            join rf in _db.Families on s.ReceiverFamilyId equals rf.Id
+            where activityIds.Contains(s.ActivityId)
+               && s.Status != SettlementStatus.Completed
+               && s.Status != SettlementStatus.Cancelled
+               && (s.PayerFamilyId == callerFamilyId || s.ReceiverFamilyId == callerFamilyId)
+            orderby s.ProposedAt
+            select new
+            {
+                s.Id,
+                s.ActivityId,
+                s.PayerFamilyId,
+                PayerFamilyName    = pf.Name,
+                s.ReceiverFamilyId,
+                ReceiverFamilyName = rf.Name,
+                s.Amount,
+                s.Currency,
+                s.Status,
+                s.ProposedAt,
+            }
+        ).ToListAsync();
+
+        return rows
+            .Select(r =>
+            {
+                var act = activityMap[r.ActivityId];
+                return new GroupSettlementSummaryDto(
+                    r.Id,
+                    act.GroupId,
+                    r.ActivityId,
+                    act.Name,
+                    r.PayerFamilyId,
+                    r.PayerFamilyName,
+                    r.ReceiverFamilyId,
+                    r.ReceiverFamilyName,
+                    Math.Round(r.Amount, 2, MidpointRounding.AwayFromZero),
+                    r.Currency,
+                    r.Status,
+                    r.ProposedAt);
+            })
+            .OrderBy(r => r.ActivityName)
+            .ThenBy(r => r.ProposedAt)
+            .ToList();
     }
 
     // ── List settlements for an activity ─────────────────────────────────────
@@ -278,9 +424,11 @@ public class SettlementService
 
     private async Task<string> GetActivityCurrencyAsync(Guid activityId)
     {
-        // Use the most common currency in the activity's expenses, defaulting to EUR.
+        // Include sub-activity expenses when determining the dominant currency.
+        var allIds = await GetActivityAndSubIdsAsync(activityId);
+
         var currency = await _db.Expenses
-            .Where(e => e.ActivityId == activityId)
+            .Where(e => allIds.Contains(e.ActivityId))
             .GroupBy(e => e.Currency)
             .OrderByDescending(g => g.Count())
             .Select(g => g.Key)
@@ -292,12 +440,16 @@ public class SettlementService
     private async Task<(List<BalanceCalculator.ExpenseData>, List<BalanceCalculator.ParticipantData>)>
         LoadExpenseDataAsync(Guid activityId)
     {
+        // Include expenses from all sub-activities so their costs roll into the
+        // parent settlement rather than generating separate (duplicate) transfers.
+        var allIds = await GetActivityAndSubIdsAsync(activityId);
+
         // Load payer family for each expense.
         // Use a cross-join + where to avoid nullable Guid join issues (fm.UserId is Guid?).
         var expenseData = await (
             from e in _db.Expenses
             from fm in _db.FamilyMembers
-            where e.ActivityId == activityId
+            where allIds.Contains(e.ActivityId)
                 && fm.UserId != null
                 && fm.UserId == e.PaidByUserId
                 && fm.IsActive
@@ -309,11 +461,26 @@ public class SettlementService
             from ep in _db.ExpenseParticipants
             join e in _db.Expenses on ep.ExpenseId equals e.Id
             join fm in _db.FamilyMembers on ep.FamilyMemberId equals fm.Id
-            where e.ActivityId == activityId && !ep.IsExcluded
+            where allIds.Contains(e.ActivityId) && !ep.IsExcluded
             select new BalanceCalculator.ParticipantData(fm.FamilyId, ep.CalculatedAmount)
         ).ToListAsync();
 
         return (expenseData, participantData);
+    }
+
+    /// <summary>
+    /// Returns the given activity ID plus the IDs of all its direct sub-activities.
+    /// Expenses from sub-activities are always rolled up into the parent settlement.
+    /// </summary>
+    private async Task<List<Guid>> GetActivityAndSubIdsAsync(Guid activityId)
+    {
+        var subIds = await _db.Activities
+            .Where(a => a.ParentActivityId == activityId)
+            .Select(a => a.Id)
+            .ToListAsync();
+
+        subIds.Add(activityId);
+        return subIds;
     }
 
     private async Task<List<SettlementSummaryDto>> BuildSummaryListAsync(Guid activityId)

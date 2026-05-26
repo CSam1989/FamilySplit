@@ -14,14 +14,9 @@
             <MudTextField Label="Description" @bind-Value="_model.Description"
                           Lines="2" MaxLength="500" Class="mb-3" />
 
-            <MudStack Row="true" Spacing="3" Class="mb-3">
-                <MudNumericField T="decimal" Label="Amount" @bind-Value="_model.TotalAmount"
-                                 Required="true" RequiredError="Amount is required."
-                                 Min="0.01m" Format="F2" Immediate="true"
-                                 Style="flex:1" />
-                <MudTextField Label="Currency" @bind-Value="_model.Currency"
-                              MaxLength="3" Style="max-width:90px" />
-            </MudStack>
+            <MudNumericField T="decimal" Label="Amount (EUR)" @bind-Value="_model.TotalAmount"
+                             Required="true" RequiredError="Amount is required."
+                             Min="0.01m" Immediate="true" Class="mb-3" />
 
             <MudDatePicker Label="Date" @bind-Date="_expenseDate"
                            Required="true" RequiredError="Date is required."
@@ -43,8 +38,7 @@
     [Parameter] public string? InitialTitle { get; set; }
     [Parameter] public string? InitialDescription { get; set; }
     [Parameter] public decimal InitialAmount { get; set; }
-    [Parameter] public string? InitialCurrency { get; set; }
-    [Parameter] public DateOnly InitialDate { get; set; }
+[Parameter] public DateOnly InitialDate { get; set; }
 
     private MudForm _form = default!;
     private readonly ExpenseFormModel _model = new();
@@ -55,8 +49,7 @@
         _model.Title       = InitialTitle ?? string.Empty;
         _model.Description = InitialDescription;
         _model.TotalAmount = InitialAmount;
-        _model.Currency    = InitialCurrency ?? "EUR";
-        _expenseDate       = InitialDate == default
+_expenseDate       = InitialDate == default
             ? DateTime.Today
             : InitialDate.ToDateTime(TimeOnly.MinValue);
     }

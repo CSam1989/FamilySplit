@@ -1,7 +1,9 @@
 @page "/groups"
+@using FamilySplit.Client.Store.Dashboard
 @inherits Fluxor.Blazor.Web.Components.FluxorComponent
 @inject IDispatcher Dispatcher
 @inject IState<GroupState> State
+@inject IState<DashboardState> DashboardState
 @inject IDialogService DialogService
 @inject NavigationManager Nav
 
@@ -53,11 +55,16 @@
 }
 else
 {
+    var statsMap     = DashboardState.Value.Stats.ToDictionary(s => s.GroupId);
+    var statsLoading = DashboardState.Value.IsLoading;
+
     <MudGrid Spacing="3">
         @foreach (var group in State.Value.Groups)
         {
+            var stat = statsMap.GetValueOrDefault(group.Id);
+
             <MudItem xs="12" sm="6" md="4">
-                <MudCard Elevation="2" Style="cursor:pointer" @onclick="() => GoToDetail(group.Id)">
+                <MudCard Elevation="2" Style="cursor:pointer;height:100%" @onclick="() => GoToDetail(group.Id)">
                     <MudCardHeader>
                         <CardHeaderContent>
                             <MudText Typo="Typo.h6">@group.Name</MudText>
@@ -74,10 +81,90 @@ else
                         </CardHeaderActions>
                     </MudCardHeader>
                     <MudCardContent>
-                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                        <!-- Family count -->
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="mb-3">
                             <MudIcon Icon="@Icons.Material.Filled.People" Size="Size.Small" Color="Color.Secondary" />
-                            <MudText Typo="Typo.body2" Color="Color.Secondary">@group.FamilyCount famil@(group.FamilyCount == 1 ? "y" : "ies")</MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                @group.FamilyCount famil@(group.FamilyCount == 1 ? "y" : "ies")
+                            </MudText>
                         </MudStack>
+
+                        <!-- Stats chips -->
+                        @if (stat is not null)
+                        {
+                            <div style="display:flex;flex-wrap:wrap;gap:6px">
+
+                                <!-- Activity count -->
+                                <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;color:var(--mud-palette-text-secondary);background:var(--mud-palette-action-default-hover);border-radius:6px;padding:3px 8px">
+                                    <MudIcon Icon="@Icons.Material.Rounded.EventNote" Style="font-size:12px" />
+                                    @stat.TotalActivities @(stat.TotalActivities == 1 ? "activity" : "activities")
+                                    @if (stat.OpenActivities > 0)
+                                    {
+                                        <span style="color:var(--mud-palette-primary);font-weight:600">(@stat.OpenActivities open)</span>
+                                    }
+                                </span>
+
+                                <!-- Spend chips: all-time + active -->
+                                @if (stat.TotalGroupSpend > 0)
+                                {
+                                    <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;color:var(--mud-palette-text-secondary);background:var(--mud-palette-action-default-hover);border-radius:6px;padding:3px 8px">
+                                        <MudIcon Icon="@Icons.Material.Rounded.Receipt" Style="font-size:12px" />
+                                        @FormatAmount(stat.TotalGroupSpend, stat.Currency)
+                                        <span style="opacity:0.4">·</span>
+                                        your share @FormatAmount(stat.MyFamilyShare, stat.Currency)
+                                    </span>
+                                }
+                                @if (stat.ActiveGroupSpend > 0)
+                                {
+                                    <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;color:var(--mud-palette-text-secondary);background:var(--mud-palette-action-default-hover);border-radius:6px;padding:3px 8px">
+                                        <MudIcon Icon="@Icons.Material.Rounded.ReceiptLong" Style="font-size:12px" />
+                                        active @FormatAmount(stat.ActiveGroupSpend, stat.Currency)
+                                        <span style="opacity:0.4">·</span>
+                                        your share @FormatAmount(stat.ActiveFamilyShare, stat.Currency)
+                                    </span>
+                                }
+
+                                <!-- Net balance -->
+                                @if (stat.TotalActivities > 0)
+                                {
+                                    @if (stat.NetBalance > 0)
+                                    {
+                                        <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;font-weight:600;color:#059669;background:rgba(5,150,105,0.1);border-radius:6px;padding:3px 8px">
+                                            <MudIcon Icon="@Icons.Material.Rounded.TrendingUp" Style="font-size:12px" />
+                                            @FormatAmount(stat.NetBalance, stat.Currency) to receive
+                                        </span>
+                                    }
+                                    else if (stat.NetBalance < 0)
+                                    {
+                                        <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;font-weight:600;color:#DC2626;background:rgba(220,38,38,0.1);border-radius:6px;padding:3px 8px">
+                                            <MudIcon Icon="@Icons.Material.Rounded.TrendingDown" Style="font-size:12px" />
+                                            @FormatAmount(Math.Abs(stat.NetBalance), stat.Currency) to pay
+                                        </span>
+                                    }
+                                    else if (stat.SettledActivities == stat.TotalActivities)
+                                    {
+                                        <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;font-weight:600;color:#059669;background:rgba(5,150,105,0.1);border-radius:6px;padding:3px 8px">
+                                            <MudIcon Icon="@Icons.Material.Rounded.CheckCircle" Style="font-size:12px" />
+                                            All settled
+                                        </span>
+                                    }
+                                }
+
+                                <!-- Pending settlement action -->
+                                @if (stat.PendingSettlements > 0)
+                                {
+                                    <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;font-weight:600;color:#D97706;background:rgba(217,119,6,0.12);border-radius:6px;padding:3px 8px">
+                                        <MudIcon Icon="@Icons.Material.Rounded.Pending" Style="font-size:12px" />
+                                        @stat.PendingSettlements @(stat.PendingSettlements == 1 ? "payment" : "payments") pending
+                                    </span>
+                                }
+
+                            </div>
+                        }
+                        else if (statsLoading)
+                        {
+                            <MudSkeleton Width="180px" Height="22px" />
+                        }
                     </MudCardContent>
                 </MudCard>
             </MudItem>
@@ -90,6 +177,9 @@ else
     {
         base.OnInitialized();
         Dispatcher.Dispatch(new LoadGroupsAction());
+
+        if (!DashboardState.Value.Stats.Any() && !DashboardState.Value.IsLoading)
+            Dispatcher.Dispatch(new LoadDashboardStatsAction());
     }
 
     private void GoToDetail(Guid groupId) =>
@@ -130,5 +220,17 @@ else
             _pendingNavigation = true;
             Dispatcher.Dispatch(new JoinGroupAction(new JoinGroupRequest(inviteCode)));
         }
+    }
+
+    private static string FormatAmount(decimal amount, string currency)
+    {
+        var symbol = currency switch
+        {
+            "EUR" => "€",
+            "USD" => "$",
+            "GBP" => "£",
+            _     => currency + " ",
+        };
+        return $"{symbol}{amount:N2}";
     }
 }

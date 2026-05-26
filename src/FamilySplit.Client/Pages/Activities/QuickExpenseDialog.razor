@@ -1,0 +1,428 @@
+@using FamilySplit.Client.Store.App
+@using FamilySplit.Client.Store.Expenses
+@inject IDispatcher Dispatcher
+@inject IState<AppState> AppState
+@inject IState<GroupState> GroupState
+@inject IActivityClient ActivityClient
+@inject IExpenseClient ExpenseClient
+@inject ILogger<QuickExpenseDialog> Logger
+
+<MudDialog Style="max-width:480px;width:100%">
+    <TitleContent>
+        <div style="display:flex;align-items:center;gap:8px">
+            @if (_step == Step.ExpenseForm)
+            {
+                <MudIconButton Icon="@Icons.Material.Rounded.ArrowBack"
+                               Size="Size.Small" OnClick="GoBack" Edge="Edge.Start"
+                               Style="margin-left:-4px" />
+            }
+            <MudText Typo="Typo.h6" Style="font-weight:600;letter-spacing:-0.01em">
+                @(_step switch {
+                    Step.ActivityPicker => "Pick activity",
+                    Step.ExpenseForm    => "Add expense",
+                    _                   => "Add expense"
+                })
+            </MudText>
+        </div>
+    </TitleContent>
+
+    <DialogContent>
+
+        @if (_step == Step.ActivityPicker)
+        {
+            @* ── Activity picker ──────────────────────────────────────────── *@
+
+            @if (_loadingActivities)
+            {
+                <div style="display:flex;flex-direction:column;gap:8px;padding:4px 0">
+                    <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="52px"
+                                 Style="border-radius:var(--fs-radius-md)" />
+                    <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="52px"
+                                 Style="border-radius:var(--fs-radius-md)" />
+                </div>
+            }
+            else if (_activityError is not null)
+            {
+                <MudAlert Severity="Severity.Error" Dense="true">@_activityError</MudAlert>
+            }
+            else
+            {
+                @* Group selector *@
+                <MudSelect T="Guid?" Label="Group"
+                           Value="_selectedGroupId"
+                           ValueChanged="OnGroupChanged"
+                           Variant="Variant.Outlined"
+                           AnchorOrigin="Origin.BottomCenter"
+                           Class="mb-3">
+                    @foreach (var g in GroupState.Value.Groups)
+                    {
+                        <MudSelectItem T="Guid?" Value="@((Guid?)g.Id)">@g.Name</MudSelectItem>
+                    }
+                </MudSelect>
+
+                @* Activity list *@
+                @if (_activities.Count == 0 && _selectedGroupId.HasValue)
+                {
+                    <div style="padding:16px 0;text-align:center">
+                        <MudText Typo="Typo.body2" Style="color:var(--fs-text-secondary)">
+                            No open activities in this group
+                        </MudText>
+                    </div>
+                }
+                else
+                {
+                    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px">
+                        @foreach (var a in _activities)
+                        {
+                            var isSelected = a.Id == _selectedActivityId;
+                            <div @onclick="() => SelectActivity(a)"
+                                 style="display:flex;align-items:center;gap:12px;padding:12px 14px;
+                                        border-radius:var(--fs-radius-md);cursor:pointer;
+                                        border:1.5px solid @(isSelected ? "var(--fs-primary)" : "var(--fs-border)");
+                                        background:@(isSelected ? "var(--fs-primary-light)" : "var(--fs-surface)");
+                                        transition:border-color 0.15s,background 0.15s">
+                                <div style="flex:1;min-width:0">
+                                    <div style="font-size:0.9rem;font-weight:@(isSelected ? "600" : "500");
+                                                color:@(isSelected ? "var(--fs-primary)" : "var(--fs-text-primary)");
+                                                white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                                        @a.Name
+                                    </div>
+                                    <div style="font-size:0.775rem;color:var(--fs-text-secondary);margin-top:1px">
+                                        @a.ParticipantCount participants
+                                        @if (a.Description is { Length: > 0 } d)
+                                        {
+                                            <span> · @d</span>
+                                        }
+                                    </div>
+                                </div>
+                                @if (isSelected)
+                                {
+                                    <MudIcon Icon="@Icons.Material.Rounded.CheckCircle"
+                                             Style="color:var(--fs-primary);font-size:20px;flex-shrink:0" />
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+
+                @* New activity inline *@
+                @if (_showNewActivityForm)
+                {
+                    <div style="background:var(--fs-border-subtle);border-radius:var(--fs-radius-md);
+                                padding:12px 14px;margin-top:4px">
+                        <MudTextField Label="Activity name"
+                                      @bind-Value="_newActivityName"
+                                      Variant="Variant.Outlined"
+                                      Immediate="true"
+                                      AutoFocus="true"
+                                      Class="mb-2" />
+                        <div style="display:flex;gap:8px;justify-content:flex-end">
+                            <MudButton Size="Size.Small" OnClick="() => _showNewActivityForm = false">
+                                Cancel
+                            </MudButton>
+                            <MudButton Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled"
+                                       Disabled="@(string.IsNullOrWhiteSpace(_newActivityName) || _creatingActivity)"
+                                       OnClick="CreateActivityAsync">
+                                @if (_creatingActivity)
+                                {
+                                    <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                                }
+                                else
+                                {
+                                    <span>Create</span>
+                                }
+                            </MudButton>
+                        </div>
+                    </div>
+                }
+                else if (_selectedGroupId.HasValue)
+                {
+                    <MudButton Variant="Variant.Text"
+                               Color="Color.Primary"
+                               StartIcon="@Icons.Material.Rounded.Add"
+                               Size="Size.Small"
+                               OnClick="() => _showNewActivityForm = true"
+                               Style="margin-top:2px">
+                        New activity
+                    </MudButton>
+                }
+            }
+        }
+
+        @if (_step == Step.ExpenseForm)
+        {
+            @* ── Expense form ─────────────────────────────────────────────── *@
+
+            @* Activity context chip *@
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:16px;
+                        padding:8px 12px;background:var(--fs-primary-light);border-radius:var(--fs-radius-md)">
+                <MudIcon Icon="@Icons.Material.Rounded.EventNote"
+                         Style="font-size:16px;color:var(--fs-primary)" />
+                <MudText Typo="Typo.caption"
+                         Style="color:var(--fs-primary);font-weight:600;font-size:0.8125rem">
+                    @_selectedActivityName · @_selectedGroupName
+                </MudText>
+            </div>
+
+            @if (_expenseError is not null)
+            {
+                <MudAlert Severity="Severity.Error" Dense="true" Class="mb-3"
+                          ShowCloseIcon="true" CloseIconClicked="() => _expenseError = null">
+                    @_expenseError
+                </MudAlert>
+            }
+
+            <MudForm @ref="_expenseForm" Model="_expense">
+                <MudTextField Label="What was it?" @bind-Value="_expense.Title"
+                              Required="true" RequiredError="Title is required."
+                              MaxLength="200" Immediate="true" Class="mb-3"
+                              Variant="Variant.Outlined" AutoFocus="true" />
+
+                <MudNumericField T="decimal" Label="Amount (EUR)" @bind-Value="_expense.TotalAmount"
+                                 Required="true" RequiredError="Amount is required."
+                                 Min="0.01m" Immediate="true"
+                                 Variant="Variant.Outlined" Class="mb-3" />
+
+                <MudDatePicker Label="Date" @bind-Date="_expenseDate"
+                               Required="true" RequiredError="Date is required."
+                               DateFormat="dd/MM/yyyy" Variant="Variant.Outlined"
+                               Class="mb-3" />
+
+                <MudTextField Label="Notes (optional)" @bind-Value="_expense.Description"
+                              Lines="2" MaxLength="500" Variant="Variant.Outlined" />
+            </MudForm>
+        }
+
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel" Disabled="_submitting">Cancel</MudButton>
+
+        @if (_step == Step.ActivityPicker)
+        {
+            <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                       Disabled="@(!_selectedActivityId.HasValue)"
+                       OnClick="ConfirmActivity">
+                Next
+            </MudButton>
+        }
+        else
+        {
+            <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                       Disabled="_submitting"
+                       OnClick="SubmitExpenseAsync">
+                @if (_submitting)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Style="margin-right:6px" />
+                    <span>Saving…</span>
+                }
+                else
+                {
+                    <span>Add expense</span>
+                }
+            </MudButton>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    // ── State machine ──────────────────────────────────────────────────────────
+    private enum Step { ActivityPicker, ExpenseForm }
+    private Step _step = Step.ActivityPicker;
+
+    // ── Activity picker ────────────────────────────────────────────────────────
+    private Guid? _selectedGroupId;
+    private string? _selectedGroupName;
+    private Guid? _selectedActivityId;
+    private string? _selectedActivityName;
+    private List<ActivitySummaryDto> _activities = [];
+    private bool _loadingActivities;
+    private string? _activityError;
+
+    // ── New activity inline ────────────────────────────────────────────────────
+    private bool _showNewActivityForm;
+    private string _newActivityName = string.Empty;
+    private bool _creatingActivity;
+
+    // ── Expense form ───────────────────────────────────────────────────────────
+    private MudForm _expenseForm = default!;
+    private readonly ExpenseFormModel _expense = new() { Currency = "EUR" };
+    private DateTime? _expenseDate = DateTime.Today;
+    private bool _submitting;
+    private string? _expenseError;
+
+    // ── Init ───────────────────────────────────────────────────────────────────
+    protected override async Task OnInitializedAsync()
+    {
+        var appState = AppState.Value;
+
+        if (appState.LastUsedActivityId.HasValue && appState.LastUsedGroupId.HasValue)
+        {
+            // Last-used activity known — pre-select it and skip to the expense form
+            _selectedGroupId    = appState.LastUsedGroupId;
+            _selectedGroupName  = appState.LastUsedGroupName ?? string.Empty;
+            _selectedActivityId = appState.LastUsedActivityId;
+            _selectedActivityName = appState.LastUsedActivityName ?? string.Empty;
+            // Load the group's activities in the background so Change works
+            _ = LoadActivitiesAsync(_selectedGroupId.Value);
+            _step = Step.ExpenseForm;
+        }
+        else
+        {
+            // No history — pick the first group's latest Open activity as default
+            var firstGroup = GroupState.Value.Groups.FirstOrDefault();
+            if (firstGroup is not null)
+            {
+                _selectedGroupId   = firstGroup.Id;
+                _selectedGroupName = firstGroup.Name;
+                await LoadActivitiesAsync(firstGroup.Id);
+                if (_activities.Count > 0)
+                {
+                    var latest = _activities.MaxBy(a => a.CreatedAt)!;
+                    _selectedActivityId   = latest.Id;
+                    _selectedActivityName = latest.Name;
+                }
+            }
+        }
+    }
+
+    // ── Activity loading ───────────────────────────────────────────────────────
+    private async Task LoadActivitiesAsync(Guid groupId)
+    {
+        _loadingActivities = true;
+        _activityError     = null;
+        _activities        = [];
+        StateHasChanged();
+        try
+        {
+            var all = await ActivityClient.ListAsync(groupId);
+            _activities = all
+                .Where(a => a.Status == ActivityStatus.Open && a.ParentActivityId == null)
+                .OrderByDescending(a => a.CreatedAt)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load activities for group {GroupId}", groupId);
+            _activityError = "Could not load activities. Please try again.";
+        }
+        finally
+        {
+            _loadingActivities = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnGroupChanged(Guid? groupId)
+    {
+        if (groupId is null) return;
+        _selectedGroupId    = groupId;
+        _selectedGroupName  = GroupState.Value.Groups.FirstOrDefault(g => g.Id == groupId)?.Name;
+        _selectedActivityId = null;
+        _selectedActivityName = null;
+        _showNewActivityForm = false;
+        await LoadActivitiesAsync(groupId.Value);
+    }
+
+    private void SelectActivity(ActivitySummaryDto a)
+    {
+        _selectedActivityId   = a.Id;
+        _selectedActivityName = a.Name;
+    }
+
+    // ── New activity ───────────────────────────────────────────────────────────
+    private async Task CreateActivityAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newActivityName) || !_selectedGroupId.HasValue) return;
+        _creatingActivity = true;
+        try
+        {
+            var created = await ActivityClient.CreateAsync(
+                _selectedGroupId.Value,
+                new CreateActivityRequest(_newActivityName.Trim(), null));
+
+            // Keep the store in sync
+            Dispatcher.Dispatch(new CreateActivitySuccessAction(created));
+            Dispatcher.Dispatch(new LoadActivitiesAction(_selectedGroupId.Value));
+
+            // Add to local list and auto-select
+            var summary = new ActivitySummaryDto(
+                created.Id, created.GroupId, created.Name, created.Description,
+                created.Status, created.ParentActivityId,
+                created.Participants.Count, created.SubActivities.Count,
+                created.CreatedAt, created.ClosedAt);
+            _activities.Insert(0, summary);
+            _selectedActivityId   = created.Id;
+            _selectedActivityName = created.Name;
+            _newActivityName      = string.Empty;
+            _showNewActivityForm  = false;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to create activity");
+            _activityError = "Could not create activity. Please try again.";
+        }
+        finally
+        {
+            _creatingActivity = false;
+            StateHasChanged();
+        }
+    }
+
+    // ── Step transitions ───────────────────────────────────────────────────────
+    private void ConfirmActivity()
+    {
+        if (!_selectedActivityId.HasValue) return;
+        _step = Step.ExpenseForm;
+    }
+
+    private void GoBack() => _step = Step.ActivityPicker;
+
+    // ── Expense submission ─────────────────────────────────────────────────────
+    private async Task SubmitExpenseAsync()
+    {
+        await _expenseForm.Validate();
+        if (!_expenseForm.IsValid) return;
+        if (!_selectedGroupId.HasValue || !_selectedActivityId.HasValue) return;
+
+        _submitting   = true;
+        _expenseError = null;
+
+        try
+        {
+            var request = new CreateExpenseRequest(
+                _expense.Title,
+                _expense.Description,
+                _expense.TotalAmount,
+                _expense.Currency,
+                DateOnly.FromDateTime(_expenseDate ?? DateTime.Today),
+                null);
+
+            var created = await ExpenseClient.CreateAsync(
+                _selectedGroupId.Value, _selectedActivityId.Value, request);
+
+            // Keep the store in sync
+            Dispatcher.Dispatch(new CreateExpenseSuccessAction(created));
+            Dispatcher.Dispatch(new LoadExpensesAction(_selectedGroupId.Value, _selectedActivityId.Value));
+
+            // Remember this activity for next time
+            Dispatcher.Dispatch(new SetLastUsedActivityAction(
+                _selectedGroupId.Value,
+                _selectedActivityId.Value,
+                _selectedActivityName ?? string.Empty,
+                _selectedGroupName ?? string.Empty));
+
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to create expense");
+            _expenseError = ErrorHelper.GetMessage(ex);
+            _submitting   = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

@@ -1,10 +1,12 @@
 @using FamilySplit.Domain.Enums
+@using FamilySplit.Client.Store.Settlements
+@inject IDispatcher Dispatcher
 
 <MudDialog>
     <TitleContent>
         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
             <MudIcon Icon="@Icons.Material.Filled.AccountBalance" />
-            <MudText Typo="Typo.h6">Settlement detail</MudText>
+            <MudText Typo="Typo.h6">Transfer detail</MudText>
         </MudStack>
     </TitleContent>
     <DialogContent>
@@ -87,6 +89,27 @@
         }
     </DialogContent>
     <DialogActions>
+        @if (Settlement is not null)
+        {
+            @if (Settlement.Status == SettlementStatus.Proposed && CallerFamilyId == Settlement.PayerFamilyId)
+            {
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Send"
+                           OnClick="OnMarkSent">
+                    Mark sent
+                </MudButton>
+            }
+            @if (Settlement.Status == SettlementStatus.PayerSent && CallerFamilyId == Settlement.ReceiverFamilyId)
+            {
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Success"
+                           StartIcon="@Icons.Material.Filled.CheckCircle"
+                           OnClick="OnConfirmReceived">
+                    Mark received
+                </MudButton>
+            }
+        }
         <MudButton OnClick="Close">Close</MudButton>
     </DialogActions>
 </MudDialog>
@@ -95,6 +118,27 @@
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
 
     [Parameter] public SettlementDetailDto? Settlement { get; set; }
+
+    /// <summary>GroupId required to route the Fluxor action.</summary>
+    [Parameter] public Guid GroupId { get; set; }
+
+    /// <summary>ActivityId required to route the Fluxor action.</summary>
+    [Parameter] public Guid ActivityId { get; set; }
+
+    /// <summary>The caller's FamilyId — used to decide which action button to show.</summary>
+    [Parameter] public Guid? CallerFamilyId { get; set; }
+
+    private void OnMarkSent()
+    {
+        Dispatcher.Dispatch(new ConfirmSentAction(GroupId, ActivityId, Settlement!.Id));
+        MudDialog.Close();
+    }
+
+    private void OnConfirmReceived()
+    {
+        Dispatcher.Dispatch(new ConfirmReceivedAction(GroupId, ActivityId, Settlement!.Id));
+        MudDialog.Close();
+    }
 
     private void Close() => MudDialog.Close();
 }

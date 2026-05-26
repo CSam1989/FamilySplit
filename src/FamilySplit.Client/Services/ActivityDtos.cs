@@ -22,7 +22,10 @@ public record ActivitySummaryDto(
     int ParticipantCount,
     int SubActivityCount,
     DateTimeOffset CreatedAt,
-    DateTimeOffset? ClosedAt);
+    DateTimeOffset? ClosedAt,
+    int ExpenseCount = 0,
+    decimal TotalExpenseAmount = 0m,
+    string ExpenseCurrency = "EUR");
 
 public record ActivityDetailDto(
     Guid Id,

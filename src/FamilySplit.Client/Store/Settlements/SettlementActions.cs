@@ -32,6 +32,17 @@ public record ConfirmReceivedAction(Guid GroupId, Guid ActivityId, Guid Settleme
 public record ConfirmReceivedSuccessAction(SettlementDetailDto Settlement);
 public record ConfirmReceivedFailureAction(string ErrorMessage);
 
+// ── Load group-level settlements ──────────────────────────────────────────────
+public record LoadGroupSettlementsAction(Guid GroupId);
+public record LoadGroupSettlementsSuccessAction(List<GroupSettlementSummaryDto> Settlements);
+public record LoadGroupSettlementsFailureAction(string ErrorMessage);
+public record ClearGroupSettlementsAction;
+
+// ── Load dashboard (cross-group) pending settlements ─────────────────────────
+public record LoadMyPendingSettlementsAction;
+public record LoadMyPendingSettlementsSuccessAction(List<GroupSettlementSummaryDto> Settlements);
+public record LoadMyPendingSettlementsFailureAction(string ErrorMessage);
+
 // ── Clear ─────────────────────────────────────────────────────────────────────
 public record ClearSettlementsAction;
 public record ClearSettlementErrorAction;

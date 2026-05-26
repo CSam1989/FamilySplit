@@ -22,4 +22,10 @@ public interface ISettlementClient
 
     [Get("/groups/{groupId}/activities/{activityId}/balances")]
     Task<List<FamilyBalanceDto>> GetBalancesAsync(Guid groupId, Guid activityId);
+
+    [Get("/groups/{groupId}/settlements")]
+    Task<List<GroupSettlementSummaryDto>> ListForGroupAsync(Guid groupId);
+
+    [Get("/settlements/pending")]
+    Task<List<GroupSettlementSummaryDto>> ListMyPendingAsync();
 }

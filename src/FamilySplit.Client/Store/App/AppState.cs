@@ -2,12 +2,16 @@ using Fluxor;
 
 namespace FamilySplit.Client.Store.App;
 
-/// <summary>
-/// Top-level app state placeholder so Fluxor has something to scan in Phase 1.
-/// Domain-specific features (Groups, Activities, Expenses, ...) land in their own slices.
-/// </summary>
 [FeatureState]
-public record AppState(bool Initialized)
+public record AppState
 {
-    public AppState() : this(Initialized: false) { }
+    public bool Initialized { get; init; }
+
+    // ── Last-used activity (drives the quick-add FAB) ─────────────────────────
+    /// <summary>The group the user most recently added an expense to.</summary>
+    public Guid? LastUsedGroupId { get; init; }
+    /// <summary>The activity the user most recently added an expense to.</summary>
+    public Guid? LastUsedActivityId { get; init; }
+    public string? LastUsedActivityName { get; init; }
+    public string? LastUsedGroupName { get; init; }
 }

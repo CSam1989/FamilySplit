@@ -1,4 +1,5 @@
 using Fluxor;
+using FamilySplit.Client.Services;
 
 namespace FamilySplit.Client.Store.Activities;
 
@@ -53,8 +54,26 @@ public static class ActivityReducers
         state with { IsLoading = true, ErrorMessage = null };
 
     [ReducerMethod]
-    public static ActivityState OnCreateSubSuccess(ActivityState state, CreateSubActivitySuccessAction action) =>
-        state with { IsLoading = false, SelectedActivity = action.Activity };
+    public static ActivityState OnCreateSubSuccess(ActivityState state, CreateSubActivitySuccessAction action)
+    {
+        // action.Activity is the *new sub-activity*, not the parent.
+        // Keep the parent as SelectedActivity and append the sub to its list.
+        if (state.SelectedActivity is null)
+            return state with { IsLoading = false };
+
+        var sub = action.Activity;
+        var summary = new ActivitySummaryDto(
+            sub.Id, sub.GroupId, sub.Name, sub.Description, sub.Status,
+            sub.ParentActivityId, sub.Participants.Count, 0,
+            sub.CreatedAt, sub.ClosedAt);
+
+        var updatedParent = state.SelectedActivity with
+        {
+            SubActivities = [.. state.SelectedActivity.SubActivities, summary]
+        };
+
+        return state with { IsLoading = false, SelectedActivity = updatedParent };
+    }
 
     [ReducerMethod]
     public static ActivityState OnCreateSubFailure(ActivityState state, CreateSubActivityFailureAction action) =>

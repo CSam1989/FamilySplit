@@ -8,6 +8,7 @@ using FamilySplit.Client.Store.Auth;
 using FamilySplit.Client.Store.Family;
 using FamilySplit.Client.Store.FamilyMembers;
 using FamilySplit.Client.Store.Groups;
+using FamilySplit.Client.Store.Dashboard;
 using Fluxor;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
@@ -35,6 +36,7 @@ builder.Services.AddScoped<GroupEffects>();
 builder.Services.AddScoped<ActivityEffects>();
 builder.Services.AddScoped<ExpenseEffects>();
 builder.Services.AddScoped<SettlementEffects>();
+builder.Services.AddScoped<DashboardEffects>();
 
 // --- Auth (sessionStorage-backed) -------------------------------------------------
 builder.Services.AddScoped<AuthService>();
@@ -88,6 +90,11 @@ builder.Services
 
 builder.Services
     .AddRefitClient<ISettlementClient>()
+    .ConfigureHttpClient(c => c.BaseAddress = new Uri(apiBaseUrl))
+    .AddHttpMessageHandler<JwtAuthHandler>();
+
+builder.Services
+    .AddRefitClient<IDashboardClient>()
     .ConfigureHttpClient(c => c.BaseAddress = new Uri(apiBaseUrl))
     .AddHttpMessageHandler<JwtAuthHandler>();
 

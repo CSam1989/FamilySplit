@@ -54,6 +54,28 @@ public static class SettlementEndpoints
             return Results.Ok(detail);
         });
 
+        // GET  /settlements/pending — active settlements across ALL the caller's groups (dashboard view)
+        app.MapGet("/settlements/pending",
+            async (SettlementService svc, HttpContext ctx) =>
+            {
+                var callerId = ctx.User.GetUserId();
+                var result   = await svc.ListMyPendingAsync(callerId);
+                return Results.Ok(result);
+            })
+            .RequireAuthorization()
+            .WithTags("Settlements");
+
+        // GET  /groups/{groupId}/settlements — active (non-completed) settlements across all activities
+        app.MapGet("/groups/{groupId:guid}/settlements",
+            async (Guid groupId, SettlementService svc, HttpContext ctx) =>
+            {
+                var callerId = ctx.User.GetUserId();
+                var result   = await svc.ListForGroupAsync(groupId, callerId);
+                return Results.Ok(result);
+            })
+            .RequireAuthorization()
+            .WithTags("Settlements");
+
         // GET  /groups/{groupId}/activities/{activityId}/balances
         // Pre-settlement per-family balance view (does not create any rows).
         var balGrp = app.MapGroup("/groups/{groupId:guid}/activities/{activityId:guid}/balances")

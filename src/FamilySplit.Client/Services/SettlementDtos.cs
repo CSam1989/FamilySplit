@@ -30,6 +30,24 @@ public record SettlementSummaryDto(
     DateTimeOffset ProposedAt,
     DateTimeOffset? CompletedAt);
 
+/// <summary>
+/// Settlement summary enriched with group/activity context — used for group-level and dashboard views.
+/// GroupId is required to call confirm-sent / confirm-received from any page.
+/// </summary>
+public record GroupSettlementSummaryDto(
+    Guid Id,
+    Guid GroupId,
+    Guid ActivityId,
+    string ActivityName,
+    Guid PayerFamilyId,
+    string PayerFamilyName,
+    Guid ReceiverFamilyId,
+    string ReceiverFamilyName,
+    decimal Amount,
+    string Currency,
+    SettlementStatus Status,
+    DateTimeOffset ProposedAt);
+
 public record SettlementDetailDto(
     Guid Id,
     Guid ActivityId,

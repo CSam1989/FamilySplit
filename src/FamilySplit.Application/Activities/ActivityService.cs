@@ -61,6 +61,20 @@ public class ActivityService
             .Select(g => new { ParentId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.ParentId, x => x.Count);
 
+        // Expense counts + totals for own expenses only (sub-activity expenses are
+        // aggregated separately when the detail page loads).
+        var expenseRows = await _db.Expenses
+            .Where(e => activityIds.Contains(e.ActivityId))
+            .Select(e => new { e.ActivityId, e.TotalAmount, e.Currency })
+            .ToListAsync();
+
+        var expenseCountByActivity  = expenseRows.GroupBy(e => e.ActivityId)
+            .ToDictionary(g => g.Key, g => g.Count());
+        var expenseAmountByActivity = expenseRows.GroupBy(e => e.ActivityId)
+            .ToDictionary(g => g.Key, g => g.Sum(x => x.TotalAmount));
+        var expenseCurrencyByActivity = expenseRows.GroupBy(e => e.ActivityId)
+            .ToDictionary(g => g.Key, g => g.First().Currency);
+
         return activities.Select(a => new ActivitySummaryDto(
             a.Id,
             a.GroupId,
@@ -71,7 +85,10 @@ public class ActivityService
             participantCounts.GetValueOrDefault(a.Id, 0),
             subActivityCounts.GetValueOrDefault(a.Id, 0),
             a.CreatedAt,
-            a.ClosedAt)).ToList();
+            a.ClosedAt,
+            expenseCountByActivity.GetValueOrDefault(a.Id, 0),
+            expenseAmountByActivity.GetValueOrDefault(a.Id, 0m),
+            expenseCurrencyByActivity.GetValueOrDefault(a.Id, "EUR"))).ToList();
     }
 
     // ── Get activity detail ───────────────────────────────────────────────────
@@ -391,11 +408,29 @@ public class ActivityService
                     .ToDictionaryAsync(x => x.ActivityId, x => x.Count)
                 : new Dictionary<Guid, int>();
 
+            // Expense counts + totals per sub-activity.
+            var subExpenseRows = subIds.Count > 0
+                ? await _db.Expenses
+                    .Where(e => subIds.Contains(e.ActivityId))
+                    .Select(e => new { e.ActivityId, e.TotalAmount, e.Currency })
+                    .ToListAsync()
+                : [];
+
+            var subExpenseCounts   = subExpenseRows.GroupBy(e => e.ActivityId)
+                .ToDictionary(g => g.Key, g => g.Count());
+            var subExpenseAmounts  = subExpenseRows.GroupBy(e => e.ActivityId)
+                .ToDictionary(g => g.Key, g => g.Sum(x => x.TotalAmount));
+            var subExpenseCurrencies = subExpenseRows.GroupBy(e => e.ActivityId)
+                .ToDictionary(g => g.Key, g => g.First().Currency);
+
             subDtos = rawSubs.Select(a => new ActivitySummaryDto(
                 a.Id, a.GroupId, a.Name, a.Description, a.Status, a.ParentActivityId,
                 subParticipantCounts.GetValueOrDefault(a.Id, 0),
                 0, // sub-activities cannot have their own sub-activities
-                a.CreatedAt, a.ClosedAt)).ToList();
+                a.CreatedAt, a.ClosedAt,
+                subExpenseCounts.GetValueOrDefault(a.Id, 0),
+                subExpenseAmounts.GetValueOrDefault(a.Id, 0m),
+                subExpenseCurrencies.GetValueOrDefault(a.Id, "EUR"))).ToList();
         }
         else
         {

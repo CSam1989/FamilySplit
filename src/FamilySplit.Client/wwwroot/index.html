@@ -3,24 +3,39 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#4F46E5" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="FamilySplit" />
     <title>FamilySplit</title>
     <base href="/" />
 
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
     <link href="_content/MudBlazor/MudBlazor.min.css" rel="stylesheet" />
     <link rel="icon" type="image/png" href="favicon.png" />
     <link href="css/app.css" rel="stylesheet" />
 </head>
 <body>
     <div id="app">
-        <div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#777;">
-            Loading FamilySplit…
+        <div class="app-loading-screen">
+            <div class="app-loading-logo">
+                <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="48" height="48" rx="14" fill="#4F46E5"/>
+                    <path d="M14 24C14 18.477 18.477 14 24 14C29.523 14 34 18.477 34 24C34 29.523 29.523 34 24 34" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+                    <path d="M24 34C21.239 34 19 31.761 19 29C19 26.239 21.239 24 24 24C26.761 24 29 26.239 29 29" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+                    <circle cx="24" cy="24" r="2" fill="white"/>
+                </svg>
+            </div>
+            <p class="app-loading-text">FamilySplit</p>
         </div>
     </div>
 
-    <div id="blazor-error-ui" style="display:none;background:#b32d2e;color:#fff;padding:0.6rem 1.25rem;position:fixed;bottom:0;left:0;right:0;">
+    <div id="blazor-error-ui">
         An unhandled error has occurred.
-        <a href="" class="reload" style="color:#fff;text-decoration:underline;">Reload</a>
-        <a class="dismiss" style="margin-left:1rem;cursor:pointer;">🗙</a>
+        <a href="" class="reload">Reload</a>
+        <a class="dismiss">🗙</a>
     </div>
 
     <script src="_framework/blazor.webassembly.js"></script>

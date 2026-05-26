@@ -1,29 +1,172 @@
 @inherits LayoutComponentBase
+@using FamilySplit.Client.Store.Auth
+@inject IState<AuthState> AuthState
 
-<MudThemeProvider />
+<MudThemeProvider Theme="_theme" />
 <MudPopoverProvider />
-<MudDialogProvider />
+<MudDialogProvider FullWidth="true" MaxWidth="MaxWidth.ExtraSmall" />
 <MudSnackbarProvider />
 
 <MudLayout>
-    <MudAppBar Elevation="1">
-        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
-                       OnClick="@ToggleDrawer" />
-        <MudText Typo="Typo.h6">FamilySplit</MudText>
+
+    <!-- ── App bar ─────────────────────────────────────────────────────── -->
+    <MudAppBar Elevation="0" Color="Color.Surface"
+               Style="border-bottom:1px solid var(--fs-border); height:var(--fs-appbar-height)">
+
+        <!-- Hamburger: desktop only (CSS-hidden on mobile — no JS flash) -->
+        <MudIconButton Icon="@Icons.Material.Rounded.Menu"
+                       Color="Color.Default"
+                       Edge="Edge.Start"
+                       OnClick="ToggleDrawer"
+                       Class="fs-desktop-only"
+                       aria-label="Toggle menu" />
+
+        <!-- Logo mark + title: always visible -->
+        <div style="display:flex;align-items:center;gap:8px;margin-left:4px">
+            <div style="width:28px;height:28px;border-radius:8px;background:var(--fs-primary);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                <svg width="16" height="16" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M14 24C14 18.477 18.477 14 24 14C29.523 14 34 18.477 34 24C34 29.523 29.523 34 24 34" stroke="white" stroke-width="3" stroke-linecap="round"/>
+                    <path d="M24 34C21.239 34 19 31.761 19 29C19 26.239 21.239 24 24 24C26.761 24 29 26.239 29 29" stroke="white" stroke-width="3" stroke-linecap="round"/>
+                    <circle cx="24" cy="24" r="2.5" fill="white"/>
+                </svg>
+            </div>
+            <span style="font-weight:700;font-size:1.0625rem;letter-spacing:-0.02em;color:var(--fs-text-primary)">
+                FamilySplit
+            </span>
+        </div>
+
         <MudSpacer />
-        <MudText Typo="Typo.caption">v0.1 · Phase 1 scaffold</MudText>
+
+        <!-- User info (auth-gated) -->
+        @if (AuthState.Value.IsAuthenticated && AuthState.Value.CurrentUser is { } user)
+        {
+            <!-- Avatar: mobile only -->
+            <div class="fs-mobile-only" style="display:flex;align-items:center">
+                @if (user.AvatarUrl is { } av)
+                {
+                    <img src="@av" alt="@user.DisplayName"
+                         style="width:30px;height:30px;border-radius:50%;object-fit:cover;margin-right:8px" />
+                }
+                else
+                {
+                    <MudAvatar Style="width:30px;height:30px;font-size:0.75rem;background:var(--fs-primary-light);color:var(--fs-primary);margin-right:8px">
+                        @user.DisplayName.Substring(0, 1).ToUpper()
+                    </MudAvatar>
+                }
+            </div>
+            <!-- Name + badge: desktop only -->
+            <div class="fs-desktop-only" style="display:flex;align-items:center;gap:6px;margin-right:4px">
+                <MudText Typo="Typo.body2" Style="color:var(--fs-text-secondary)">@user.DisplayName</MudText>
+                @if (user.IsGlobalAdmin)
+                {
+                    <MudChip T="string" Color="Color.Error" Size="Size.Small">Admin</MudChip>
+                }
+            </div>
+        }
     </MudAppBar>
-    <MudDrawer @bind-Open="_drawerOpen" Elevation="1">
-        <NavMenu />
-    </MudDrawer>
+
+    <!-- ── Sidebar: persistent on desktop, hidden on mobile ───────────── -->
+    <!--
+        ErrorBoundary catches the MudBlazor WASM race condition where MudDrawer calls
+        getBoundingClientRect before its JS element ref is registered on firstRender.
+        Recover() in OnAfterRenderAsync retries the render; the second pass always
+        succeeds because JS interop is ready by then.
+    -->
+    <ErrorBoundary @ref="_drawerBoundary">
+        <ChildContent>
+            <MudDrawer @bind-Open="_drawerOpen" Elevation="0"
+                       Variant="DrawerVariant.Responsive"
+                       Breakpoint="Breakpoint.Md"
+                       Style="border-right:1px solid var(--fs-border)">
+                <div class="fs-sidebar-logo">
+                    <div class="fs-sidebar-logo-mark">
+                        <svg width="18" height="18" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M14 24C14 18.477 18.477 14 24 14C29.523 14 34 18.477 34 24C34 29.523 29.523 34 24 34" stroke="white" stroke-width="3" stroke-linecap="round"/>
+                            <path d="M24 34C21.239 34 19 31.761 19 29C19 26.239 21.239 24 24 24C26.761 24 29 26.246 29 29" stroke="white" stroke-width="3" stroke-linecap="round"/>
+                            <circle cx="24" cy="24" r="2.5" fill="white"/>
+                        </svg>
+                    </div>
+                    <span class="fs-sidebar-logo-text">FamilySplit</span>
+                </div>
+                <NavMenu />
+            </MudDrawer>
+        </ChildContent>
+        <ErrorContent>
+            @* Silently absorb the transient JS race condition — drawer recovers on next render *@
+        </ErrorContent>
+    </ErrorBoundary>
+
+    <!-- ── Page content ────────────────────────────────────────────────── -->
     <MudMainContent>
-        <MudContainer MaxWidth="MaxWidth.Large" Class="mt-6">
+        <MudContainer MaxWidth="MaxWidth.Medium"
+                      Class="fs-page-content"
+                      Style="padding-top:24px;padding-bottom:32px">
             @Body
         </MudContainer>
     </MudMainContent>
+
+    <!-- ── Mobile bottom nav (CSS-hidden on desktop) ──────────────────── -->
+    <div class="fs-mobile-only">
+        <BottomNav />
+    </div>
+
 </MudLayout>
 
 @code {
     private bool _drawerOpen = true;
+    private ErrorBoundary? _drawerBoundary;
+
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Recover the ErrorBoundary so the drawer re-renders after the transient
+        // JS race condition on first WASM load. The second render always succeeds.
+        _drawerBoundary?.Recover();
+        await base.OnAfterRenderAsync(firstRender);
+    }
+
+    private readonly MudTheme _theme = new()
+    {
+        PaletteLight = new PaletteLight
+        {
+            Primary              = "#4F46E5",
+            PrimaryContrastText  = "#FFFFFF",
+            PrimaryDarken        = "#3730A3",
+            PrimaryLighten       = "#EEF2FF",
+            Secondary            = "#10B981",
+            SecondaryContrastText= "#FFFFFF",
+            Background           = "#F8FAFC",
+            BackgroundGray       = "#F1F5F9",
+            Surface              = "#FFFFFF",
+            DrawerBackground     = "#FFFFFF",
+            DrawerText           = "#0F172A",
+            DrawerIcon           = "#64748B",
+            AppbarBackground     = "#FFFFFF",
+            AppbarText           = "#0F172A",
+            TextPrimary          = "#0F172A",
+            TextSecondary        = "#64748B",
+            TextDisabled         = "#94A3B8",
+            ActionDefault        = "#64748B",
+            ActionDisabled       = "#CBD5E1",
+            ActionDisabledBackground = "#F1F5F9",
+            Divider              = "#E2E8F0",
+            DividerLight         = "#F1F5F9",
+            TableLines           = "#E2E8F0",
+            LinesDefault         = "#E2E8F0",
+            OverlayDark          = "rgba(15,23,42,0.55)",
+            OverlayLight         = "rgba(248,250,252,0.80)",
+            Success              = "#10B981",
+            Warning              = "#F59E0B",
+            Error                = "#EF4444",
+            Info                 = "#3B82F6",
+        },
+        // Typography font family is applied globally via app.css (.mud-typography override)
+        LayoutProperties = new LayoutProperties
+        {
+            AppbarHeight   = "56px",
+            DrawerWidthLeft= "240px",
+        },
+        // Shadows: using MudBlazor defaults (custom array length varies by version)
+    };
 }

@@ -110,6 +110,7 @@ app.MapGroupMemberEndpoints();    // no-op stub (members managed via Family endp
 app.MapActivityEndpoints();       // /groups/{groupId}/activities — CRUD + participants + close
 app.MapExpenseEndpoints();        // /groups/{groupId}/activities/{activityId}/expenses — Phase 5
 app.MapSettlementEndpoints();     // /groups/{groupId}/activities/{activityId}/settlements — Phase 6
+app.MapDashboardEndpoints();      // /dashboard/stats — per-group statistics
 
 
 // --- OpenAPI + Scalar UI (dev only) ----------------------------------------------

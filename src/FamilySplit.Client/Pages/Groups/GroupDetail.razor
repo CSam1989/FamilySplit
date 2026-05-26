@@ -3,6 +3,8 @@
 @using FamilySplit.Client.Store.Activities
 @using FamilySplit.Client.Store.FamilyMembers
 @using FamilySplit.Client.Store.Auth
+@using FamilySplit.Client.Store.Family
+@using FamilySplit.Client.Store.Settlements
 @using FamilySplit.Client.Services
 @using FamilySplit.Domain.Enums
 @inherits Fluxor.Blazor.Web.Components.FluxorComponent
@@ -11,6 +13,8 @@
 @inject IState<ActivityState> ActivityState
 @inject IState<FamilyMemberState> ProfileState
 @inject IState<AuthState> AuthState
+@inject IState<FamilyState> FamilyState
+@inject IState<SettlementState> SettlementState
 @inject IDialogService DialogService
 @inject NavigationManager Nav
 
@@ -35,21 +39,64 @@
     var group = State.Value.SelectedGroup;
     if (group is null) return;
     var isAdmin = group.CallerFamilyRole == MemberRole.Admin;
+
+    var openCount     = ActivityState.Value.Activities.Count(a => a.Status == ActivityStatus.Open);
+    var closedCount   = ActivityState.Value.Activities.Count(a => a.Status == ActivityStatus.Closed);
+    var settledCount  = ActivityState.Value.Activities.Count(a => a.Status == ActivityStatus.Settled);
+    var totalCount    = ActivityState.Value.Activities.Count;
+    var totalMembers  = group.Families.Sum(f => f.Members.Count);
+
+    var callerFamilyId    = FamilyState.Value.MyFamily?.Id;
+    var pendingCount      = SettlementState.Value.GroupSettlements.Count;
 }
 
 <MudBreadcrumbs Items="_crumbs" Class="mb-2" />
 
-<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-1">
-    <MudText Typo="Typo.h5">@group.Name</MudText>
-    @if (isAdmin)
-    {
-        <MudChip T="string" Color="Color.Warning" Size="Size.Small">Admin</MudChip>
-    }
+<!-- ── Header ──────────────────────────────────────────────────────────────── -->
+<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-1" Wrap="Wrap.Wrap">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+        <MudText Typo="Typo.h5">@group.Name</MudText>
+        @if (isAdmin)
+        {
+            <MudChip T="string" Color="Color.Warning" Size="Size.Small">Admin</MudChip>
+        }
+    </MudStack>
+
+    <!-- Action buttons in header -->
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+        @if (isAdmin)
+        {
+            <MudTooltip Text="Edit group">
+                <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                               Size="Size.Medium"
+                               Color="Color.Default"
+                               OnClick="OpenEditDialog" />
+            </MudTooltip>
+        }
+        @if (IsCallerFamilyAdmin)
+        {
+            <MudTooltip Text="Leave group">
+                <MudIconButton Icon="@Icons.Material.Filled.ExitToApp"
+                               Size="Size.Medium"
+                               Color="Color.Error"
+                               OnClick="ConfirmLeave" />
+            </MudTooltip>
+        }
+        @if (AuthState.Value.IsGlobalAdmin)
+        {
+            <MudTooltip Text="Delete group">
+                <MudIconButton Icon="@Icons.Material.Filled.DeleteForever"
+                               Size="Size.Medium"
+                               Color="Color.Error"
+                               OnClick="ConfirmDelete" />
+            </MudTooltip>
+        }
+    </MudStack>
 </MudStack>
 
 @if (group.Description is not null)
 {
-    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">@group.Description</MudText>
+    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">@group.Description</MudText>
 }
 
 @if (State.Value.ErrorMessage is not null)
@@ -60,163 +107,45 @@
     </MudAlert>
 }
 
-<!-- Invite code card -->
-<MudPaper Elevation="1" Class="pa-4 mb-6 d-flex flex-row align-center gap-3" Style="width:fit-content">
-    <MudIcon Icon="@Icons.Material.Filled.VpnKey" Color="Color.Primary" />
-    <div>
-        <MudText Typo="Typo.caption" Color="Color.Secondary">Invite code</MudText>
-        <MudText Typo="Typo.h6" Style="letter-spacing:0.25em">@group.InviteCode</MudText>
-    </div>
-    <MudTooltip Text="Copy invite code">
-        <MudIconButton Icon="@Icons.Material.Filled.ContentCopy"
-                       Size="Size.Small"
-                       OnClick="CopyInviteCode" />
-    </MudTooltip>
-    @if (isAdmin)
-    {
-        <MudTooltip Text="Regenerate invite code">
-            <MudIconButton Icon="@Icons.Material.Filled.Refresh"
-                           Size="Size.Small"
-                           Color="Color.Warning"
-                           OnClick="ConfirmRegenerate" />
-        </MudTooltip>
-    }
-</MudPaper>
+<!-- ── Summary stat cards ─────────────────────────────────────────────────── -->
+<MudGrid Spacing="3" Class="mb-5">
+    <MudItem xs="6" sm="3">
+        <MudPaper Elevation="1" Class="pa-4 d-flex flex-column align-center" Style="text-align:center">
+            <MudIcon Icon="@Icons.Material.Filled.EventNote" Color="Color.Primary" Class="mb-1" />
+            <MudText Typo="Typo.h5"><strong>@totalCount</strong></MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">Activities</MudText>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="6" sm="3">
+        <MudPaper Elevation="1" Class="pa-4 d-flex flex-column align-center" Style="text-align:center">
+            <MudIcon Icon="@Icons.Material.Filled.LockOpen" Color="Color.Success" Class="mb-1" />
+            <MudText Typo="Typo.h5"><strong>@openCount</strong></MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">Open</MudText>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="6" sm="3">
+        <MudPaper Elevation="1" Class="pa-4 d-flex flex-column align-center" Style="text-align:center">
+            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Info" Class="mb-1" />
+            <MudText Typo="Typo.h5"><strong>@settledCount</strong></MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">Settled</MudText>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="6" sm="3">
+        <MudPaper Elevation="1" Class="pa-4 d-flex flex-column align-center" Style="text-align:center">
+            <MudIcon Icon="@Icons.Material.Filled.FamilyRestroom" Color="Color.Secondary" Class="mb-1" />
+            <MudText Typo="Typo.h5"><strong>@group.Families.Count</strong></MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">Families · @totalMembers members</MudText>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
 
-<!-- Participating families -->
-<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3" Spacing="2">
-    <MudText Typo="Typo.h6">
-        Families
-        <MudChip T="string" Size="Size.Small" Color="Color.Default" Class="ml-1">@group.Families.Count</MudChip>
-    </MudText>
-    @if (AuthState.Value.IsGlobalAdmin)
-    {
-        <MudButton Variant="Variant.Outlined"
-                   Size="Size.Small"
-                   Color="Color.Primary"
-                   StartIcon="@Icons.Material.Filled.GroupAdd"
-                   OnClick="OpenAddFamilyDialog">
-            Add family
-        </MudButton>
-    }
-</MudStack>
-
-@foreach (var family in group.Families)
-{
-    <MudPaper Elevation="1" Class="pa-4 mb-4">
-        <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2">
-            <MudIcon Icon="@Icons.Material.Filled.FamilyRestroom" Color="Color.Primary" />
-            <MudText Typo="Typo.subtitle1"><strong>@family.FamilyName</strong></MudText>
-            @if (family.Role == MemberRole.Admin)
-            {
-                <MudChip T="string" Color="Color.Warning" Size="Size.Small">Admin</MudChip>
-            }
-            else
-            {
-                <MudChip T="string" Color="Color.Default" Size="Size.Small">Member</MudChip>
-            }
-            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="ml-auto">
-                Joined @family.JoinedAt.ToLocalTime().ToString("dd MMM yyyy")
-            </MudText>
-            @if (AuthState.Value.IsGlobalAdmin)
-            {
-                <MudTooltip Text="Remove family from group">
-                    <MudIconButton Icon="@Icons.Material.Filled.GroupRemove"
-                                   Size="Size.Small"
-                                   Color="Color.Error"
-                                   OnClick="@(() => ConfirmRemoveFamily(family))" />
-                </MudTooltip>
-            }
-        </MudStack>
-
-        @if (family.Members.Count == 0)
-        {
-            <MudText Typo="Typo.body2" Color="Color.Secondary">No active members.</MudText>
-        }
-        else
-        {
-            <MudTable Items="family.Members" Dense="true" Hover="true" Elevation="0">
-                <HeaderContent>
-                    <MudTh>Name</MudTh>
-                    <MudTh>Weight</MudTh>
-                    <MudTh>Tier</MudTh>
-                    <MudTh>Status</MudTh>
-                </HeaderContent>
-                <RowTemplate Context="member">
-                    <MudTd DataLabel="Name">
-                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-                            <MudAvatar Size="Size.Small" Color="Color.Primary">@member.DisplayName[0]</MudAvatar>
-                            <MudText>@member.DisplayName</MudText>
-                        </MudStack>
-                    </MudTd>
-                    <MudTd DataLabel="Weight">@member.CurrentWeight.ToString("0.##")×</MudTd>
-                    <MudTd DataLabel="Tier">
-                        <WeightBadge Tier="member.CurrentTier" Weight="member.CurrentWeight" />
-                    </MudTd>
-                    <MudTd DataLabel="Status">
-                        @if (member.IsLinked)
-                        {
-                            <MudChip T="string" Color="Color.Success" Size="Size.Small"
-                                     Icon="@Icons.Material.Filled.VerifiedUser">Linked</MudChip>
-                        }
-                        else
-                        {
-                            <MudChip T="string" Color="Color.Default" Size="Size.Small"
-                                     Icon="@Icons.Material.Filled.PersonOff">Pending</MudChip>
-                        }
-                    </MudTd>
-                </RowTemplate>
-            </MudTable>
-        }
-    </MudPaper>
-}
-
-@if (isAdmin)
-{
-    <MudButton Variant="Variant.Outlined"
-               Color="Color.Primary"
-               StartIcon="@Icons.Material.Filled.Edit"
-               OnClick="OpenEditDialog"
-               Class="mr-2 mb-6">
-        Edit group
-    </MudButton>
-}
-@if (IsCallerFamilyAdmin)
-{
-    <MudButton Variant="Variant.Outlined"
-               Color="Color.Error"
-               StartIcon="@Icons.Material.Filled.ExitToApp"
-               OnClick="ConfirmLeave"
-               Class="mr-2 mb-6">
-        Leave group
-    </MudButton>
-}
-@if (AuthState.Value.IsGlobalAdmin)
-{
-    <MudButton Variant="Variant.Filled"
-               Color="Color.Error"
-               StartIcon="@Icons.Material.Filled.DeleteForever"
-               OnClick="ConfirmDelete"
-               Class="mr-2 mb-6">
-        Delete group
-    </MudButton>
-}
-
-<!-- ── Activities ──────────────────────────────────────────────────────────── -->
-<MudDivider Class="mb-6" />
-
+<!-- ── Activities (primary) ───────────────────────────────────────────────── -->
 <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3" Spacing="2">
     <MudText Typo="Typo.h6">Activities</MudText>
-    @if (ActivityState.Value.Activities.Count > 0)
-    {
-        <MudChip T="string" Size="Size.Small" Color="Color.Default">
-            @ActivityState.Value.Activities.Count
-        </MudChip>
-    }
     <MudSpacer />
     <MudButton Variant="Variant.Filled"
                Color="Color.Primary"
-               Size="Size.Small"
+               Size="Size.Medium"
                StartIcon="@Icons.Material.Filled.Add"
                OnClick="OpenCreateActivityDialog">
         New activity
@@ -237,7 +166,7 @@
 }
 else if (!ActivityState.Value.Activities.Any())
 {
-    <MudPaper Elevation="0" Class="pa-5 d-flex flex-column align-center"
+    <MudPaper Elevation="0" Class="pa-6 d-flex flex-column align-center mb-6"
               Style="border: 1px dashed var(--mud-palette-divider);">
         <MudIcon Icon="@Icons.Material.Outlined.EventNote" Size="Size.Large" Color="Color.Secondary" Class="mb-2" />
         <MudText Typo="Typo.body2" Color="Color.Secondary">No activities yet. Create one to start tracking shared costs.</MudText>
@@ -247,40 +176,285 @@ else
 {
     @foreach (var activity in ActivityState.Value.Activities)
     {
-        var actStatusColor = activity.Status switch
+        var (statusColor, statusIcon, stripeColor) = activity.Status switch
         {
-            ActivityStatus.Open   => Color.Success,
-            ActivityStatus.Closed => Color.Default,
-            ActivityStatus.Settled => Color.Info,
-            _                     => Color.Default
+            ActivityStatus.Open    => (Color.Success, Icons.Material.Filled.LockOpen,   "var(--mud-palette-success)"),
+            ActivityStatus.Closed  => (Color.Warning, Icons.Material.Filled.Lock,        "var(--mud-palette-warning)"),
+            ActivityStatus.Settled => (Color.Info,    Icons.Material.Filled.CheckCircle, "var(--mud-palette-info)"),
+            _                      => (Color.Default, Icons.Material.Filled.Circle,      "var(--mud-palette-divider)")
         };
 
-        <MudPaper Elevation="1" Class="pa-3 mb-3"
+        <MudPaper Elevation="2" Class="pa-0 mb-3 overflow-hidden"
                   Style="cursor:pointer"
                   @onclick="@(() => Nav.NavigateTo($"/groups/{GroupId}/activities/{activity.Id}"))">
-            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-                <MudIcon Icon="@Icons.Material.Filled.EventNote" Color="Color.Primary" />
-                <div style="flex:1">
-                    <MudText Typo="Typo.subtitle2">@activity.Name</MudText>
+            <MudStack Row="true" AlignItems="AlignItems.Stretch" Spacing="0">
+
+                <!-- Status stripe -->
+                <div style="width:5px; background:@stripeColor; flex-shrink:0;" />
+
+                <!-- Main content -->
+                <div style="flex:1; padding: 14px 16px;">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-1">
+                        <MudText Typo="Typo.subtitle1" Style="font-weight:600">@activity.Name</MudText>
+                        <MudChip T="string" Color="@statusColor" Size="Size.Small" Icon="@statusIcon">@activity.Status</MudChip>
+                        <MudSpacer />
+                        <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Secondary" Size="Size.Small" />
+                    </MudStack>
+
                     @if (activity.Description is not null)
                     {
-                        <MudText Typo="Typo.caption" Color="Color.Secondary">@activity.Description</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-1">@activity.Description</MudText>
                     }
-                    <MudText Typo="Typo.caption" Color="Color.Secondary">
-                        @activity.ParticipantCount participants
+
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3" Wrap="Wrap.Wrap">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                            <MudIcon Icon="@Icons.Material.Filled.People" Size="Size.Small" Color="Color.Secondary" />
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@activity.ParticipantCount participants</MudText>
+                        </MudStack>
+
                         @if (activity.SubActivityCount > 0)
                         {
-                            <span> · @activity.SubActivityCount sub-activit@(activity.SubActivityCount == 1 ? "y" : "ies")</span>
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                <MudIcon Icon="@Icons.Material.Filled.AccountTree" Size="Size.Small" Color="Color.Secondary" />
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    @activity.SubActivityCount sub-activit@(activity.SubActivityCount == 1 ? "y" : "ies")
+                                </MudText>
+                            </MudStack>
                         }
-                        · created @activity.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")
-                    </MudText>
+
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                            <MudIcon Icon="@Icons.Material.Filled.CalendarToday" Size="Size.Small" Color="Color.Secondary" />
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                @activity.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")
+                            </MudText>
+                        </MudStack>
+
+                        @if (activity.ClosedAt.HasValue)
+                        {
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                <MudIcon Icon="@Icons.Material.Filled.EventAvailable" Size="Size.Small" Color="Color.Secondary" />
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    closed @activity.ClosedAt.Value.ToLocalTime().ToString("dd MMM yyyy")
+                                </MudText>
+                            </MudStack>
+                        }
+                    </MudStack>
                 </div>
-                <MudChip T="string" Color="@actStatusColor" Size="Size.Small">@activity.Status</MudChip>
-                <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Secondary" />
             </MudStack>
         </MudPaper>
     }
 }
+
+<!-- ── Settlements ─────────────────────────────────────────────────────────── -->
+<MudDivider Class="mt-4 mb-4" />
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3" Spacing="2">
+    <MudIcon Icon="@Icons.Material.Filled.AccountBalance" Color="Color.Warning" Size="Size.Small" />
+    <MudText Typo="Typo.h6">Settlements</MudText>
+    @if (pendingCount > 0)
+    {
+        <MudChip T="string" Color="Color.Warning" Size="Size.Small">@pendingCount pending</MudChip>
+    }
+</MudStack>
+
+@if (SettlementState.Value.IsLoadingGroupSettlements)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Warning" Class="mb-3" />
+}
+else if (!SettlementState.Value.GroupSettlements.Any())
+{
+    <MudPaper Elevation="0" Class="pa-5 d-flex flex-column align-center mb-4"
+              Style="border: 1px dashed var(--mud-palette-divider);">
+        <MudIcon Icon="@Icons.Material.Outlined.AccountBalance" Size="Size.Large" Color="Color.Secondary" Class="mb-2" />
+        <MudText Typo="Typo.body2" Color="Color.Secondary">No pending settlements. Close an activity and generate settlements to see them here.</MudText>
+    </MudPaper>
+}
+else
+{
+    @foreach (var activityGroup in SettlementState.Value.GroupSettlements
+        .GroupBy(s => new { s.ActivityId, s.ActivityName })
+        .OrderBy(g => g.Key.ActivityName))
+    {
+        <MudText Typo="Typo.subtitle2" Color="Color.Secondary" Class="mb-2">
+            <MudIcon Icon="@Icons.Material.Filled.EventNote" Size="Size.Small" Style="vertical-align:middle;margin-right:4px" />
+            @activityGroup.Key.ActivityName
+        </MudText>
+
+        @foreach (var s in activityGroup)
+        {
+            var isCallerPayer    = callerFamilyId == s.PayerFamilyId;
+            var isCallerReceiver = callerFamilyId == s.ReceiverFamilyId;
+            var payerStyle       = isCallerPayer    ? "font-weight:600" : "font-weight:400";
+            var receiverStyle    = isCallerReceiver ? "font-weight:600" : "font-weight:400";
+            var (chipColor, chipIcon) = s.Status switch
+            {
+                SettlementStatus.Proposed  => (Color.Warning, Icons.Material.Filled.Pending),
+                SettlementStatus.PayerSent => (Color.Info,    Icons.Material.Filled.Send),
+                _                          => (Color.Default, Icons.Material.Filled.Circle),
+            };
+
+            <MudPaper Elevation="1" Class="pa-3 mb-2">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Wrap="Wrap.Wrap">
+
+                    <!-- Payer → Receiver arrow -->
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Style="flex:1;min-width:0">
+                        <MudAvatar Size="Size.Small" Color="@(isCallerPayer ? Color.Primary : Color.Default)">
+                            @s.PayerFamilyName[0]
+                        </MudAvatar>
+                        <MudText Typo="Typo.body2" Style="@payerStyle">@s.PayerFamilyName</MudText>
+                        <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" Color="Color.Secondary" />
+                        <MudAvatar Size="Size.Small" Color="@(isCallerReceiver ? Color.Success : Color.Default)">
+                            @s.ReceiverFamilyName[0]
+                        </MudAvatar>
+                        <MudText Typo="Typo.body2" Style="@receiverStyle">@s.ReceiverFamilyName</MudText>
+                    </MudStack>
+
+                    <!-- Amount -->
+                    <MudText Typo="Typo.subtitle2" Style="font-weight:700">
+                        @FormatSettlementAmount(s.Amount, s.Currency)
+                    </MudText>
+
+                    <!-- Status chip -->
+                    <MudChip T="string" Color="@chipColor" Size="Size.Small" Icon="@chipIcon">
+                        @(s.Status == SettlementStatus.PayerSent ? "Sent" : s.Status.ToString())
+                    </MudChip>
+
+                    <!-- Action buttons -->
+                    @if (s.Status == SettlementStatus.Proposed && isCallerPayer)
+                    {
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   Size="Size.Small"
+                                   StartIcon="@Icons.Material.Filled.Send"
+                                   OnClick="@(() => ConfirmGroupSettlementSent(s))">
+                            Mark sent
+                        </MudButton>
+                    }
+                    @if (s.Status == SettlementStatus.PayerSent && isCallerReceiver)
+                    {
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Success"
+                                   Size="Size.Small"
+                                   StartIcon="@Icons.Material.Filled.CheckCircle"
+                                   OnClick="@(() => ConfirmGroupSettlementReceived(s))">
+                            Mark received
+                        </MudButton>
+                    }
+
+                    <!-- View activity link -->
+                    <MudTooltip Text="View activity">
+                        <MudIconButton Icon="@Icons.Material.Filled.OpenInNew"
+                                       Size="Size.Medium"
+                                       Color="Color.Default"
+                                       Href="@($"/groups/{GroupId}/activities/{s.ActivityId}")" />
+                    </MudTooltip>
+
+                </MudStack>
+            </MudPaper>
+        }
+    }
+}
+
+<!-- ── Families (secondary, collapsible) ──────────────────────────────────── -->
+<MudDivider Class="mt-4 mb-4" />
+
+<MudExpansionPanels Elevation="0">
+    <MudExpansionPanel>
+        <TitleContent>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <MudIcon Icon="@Icons.Material.Filled.FamilyRestroom" Color="Color.Secondary" Size="Size.Small" />
+                <MudText Typo="Typo.subtitle2" Color="Color.Secondary">
+                    Families &amp; Members
+                </MudText>
+                <MudChip T="string" Size="Size.Small" Color="Color.Default">@group.Families.Count families · @totalMembers members</MudChip>
+                @if (AuthState.Value.IsGlobalAdmin)
+                {
+                    <span @onclick:stopPropagation="true">
+                        <MudButton Variant="Variant.Text"
+                                   Size="Size.Medium"
+                                   Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.GroupAdd"
+                                   OnClick="OpenAddFamilyDialog">
+                            Add family
+                        </MudButton>
+                    </span>
+                }
+            </MudStack>
+        </TitleContent>
+        <ChildContent>
+            <!-- Invite code row -->
+            <MudPaper Elevation="0" Class="pa-3 mb-4 d-flex flex-row align-center gap-3"
+                      Style="border:1px solid var(--mud-palette-divider); width:fit-content">
+                <MudIcon Icon="@Icons.Material.Filled.VpnKey" Color="Color.Primary" Size="Size.Small" />
+                <div>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Invite code</MudText>
+                    <MudText Typo="Typo.subtitle2" Style="letter-spacing:0.2em">@group.InviteCode</MudText>
+                </div>
+                <MudTooltip Text="Copy invite code">
+                    <MudIconButton Icon="@Icons.Material.Filled.ContentCopy"
+                                   Size="Size.Medium"
+                                   OnClick="CopyInviteCode" />
+                </MudTooltip>
+                @if (isAdmin)
+                {
+                    <MudTooltip Text="Regenerate invite code">
+                        <MudIconButton Icon="@Icons.Material.Filled.Refresh"
+                                       Size="Size.Medium"
+                                       Color="Color.Warning"
+                                       OnClick="ConfirmRegenerate" />
+                    </MudTooltip>
+                }
+            </MudPaper>
+
+            @foreach (var family in group.Families)
+            {
+                <MudPaper Elevation="1" Class="pa-3 mb-3">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2" Spacing="2">
+                        <MudAvatar Color="Color.Primary" Size="Size.Small">@family.FamilyName[0]</MudAvatar>
+                        <MudText Typo="Typo.subtitle2">@family.FamilyName</MudText>
+                        @if (family.Role == MemberRole.Admin)
+                        {
+                            <MudChip T="string" Color="Color.Warning" Size="Size.Small">Admin</MudChip>
+                        }
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="ml-auto">
+                            joined @family.JoinedAt.ToLocalTime().ToString("dd MMM yyyy")
+                        </MudText>
+                        @if (AuthState.Value.IsGlobalAdmin)
+                        {
+                            <MudTooltip Text="Remove family from group">
+                                <MudIconButton Icon="@Icons.Material.Filled.GroupRemove"
+                                               Size="Size.Medium"
+                                               Color="Color.Error"
+                                               OnClick="@(() => ConfirmRemoveFamily(family))" />
+                            </MudTooltip>
+                        }
+                    </MudStack>
+
+                    @if (family.Members.Count == 0)
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">No active members.</MudText>
+                    }
+                    else
+                    {
+                        <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap">
+                            @foreach (var member in family.Members)
+                            {
+                                <MudTooltip Text="@($"{member.DisplayName} · {member.CurrentWeight:0.##}× · {member.CurrentTier}")">
+                                    <MudChip T="string"
+                                             Size="Size.Small"
+                                             Color="@(member.IsLinked ? Color.Success : Color.Default)"
+                                             Icon="@(member.IsLinked ? Icons.Material.Filled.VerifiedUser : Icons.Material.Filled.PersonOff)">
+                                        @member.DisplayName
+                                    </MudChip>
+                                </MudTooltip>
+                            }
+                        </MudStack>
+                    }
+                </MudPaper>
+            }
+        </ChildContent>
+    </MudExpansionPanel>
+</MudExpansionPanels>
 
 @code {
     [Parameter] public Guid GroupId { get; set; }
@@ -301,9 +475,13 @@ else
 
         Dispatcher.Dispatch(new LoadGroupDetailAction(GroupId));
         Dispatcher.Dispatch(new LoadActivitiesAction(GroupId));
+        Dispatcher.Dispatch(new LoadGroupSettlementsAction(GroupId));
 
         if (ProfileState.Value.MyProfile is null)
             Dispatcher.Dispatch(new LoadMyProfileAction());
+
+        if (FamilyState.Value.MyFamily is null)
+            Dispatcher.Dispatch(new LoadMyFamilyAction());
     }
 
     protected override void OnParametersSet()
@@ -312,6 +490,7 @@ else
         {
             Dispatcher.Dispatch(new LoadGroupDetailAction(GroupId));
             Dispatcher.Dispatch(new LoadActivitiesAction(GroupId));
+            Dispatcher.Dispatch(new LoadGroupSettlementsAction(GroupId));
         }
     }
 
@@ -417,5 +596,37 @@ else
 
         if (confirmed == true)
             Dispatcher.Dispatch(new AdminRemoveFamilyFromGroupAction(GroupId, family.FamilyId));
+    }
+
+    // ── Settlement confirm actions (from group view) ──────────────────────────
+
+    private async Task ConfirmGroupSettlementSent(GroupSettlementSummaryDto settlement)
+    {
+        bool? confirmed = await DialogService.ShowMessageBox(
+            "Mark as sent",
+            $"Confirm that {settlement.PayerFamilyName} has sent {settlement.Amount:F2} {settlement.Currency} to {settlement.ReceiverFamilyName}?",
+            yesText: "Mark sent",
+            cancelText: "Cancel");
+
+        if (confirmed == true)
+            Dispatcher.Dispatch(new ConfirmSentAction(GroupId, settlement.ActivityId, settlement.Id));
+    }
+
+    private async Task ConfirmGroupSettlementReceived(GroupSettlementSummaryDto settlement)
+    {
+        bool? confirmed = await DialogService.ShowMessageBox(
+            "Mark as received",
+            $"Confirm that {settlement.ReceiverFamilyName} has received {settlement.Amount:F2} {settlement.Currency} from {settlement.PayerFamilyName}?",
+            yesText: "Mark received",
+            cancelText: "Cancel");
+
+        if (confirmed == true)
+            Dispatcher.Dispatch(new ConfirmReceivedAction(GroupId, settlement.ActivityId, settlement.Id));
+    }
+
+    private static string FormatSettlementAmount(decimal amount, string currency)
+    {
+        var symbol = currency switch { "EUR" => "€", "USD" => "$", "GBP" => "£", _ => currency + " " };
+        return $"{symbol}{amount:N2}";
     }
 }

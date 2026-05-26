@@ -1,34 +1,101 @@
 @using FamilySplit.Client.Store.Auth
+@using FamilySplit.Client.Pages.Activities
 @inherits Fluxor.Blazor.Web.Components.FluxorComponent
 @inject IDispatcher Dispatcher
 @inject IState<AuthState> AuthState
+@inject IDialogService DialogService
 
-<MudNavMenu>
-    <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
+<MudNavMenu Class="pa-2" Style="margin-top:8px">
 
     @if (AuthState.Value.IsAuthenticated)
     {
-        <MudNavLink Href="groups" Icon="@Icons.Material.Filled.Group">Groups</MudNavLink>
-        <MudNavLink Href="families/mine" Icon="@Icons.Material.Filled.FamilyRestroom">My family</MudNavLink>
-    }
+        @if (AuthState.Value.CurrentUser is { } user)
+        {
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 12px 16px">
+                @if (user.AvatarUrl is { } av)
+                {
+                    <img src="@av" alt="@user.DisplayName"
+                         style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0" />
+                }
+                else
+                {
+                    <MudAvatar Style="width:36px;height:36px;font-size:0.875rem;background:var(--fs-primary-light);color:var(--fs-primary);flex-shrink:0">
+                        @user.DisplayName.Substring(0, 1).ToUpper()
+                    </MudAvatar>
+                }
+                <div style="overflow:hidden">
+                    <div style="font-size:0.875rem;font-weight:600;color:var(--fs-text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                        @user.DisplayName
+                    </div>
+                    <div style="font-size:0.75rem;color:var(--fs-text-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                        @user.Email
+                    </div>
+                </div>
+            </div>
+            <MudDivider Style="margin:0 8px 12px" />
+        }
 
-    @if (AuthState.Value.IsGlobalAdmin)
+        <!-- ── Primary CTA ─────────────────────────────────────────────── -->
+        <div style="padding:0 8px 12px">
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       FullWidth="true"
+                       StartIcon="@Icons.Material.Rounded.Add"
+                       OnClick="OpenQuickAddAsync"
+                       Style="height:42px;font-weight:600;font-size:0.9rem;
+                              border-radius:var(--fs-radius-md);
+                              box-shadow:var(--fs-shadow-fab)">
+                Add expense
+            </MudButton>
+        </div>
+
+        <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Rounded.Home">Dashboard</MudNavLink>
+        <MudNavLink Href="groups" Icon="@Icons.Material.Rounded.Groups">Groups</MudNavLink>
+        <MudNavLink Href="families/mine" Icon="@Icons.Material.Rounded.FamilyRestroom">My Family</MudNavLink>
+
+        @if (AuthState.Value.IsGlobalAdmin)
+        {
+            <MudDivider Class="my-2" Style="margin:12px 8px" />
+            <div style="padding:4px 12px 4px;font-size:0.6875rem;font-weight:600;color:var(--fs-text-tertiary);text-transform:uppercase;letter-spacing:0.06em">
+                Admin
+            </div>
+            <MudNavLink Href="admin" Icon="@Icons.Material.Rounded.AdminPanelSettings">Families</MudNavLink>
+        }
+
+        <MudDivider Class="my-2" Style="margin:12px 8px" />
+        <MudNavLink Href="health" Icon="@Icons.Material.Rounded.MonitorHeart">API health</MudNavLink>
+
+        <div style="padding:4px 0 0">
+            <MudNavLink Icon="@Icons.Material.Rounded.Logout"
+                        OnClick="@(() => Dispatcher.Dispatch(new SignOutAction()))"
+                        Style="color:var(--fs-text-secondary)">
+                Sign out
+            </MudNavLink>
+        </div>
+    }
+    else
     {
-        <MudDivider Class="my-2" />
-        <MudNavGroup Title="Admin" Icon="@Icons.Material.Filled.AdminPanelSettings" Expanded="true">
-            <MudNavLink Href="admin" Icon="@Icons.Material.Filled.FamilyRestroom">Families</MudNavLink>
-        </MudNavGroup>
+        <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Rounded.Home">Home</MudNavLink>
     }
 
-    <MudDivider Class="my-2" />
-    <MudNavLink Href="health" Icon="@Icons.Material.Filled.MonitorHeart">API health</MudNavLink>
 </MudNavMenu>
 
 @code {
     protected override void OnInitialized()
     {
         base.OnInitialized();
-        // Resolve who is logged in once when the app first renders.
         Dispatcher.Dispatch(new CheckAuthAction());
+    }
+
+    private async Task OpenQuickAddAsync()
+    {
+        var options = new DialogOptions
+        {
+            MaxWidth        = MaxWidth.Small,
+            FullWidth       = true,
+            CloseOnEscapeKey = true,
+            BackdropClick   = true,
+        };
+        await DialogService.ShowAsync<QuickExpenseDialog>("Add expense", options);
     }
 }

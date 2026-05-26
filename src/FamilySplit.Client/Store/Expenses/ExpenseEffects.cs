@@ -1,5 +1,6 @@
 using Fluxor;
 using FamilySplit.Client.Services;
+using FamilySplit.Client.Store.Settlements;
 using Microsoft.Extensions.Logging;
 
 namespace FamilySplit.Client.Store.Expenses;
@@ -52,8 +53,9 @@ public class ExpenseEffects
         {
             var expense = await _client.CreateAsync(action.GroupId, action.ActivityId, action.Request);
             dispatcher.Dispatch(new CreateExpenseSuccessAction(expense));
-            // Refresh the list so the new expense appears immediately.
+            // Refresh list and re-compute live balance.
             dispatcher.Dispatch(new LoadExpensesAction(action.GroupId, action.ActivityId));
+            dispatcher.Dispatch(new LoadBalancesAction(action.GroupId, action.ActivityId));
         }
         catch (Exception ex)
         {
@@ -69,7 +71,9 @@ public class ExpenseEffects
         {
             var expense = await _client.UpdateAsync(action.GroupId, action.ActivityId, action.ExpenseId, action.Request);
             dispatcher.Dispatch(new UpdateExpenseSuccessAction(expense));
+            // Refresh list and re-compute live balance.
             dispatcher.Dispatch(new LoadExpensesAction(action.GroupId, action.ActivityId));
+            dispatcher.Dispatch(new LoadBalancesAction(action.GroupId, action.ActivityId));
         }
         catch (Exception ex)
         {
@@ -85,6 +89,9 @@ public class ExpenseEffects
         {
             await _client.DeleteAsync(action.GroupId, action.ActivityId, action.ExpenseId);
             dispatcher.Dispatch(new DeleteExpenseSuccessAction(action.ExpenseId));
+            // Refresh list and re-compute live balance.
+            dispatcher.Dispatch(new LoadExpensesAction(action.GroupId, action.ActivityId));
+            dispatcher.Dispatch(new LoadBalancesAction(action.GroupId, action.ActivityId));
         }
         catch (Exception ex)
         {

@@ -385,6 +385,46 @@ dotnet ef database update --startup-project ../FamilySplit.Api
 
 ---
 
+## UI Naming Conventions
+
+Consistent terminology must be used across all pages, dialogs, buttons, and tooltips. Never mix these terms.
+
+### Settlement / Transfer vocabulary
+
+The backend entity is always called `Settlement` in code, DTOs, and Fluxor actions. In the **UI** the word used depends on context:
+
+| Context | Term to use | Rationale |
+|---|---|---|
+| Home page (`Index.razor`) — pending items across all groups | **Settlements** | Cross-group, administrative view |
+| Group detail page (`GroupDetail.razor`) — pending items for a group | **Settlements** | Group-level administrative view |
+| Activity detail page (`ActivityDetail.razor`) — payment items for one activity | **Transfers** | Per-activity operational view |
+| Dialog title when opening a settlement detail from ActivityDetail | **Transfer detail** | Matches page terminology |
+| `Balance` section on ActivityDetail | **Balance** | Per-family net amounts (positive = to receive, negative = to pay) |
+
+### Action button labels (canonical, site-wide)
+
+These exact labels must appear on every button, in every confirmation dialog `yesText`, and in every tooltip — no variations allowed:
+
+| Action | Label |
+|---|---|
+| Payer marks payment as sent | **Mark sent** |
+| Receiver confirms payment received | **Mark received** |
+
+Confirmation `ShowMessageBox` titles should be **"Mark as sent"** / **"Mark as received"** (descriptive phrase form). The `yesText` must match the button: `"Mark sent"` / `"Mark received"`.
+
+### Status chip labels
+
+`SettlementStatus` enum values are displayed in chips. Use these display strings:
+
+| Enum value | Display label |
+|---|---|
+| `Proposed` | `Proposed` |
+| `PayerSent` | `Sent` |
+| `Completed` | `Completed` |
+| `Cancelled` | `Cancelled` |
+
+---
+
 ## Error Handling Conventions
 
 ### API error response shapes
@@ -416,6 +456,16 @@ The middleware produces two structured error bodies:
 ```
 
 5. **Soft-deleted records** (`IsActive = false`) must be excluded from every query. Always add `&& m.IsActive` when filtering `FamilyMembers`. Email uniqueness checks must also filter by `IsActive` so a deleted member's email can be reused.
+
+### Mobile touch targets
+
+FamilySplit is designed to be usable on mobile. All interactive controls must meet the minimum 48 dp touch target recommended by Material Design and Apple HIG.
+
+**Rules (apply site-wide, not just per-page):**
+- `MudIconButton` — always `Size.Medium` (≈40 px) as the minimum; use `Size.Large` (≈48 px) where space allows. **Never `Size.Small`** for icon-only buttons.
+- `MudButton` (labelled) — `Size.Medium` or larger. `Size.Small` is acceptable only for buttons that appear inside dense data tables or compact chip rows where layout is constrained.
+- Tooltips (`MudTooltip`) are hover-only and do not appear on touch screens — icon-only buttons must therefore be self-explanatory by icon, or carry a visible label on mobile layouts.
+- Clickable `MudPaper` / card rows — no minimum size rule, but ensure `padding` provides at least 12 px vertical breathing room so the tap area is comfortable.
 
 ### UI permission guardrails
 

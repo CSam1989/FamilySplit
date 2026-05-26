@@ -1,5 +1,6 @@
 using Fluxor;
 using FamilySplit.Client.Services;
+using FamilySplit.Client.Store.Settlements;
 using Microsoft.Extensions.Logging;
 
 namespace FamilySplit.Client.Store.Activities;
@@ -101,6 +102,9 @@ public class ActivityEffects
             dispatcher.Dispatch(new CloseActivitySuccessAction(activity));
             // Reload the list so the group detail's activity section reflects the closed status.
             dispatcher.Dispatch(new LoadActivitiesAction(action.GroupId));
+            // Auto-generate settlements and load balances immediately after close.
+            dispatcher.Dispatch(new GenerateSettlementsAction(action.GroupId, action.ActivityId));
+            dispatcher.Dispatch(new LoadBalancesAction(action.GroupId, action.ActivityId));
         }
         catch (Exception ex)
         {
@@ -116,6 +120,8 @@ public class ActivityEffects
         {
             var activity = await _client.AddParticipantAsync(action.GroupId, action.ActivityId, action.Request);
             dispatcher.Dispatch(new AddParticipantSuccessAction(activity));
+            // Participant set changed — refresh balance so weights re-compute correctly.
+            dispatcher.Dispatch(new LoadBalancesAction(action.GroupId, action.ActivityId));
         }
         catch (Exception ex)
         {
@@ -131,6 +137,8 @@ public class ActivityEffects
         {
             var activity = await _client.RemoveParticipantAsync(action.GroupId, action.ActivityId, action.FamilyMemberId);
             dispatcher.Dispatch(new RemoveParticipantSuccessAction(activity));
+            // Participant set changed — refresh balance.
+            dispatcher.Dispatch(new LoadBalancesAction(action.GroupId, action.ActivityId));
         }
         catch (Exception ex)
         {

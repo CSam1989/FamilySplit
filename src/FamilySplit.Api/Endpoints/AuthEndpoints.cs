@@ -31,8 +31,7 @@ public static class AuthEndpoints
             if (!Enum.TryParse<Provider>(provider, ignoreCase: true, out var p) || p != Provider.Google)
                 return Results.BadRequest(new { error = "Unsupported provider", provider });
 
-            var clientId = config["OAuth:Google:ClientId"]
-                ?? throw new InvalidOperationException("Missing OAuth:Google:ClientId user-secret.");
+            var clientId = config["OAuth:Google:ClientId"] ?? throw new InvalidOperationException("Missing OAuth:Google:ClientId user-secret.");
             var authorizeUrl = config["OAuth:Google:AuthorizeUrl"] ?? "https://accounts.google.com/o/oauth2/v2/auth";
 
             var safeReturnUrl = !string.IsNullOrWhiteSpace(returnUrl) && Uri.IsWellFormedUriString(returnUrl, UriKind.Absolute)

@@ -72,7 +72,20 @@ public static class SettlementReducers
         {
             IsLoading = false,
             SelectedSettlement = action.Settlement,
+            // Update activity-level list
             Settlements = state.Settlements
+                .Select(s => s.Id == action.Settlement.Id
+                    ? s with { Status = action.Settlement.Status }
+                    : s)
+                .ToList(),
+            // Update group-level list
+            GroupSettlements = state.GroupSettlements
+                .Select(s => s.Id == action.Settlement.Id
+                    ? s with { Status = action.Settlement.Status }
+                    : s)
+                .ToList(),
+            // Update dashboard list
+            MyPendingSettlements = state.MyPendingSettlements
                 .Select(s => s.Id == action.Settlement.Id
                     ? s with { Status = action.Settlement.Status }
                     : s)
@@ -95,16 +108,57 @@ public static class SettlementReducers
         {
             IsLoading = false,
             SelectedSettlement = action.Settlement,
+            // Update activity-level list
             Settlements = state.Settlements
                 .Select(s => s.Id == action.Settlement.Id
                     ? s with { Status = action.Settlement.Status, CompletedAt = action.Settlement.CompletedAt }
                     : s)
+                .ToList(),
+            // Remove from group-level list (Completed → no longer pending)
+            GroupSettlements = state.GroupSettlements
+                .Where(s => s.Id != action.Settlement.Id)
+                .ToList(),
+            // Remove from dashboard list
+            MyPendingSettlements = state.MyPendingSettlements
+                .Where(s => s.Id != action.Settlement.Id)
                 .ToList(),
         };
 
     [ReducerMethod]
     public static SettlementState OnConfirmReceivedFailure(SettlementState state, ConfirmReceivedFailureAction action) =>
         state with { IsLoading = false, ErrorMessage = action.ErrorMessage };
+
+    // ── Load group settlements ────────────────────────────────────────────────
+
+    [ReducerMethod(typeof(LoadGroupSettlementsAction))]
+    public static SettlementState OnLoadGroupSettlements(SettlementState state) =>
+        state with { IsLoadingGroupSettlements = true, ErrorMessage = null };
+
+    [ReducerMethod]
+    public static SettlementState OnLoadGroupSettlementsSuccess(SettlementState state, LoadGroupSettlementsSuccessAction action) =>
+        state with { IsLoadingGroupSettlements = false, GroupSettlements = action.Settlements };
+
+    [ReducerMethod]
+    public static SettlementState OnLoadGroupSettlementsFailure(SettlementState state, LoadGroupSettlementsFailureAction action) =>
+        state with { IsLoadingGroupSettlements = false, ErrorMessage = action.ErrorMessage };
+
+    [ReducerMethod(typeof(ClearGroupSettlementsAction))]
+    public static SettlementState OnClearGroupSettlements(SettlementState state) =>
+        state with { GroupSettlements = [], IsLoadingGroupSettlements = false };
+
+    // ── Load dashboard (cross-group) pending settlements ─────────────────────
+
+    [ReducerMethod(typeof(LoadMyPendingSettlementsAction))]
+    public static SettlementState OnLoadMyPending(SettlementState state) =>
+        state with { IsLoadingMyPending = true, ErrorMessage = null };
+
+    [ReducerMethod]
+    public static SettlementState OnLoadMyPendingSuccess(SettlementState state, LoadMyPendingSettlementsSuccessAction action) =>
+        state with { IsLoadingMyPending = false, MyPendingSettlements = action.Settlements };
+
+    [ReducerMethod]
+    public static SettlementState OnLoadMyPendingFailure(SettlementState state, LoadMyPendingSettlementsFailureAction action) =>
+        state with { IsLoadingMyPending = false, ErrorMessage = action.ErrorMessage };
 
     // ── Clear ─────────────────────────────────────────────────────────────────
 

@@ -29,6 +29,9 @@ public static class DependencyInjection
         // ── Phase 6: Settlements ──────────────────────────────────────────────
         services.AddScoped<Settlements.SettlementService>();
 
+        // ── Dashboard stats ───────────────────────────────────────────────────
+        services.AddScoped<Dashboard.DashboardService>();
+
         return services;
     }
 }

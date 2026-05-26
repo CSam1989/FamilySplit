@@ -1,0 +1,126 @@
+@using FamilySplit.Client.Store.Auth
+@using FamilySplit.Client.Pages.Activities
+@inherits Fluxor.Blazor.Web.Components.FluxorComponent
+@inject NavigationManager Nav
+@inject IState<AuthState> AuthState
+@inject IDialogService DialogService
+
+@if (AuthState.Value.IsAuthenticated)
+{
+    <nav class="fs-bottom-nav" role="navigation" aria-label="Main navigation">
+
+        <!-- Home -->
+        <a href="/" class="fs-nav-item @IsActive("", exact: true)" aria-label="Home">
+            <span class="fs-nav-icon">
+                @if (IsActive("", exact: true) == "active")
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.Home" Style="font-size:22px" />
+                }
+                else
+                {
+                    <MudIcon Icon="@Icons.Material.Outlined.Home" Style="font-size:22px" />
+                }
+            </span>
+            <span class="fs-nav-label">Home</span>
+        </a>
+
+        <!-- Groups -->
+        <a href="/groups" class="fs-nav-item @IsActive("groups")" aria-label="Groups">
+            <span class="fs-nav-icon">
+                @if (IsActive("groups") == "active")
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.Groups" Style="font-size:22px" />
+                }
+                else
+                {
+                    <MudIcon Icon="@Icons.Material.Outlined.Groups" Style="font-size:22px" />
+                }
+            </span>
+            <span class="fs-nav-label">Groups</span>
+        </a>
+
+        <!-- FAB — quick add expense -->
+        <div class="fs-nav-fab-wrap">
+            <button class="fs-nav-fab" title="Add expense" aria-label="Add expense"
+                    @onclick="OpenQuickAddAsync">
+                <MudIcon Icon="@Icons.Material.Rounded.Add" Style="font-size:28px;color:white" />
+            </button>
+        </div>
+
+        <!-- Family -->
+        <a href="/families/mine" class="fs-nav-item @IsActive("families")" aria-label="My Family">
+            <span class="fs-nav-icon">
+                @if (IsActive("families") == "active")
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.FamilyRestroom" Style="font-size:22px" />
+                }
+                else
+                {
+                    <MudIcon Icon="@Icons.Material.Outlined.FamilyRestroom" Style="font-size:22px" />
+                }
+            </span>
+            <span class="fs-nav-label">Family</span>
+        </a>
+
+        <!-- Me / profile -->
+        <a href="/" class="fs-nav-item @IsActive("profile")" aria-label="Profile">
+            @if (AuthState.Value.CurrentUser?.AvatarUrl is { } avatar)
+            {
+                <span class="fs-nav-icon">
+                    <img src="@avatar" alt="avatar"
+                         style="width:26px;height:26px;border-radius:50%;object-fit:cover;border:2px solid @(IsActive("profile")=="active" ? "var(--fs-primary)" : "var(--fs-border)")" />
+                </span>
+            }
+            else
+            {
+                <span class="fs-nav-icon">
+                    @if (IsActive("profile") == "active")
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.AccountCircle" Style="font-size:22px" />
+                    }
+                    else
+                    {
+                        <MudIcon Icon="@Icons.Material.Outlined.AccountCircle" Style="font-size:22px" />
+                    }
+                </span>
+            }
+            <span class="fs-nav-label">Me</span>
+        </a>
+
+    </nav>
+}
+
+@code {
+    private string IsActive(string segment, bool exact = false)
+    {
+        var path = new Uri(Nav.Uri).AbsolutePath.Trim('/');
+
+        if (exact)
+            return path == segment.Trim('/') ? "active" : "";
+
+        return path.StartsWith(segment.Trim('/'), StringComparison.OrdinalIgnoreCase) && segment.Length > 0
+            ? "active"
+            : "";
+    }
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        Nav.LocationChanged += (_, _) => StateHasChanged();
+    }
+
+    private async Task OpenQuickAddAsync()
+    {
+        var options = new DialogOptions
+        {
+            // Full-screen on mobile feels native; centred on desktop
+            FullScreen        = false,
+            Position          = DialogPosition.BottomCenter,
+            MaxWidth          = MaxWidth.Small,
+            FullWidth         = true,
+            CloseOnEscapeKey  = true,
+            BackdropClick     = true,
+        };
+        await DialogService.ShowAsync<QuickExpenseDialog>("Add expense", options);
+    }
+}
