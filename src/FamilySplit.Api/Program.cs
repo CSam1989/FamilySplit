@@ -31,12 +31,16 @@ builder.Host.UseDefaultServiceProvider(options =>
 builder.WebHost.ConfigureKestrel(o => o.AddServerHeader = false);
 
 // --- Logging -----------------------------------------------------------------------
-// Serilog is configured purely from appsettings to avoid double-write to console
-// during startup (the host's default logger is replaced cleanly).
+// Serilog reads levels from appsettings. Console output format depends on the
+// environment: structured JSON in production (parseable by Railway log drains /
+// external log services) and human-readable text in development.
+var isProduction = builder.Environment.IsProduction();
 builder.Host.UseSerilog((ctx, lc) => lc
     .ReadFrom.Configuration(ctx.Configuration)
     .Enrich.FromLogContext()
-    .WriteTo.Console());
+    .WriteTo.Console(isProduction
+        ? new Serilog.Formatting.Json.JsonFormatter()
+        : null));
 
 // Cache allowed origins once at startup — used by both CORS and the OAuth
 // returnUrl allow-list (open-redirect guard in AuthEndpoints).
