@@ -7,6 +7,7 @@ using FamilySplit.Domain.Entities;
 using FamilySplit.Domain.Enums;
 using FamilySplit.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace FamilySplit.Application.Admin;
 
@@ -20,23 +21,27 @@ public class AdminService
     private readonly CreateFamilyValidator _createFamilyValidator;
     private readonly AddFamilyMemberValidator _addMemberValidator;
     private readonly UpdateFamilyMemberValidator _updateMemberValidator;
+    private readonly ILogger<AdminService> _logger;
 
     public AdminService(
         AppDbContext db,
         CreateFamilyValidator createFamilyValidator,
         AddFamilyMemberValidator addMemberValidator,
-        UpdateFamilyMemberValidator updateMemberValidator)
+        UpdateFamilyMemberValidator updateMemberValidator,
+        ILogger<AdminService> logger)
     {
         _db = db;
         _createFamilyValidator = createFamilyValidator;
         _addMemberValidator = addMemberValidator;
         _updateMemberValidator = updateMemberValidator;
+        _logger = logger;
     }
 
     // ── List all families ─────────────────────────────────────────────────────
 
     public async Task<List<FamilyDto>> ListFamiliesAsync(Guid callerId)
     {
+        _logger.LogDebug("ListFamiliesAsync called by {UserId}", callerId);
         await RequireGlobalAdminAsync(callerId);
 
         var families = await _db.Families
@@ -71,6 +76,7 @@ public class AdminService
 
     public async Task<FamilyDto> GetFamilyAsync(Guid familyId, Guid callerId)
     {
+        _logger.LogDebug("GetFamilyAsync called for {FamilyId} by {UserId}", familyId, callerId);
         await RequireGlobalAdminAsync(callerId);
         return await BuildFamilyDtoAsync(familyId)
             ?? throw Throw422("FamilyId", "Family not found.");
@@ -94,6 +100,8 @@ public class AdminService
 
         _db.Families.Add(family);
         await _db.SaveChangesAsync();
+
+        _logger.LogInformation("Family {FamilyId} created by global admin {UserId}", family.Id, callerId);
 
         return await BuildFamilyDtoAsync(family.Id)
             ?? throw new InvalidOperationException("Family not found after create.");
@@ -153,6 +161,10 @@ public class AdminService
         _db.FamilyMembers.Add(member);
         await _db.SaveChangesAsync();
 
+        _logger.LogInformation(
+            "FamilyMember {MemberId} added to family {FamilyId} by global admin {UserId} (linked: {IsLinked})",
+            member.Id, familyId, callerId, member.UserId is not null);
+
         return FamilyService.ToDto(member, DateOnly.FromDateTime(DateTime.UtcNow));
     }
 
@@ -188,6 +200,9 @@ public class AdminService
         member.IsAdmin        = req.IsAdmin;
 
         await _db.SaveChangesAsync();
+
+        _logger.LogInformation("FamilyMember {MemberId} updated by global admin {UserId}", memberId, callerId);
+
         return FamilyService.ToDto(member, DateOnly.FromDateTime(DateTime.UtcNow));
     }
 
@@ -204,6 +219,8 @@ public class AdminService
 
         member.IsActive = false;
         await _db.SaveChangesAsync();
+
+        _logger.LogInformation("FamilyMember {MemberId} deactivated by global admin {UserId}", memberId, callerId);
     }
 
     // ── Add a family to a group ───────────────────────────────────────────────
@@ -234,6 +251,8 @@ public class AdminService
             JoinedAt = DateTimeOffset.UtcNow,
         });
         await _db.SaveChangesAsync();
+
+        _logger.LogInformation("Family {FamilyId} added to group {GroupId} by global admin {UserId}", familyId, groupId, callerId);
     }
 
     // ── Remove a family from a group ──────────────────────────────────────────
@@ -249,6 +268,8 @@ public class AdminService
 
         _db.GroupFamilies.Remove(groupFamily);
         await _db.SaveChangesAsync();
+
+        _logger.LogWarning("Family {FamilyId} removed from group {GroupId} by global admin {UserId}", familyId, groupId, callerId);
     }
 
     // ── Delete a group ────────────────────────────────────────────────────────
@@ -263,6 +284,8 @@ public class AdminService
 
         if (deleted == 0)
             throw Throw422("GroupId", "Group not found.");
+
+        _logger.LogWarning("Group {GroupId} deleted by global admin {UserId}", groupId, callerId);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

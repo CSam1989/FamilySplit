@@ -510,6 +510,81 @@ Client-side controls must mirror every server-side permission check — if a use
 
 ---
 
+## Logging Standards
+
+All service methods **must** follow these rules. They apply to every new service and must be maintained when modifying existing ones.
+
+### Log levels — when to use what
+
+| Level | Use for |
+|---|---|
+| `LogDebug` | Method entry — every public service method. Include the primary entity IDs and the caller's `UserId`. Never enable in production by default; flip `FamilySplit` override to `Debug` via env var to investigate without a redeploy. |
+| `LogInformation` | Successful mutations — create, update, delete, state transitions. Log the new/changed entity ID plus `{UserId}`. Security events (group join/leave, token revocation) also belong here. |
+| `LogWarning` | Elevated-privilege or destructive actions (global-admin deletes, invite-code regeneration, mass token revocation triggered by logout). Also used for detected anomalies (replay/theft attempts). |
+| `LogError` | Unexpected exceptions not handled by business logic. The global `ValidationExceptionMiddleware` already catches FluentValidation and ForbiddenException — do **not** catch those just to log them; the middleware handles it. |
+
+`LogTrace` is not used in this codebase.
+
+### Structured logging rules
+
+- **Always use named placeholders** — `{ExpenseId}`, `{UserId}`, `{Amount}` — never C# string interpolation inside the message template. Serilog serialises placeholders as structured properties.
+- **Never log PII** at `Debug` or below. Display names, email addresses, and raw amounts may appear in `Information`-level mutation logs (they record what happened) but must not appear in `Debug` entry logs.
+- **Property naming convention** — entity ID placeholders must be `{EntityType}Id` (e.g., `{GroupId}`, `{ActivityId}`, `{ExpenseId}`). The caller is always `{UserId}`. Counts use `{Count}`.
+
+### Constructor injection pattern
+
+```csharp
+// CORRECT — logger is the last constructor parameter
+public class MyService
+{
+    private readonly AppDbContext _db;
+    private readonly ILogger<MyService> _logger;
+
+    public MyService(AppDbContext db, ILogger<MyService> logger)
+    {
+        _db     = db;
+        _logger = logger;
+    }
+}
+```
+
+### Standard entry / exit log pattern
+
+```csharp
+public async Task<Foo> CreateAsync(Guid groupId, CreateFooRequest req, Guid callerId)
+{
+    // Debug entry — key IDs only, no PII
+    _logger.LogDebug("Creating foo in group {GroupId} by user {UserId}", groupId, callerId);
+
+    // ... business logic ...
+
+    await _db.SaveChangesAsync();
+
+    // Info on success — entity ID + caller
+    _logger.LogInformation("Foo {FooId} created in group {GroupId} by user {UserId}",
+        foo.Id, groupId, callerId);
+
+    return dto;
+}
+```
+
+### Audit logging (financial mutations only)
+
+Expense and settlement mutations are additionally persisted to the `audit_log` table via `AuditService.Queue(userId, entityType, entityId, action, metadata)`. The entry is saved atomically inside the same `SaveChangesAsync` call — do not call a separate `SaveChangesAsync` for audits. Supported entity types: `Expense`, `Settlement`. Supported actions: `Created`, `Updated`, `Deleted`, `Generated`, `ConfirmSent`, `ConfirmReceived`. The `metadata` field is a JSONB blob with a before/after diff or creation snapshot.
+
+Non-financial mutations (group join/leave, member changes, family renames) are covered by Serilog `LogInformation` only — they do not write to the `audit_log` table.
+
+### appsettings configuration
+
+| Environment | `FamilySplit.*` level | How to investigate in prod |
+|---|---|---|
+| Production (`appsettings.json`) | `Information` | Set env var `Serilog__MinimumLevel__Override__FamilySplit=Debug` without redeploying |
+| Development (`appsettings.Development.json`) | `Debug` | Default — all entry logs visible |
+
+Microsoft/System namespaces stay at `Warning` in both environments. EF SQL commands (`Microsoft.EntityFrameworkCore.Database.Command`) are `Information` in dev only.
+
+---
+
 ## Phase Roadmap
 
 | Phase | Status | Scope |

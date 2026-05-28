@@ -1,4 +1,5 @@
 using FluentValidation;
+using FamilySplit.Application.Audit;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace FamilySplit.Application;
@@ -9,6 +10,12 @@ public static class DependencyInjection
     {
         // Registers all FluentValidation validators in this assembly automatically.
         services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly);
+
+        // ── Audit logging ─────────────────────────────────────────────────────
+        // Scoped so it shares the same AppDbContext as the calling service.
+        // AuditService.Queue() adds rows to the change tracker; the caller's
+        // SaveChangesAsync() persists them atomically with the main mutation.
+        services.AddScoped<AuditService>();
 
         // ── Global-admin operations ────────────────────────────────────────────
         services.AddScoped<Admin.AdminService>();

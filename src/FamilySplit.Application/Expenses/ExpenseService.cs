@@ -1,4 +1,5 @@
 using FluentValidation;
+using FamilySplit.Application.Audit;
 using FamilySplit.Application.Core;
 using FamilySplit.Application.Exceptions;
 using FamilySplit.Application.Expenses.Dtos;
@@ -6,6 +7,7 @@ using FamilySplit.Domain.Entities;
 using FamilySplit.Domain.Enums;
 using FamilySplit.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace FamilySplit.Application.Expenses;
 
@@ -19,21 +21,30 @@ public class ExpenseService
     private readonly AppDbContext _db;
     private readonly CreateExpenseValidator _createValidator;
     private readonly UpdateExpenseValidator _updateValidator;
+    private readonly AuditService _audit;
+    private readonly ILogger<ExpenseService> _logger;
 
     public ExpenseService(
         AppDbContext db,
         CreateExpenseValidator createValidator,
-        UpdateExpenseValidator updateValidator)
+        UpdateExpenseValidator updateValidator,
+        AuditService audit,
+        ILogger<ExpenseService> logger)
     {
         _db              = db;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
+        _audit           = audit;
+        _logger          = logger;
     }
 
     // ── List expenses for an activity ─────────────────────────────────────────
 
     public async Task<List<ExpenseSummaryDto>> ListAsync(Guid activityId, Guid callerId)
     {
+        _logger.LogDebug("Listing expenses for activity {ActivityId} requested by user {UserId}",
+            activityId, callerId);
+
         var activity = await _db.Activities
             .Where(a => a.Id == activityId)
             .Select(a => new { a.GroupId })
@@ -48,6 +59,8 @@ public class ExpenseService
             .ThenByDescending(e => e.CreatedAt)
             .Select(e => new { e.Id, e.ActivityId, e.Title, e.Description, e.TotalAmount, e.Currency, e.ExpenseDate, e.PaidByUserId, e.Status, e.CreatedAt })
             .ToListAsync();
+
+        _logger.LogDebug("Found {ExpenseCount} expenses for activity {ActivityId}", expenses.Count, activityId);
 
         if (expenses.Count == 0) return [];
 
@@ -93,6 +106,8 @@ public class ExpenseService
 
     public async Task<ExpenseDetailDto> GetDetailAsync(Guid expenseId, Guid callerId)
     {
+        _logger.LogDebug("Getting expense detail {ExpenseId} for user {UserId}", expenseId, callerId);
+
         var expense = await _db.Expenses
             .Where(e => e.Id == expenseId)
             .Select(e => new { e.Id, e.ActivityId, e.Title, e.Description, e.TotalAmount, e.Currency, e.ExpenseDate, e.PaidByUserId, e.Status, e.CreatedAt, e.UpdatedAt })
@@ -116,6 +131,10 @@ public class ExpenseService
 
     public async Task<ExpenseDetailDto> CreateAsync(Guid activityId, CreateExpenseRequest req, Guid callerId)
     {
+        _logger.LogDebug(
+            "Creating expense on activity {ActivityId} by user {UserId} — title: {ExpenseTitle}, amount: {Amount}",
+            activityId, callerId, req.Title, req.TotalAmount);
+
         await _createValidator.ValidateAndThrowAsync(req);
 
         var activity = await _db.Activities
@@ -139,6 +158,9 @@ public class ExpenseService
             where ap.ActivityId == activityId
             select new { fm.Id, fm.DateOfBirth, fm.WeightOverride }
         ).ToListAsync();
+
+        _logger.LogDebug("Seeding {ParticipantCount} participants for new expense on activity {ActivityId}",
+            participants.Count, activityId);
 
         var expense = new Expense
         {
@@ -182,7 +204,22 @@ public class ExpenseService
         // Calculate each participant's share.
         SplitCalculator.CalculateShares(expense.TotalAmount, expenseParticipants);
 
+        // Queue audit entry — persisted atomically with SaveChangesAsync below.
+        _audit.Queue(callerId, "Expense", expense.Id, "Created", new
+        {
+            activityId,
+            title        = expense.Title,
+            amount       = expense.TotalAmount,
+            currency     = expense.Currency,
+            expenseDate,
+            participants = expenseParticipants.Count,
+        });
+
         await _db.SaveChangesAsync();
+
+        _logger.LogInformation(
+            "Expense {ExpenseId} created on activity {ActivityId} by user {UserId} — '{Title}' {Amount} {Currency}",
+            expense.Id, activityId, callerId, expense.Title, expense.TotalAmount, expense.Currency);
 
         return await BuildDetailDtoAsync(expense.Id, expense.ActivityId, expense.Title, expense.Description,
             expense.TotalAmount, expense.Currency, expense.ExpenseDate, expense.PaidByUserId,
@@ -193,6 +230,8 @@ public class ExpenseService
 
     public async Task<ExpenseDetailDto> UpdateAsync(Guid expenseId, UpdateExpenseRequest req, Guid callerId)
     {
+        _logger.LogDebug("Updating expense {ExpenseId} by user {UserId}", expenseId, callerId);
+
         await _updateValidator.ValidateAndThrowAsync(req);
 
         var expense = await _db.Expenses.FindAsync(expenseId)
@@ -214,6 +253,15 @@ public class ExpenseService
 
         bool amountOrDateChanged = expense.TotalAmount != req.TotalAmount || expense.ExpenseDate != req.ExpenseDate;
 
+        // Capture before-state for audit diff.
+        var before = new
+        {
+            title       = expense.Title,
+            amount      = expense.TotalAmount,
+            currency    = expense.Currency,
+            expenseDate = expense.ExpenseDate,
+        };
+
         expense.Title       = req.Title.Trim();
         expense.Description = req.Description?.Trim();
         expense.TotalAmount = req.TotalAmount;
@@ -225,13 +273,16 @@ public class ExpenseService
         // If amount or date changed, re-snapshot weights and recalculate shares.
         if (amountOrDateChanged)
         {
+            _logger.LogDebug(
+                "Amount or date changed on expense {ExpenseId} — re-snapshotting weights (old amount: {OldAmount}, new: {NewAmount})",
+                expenseId, before.amount, req.TotalAmount);
+
             var existingParticipants = await _db.ExpenseParticipants
                 .Where(ep => ep.ExpenseId == expenseId)
                 .ToListAsync();
 
             if (existingParticipants.Count > 0)
             {
-                // Re-snapshot weights for the new expense date.
                 var memberIds = existingParticipants.Select(ep => ep.FamilyMemberId).ToList();
                 var memberData = await _db.FamilyMembers
                     .Where(fm => memberIds.Contains(fm.Id))
@@ -256,7 +307,25 @@ public class ExpenseService
             }
         }
 
+        // Queue audit entry — persisted atomically with SaveChangesAsync below.
+        _audit.Queue(callerId, "Expense", expenseId, "Updated", new
+        {
+            before,
+            after = new
+            {
+                title       = expense.Title,
+                amount      = expense.TotalAmount,
+                currency    = expense.Currency,
+                expenseDate = expense.ExpenseDate,
+            },
+            recalculated = amountOrDateChanged,
+        });
+
         await _db.SaveChangesAsync();
+
+        _logger.LogInformation(
+            "Expense {ExpenseId} updated by user {UserId} — '{Title}' {Amount} {Currency}",
+            expenseId, callerId, expense.Title, expense.TotalAmount, expense.Currency);
 
         return await BuildDetailDtoAsync(expense.Id, expense.ActivityId, expense.Title, expense.Description,
             expense.TotalAmount, expense.Currency, expense.ExpenseDate, expense.PaidByUserId,
@@ -267,6 +336,8 @@ public class ExpenseService
 
     public async Task DeleteAsync(Guid expenseId, Guid callerId)
     {
+        _logger.LogDebug("Deleting expense {ExpenseId} requested by user {UserId}", expenseId, callerId);
+
         var expense = await _db.Expenses.FindAsync(expenseId)
             ?? throw NotFound("Expense not found.");
 
@@ -284,8 +355,22 @@ public class ExpenseService
         if (expense.Status == ExpenseStatus.Locked)
             throw Throw422("Status", "This expense is locked and cannot be deleted.");
 
+        // Queue audit entry — persisted atomically with SaveChangesAsync below.
+        _audit.Queue(callerId, "Expense", expenseId, "Deleted", new
+        {
+            activityId  = expense.ActivityId,
+            title       = expense.Title,
+            amount      = expense.TotalAmount,
+            currency    = expense.Currency,
+            expenseDate = expense.ExpenseDate,
+        });
+
         _db.Expenses.Remove(expense);
         await _db.SaveChangesAsync();
+
+        _logger.LogInformation(
+            "Expense {ExpenseId} deleted by user {UserId} — was '{Title}' {Amount} {Currency} on activity {ActivityId}",
+            expenseId, callerId, expense.Title, expense.TotalAmount, expense.Currency, expense.ActivityId);
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

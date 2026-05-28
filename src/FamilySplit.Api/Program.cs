@@ -145,6 +145,9 @@ app.UseMiddleware<ValidationExceptionMiddleware>();
 app.UseCors("ClientApp");
 app.UseAuthentication();
 app.UseAuthorization();
+// Enriches Serilog log entries with the authenticated caller's UserId and
+// UserEmail (from JWT claims) for every subsequent log statement in the request.
+app.UseMiddleware<UserLoggingContextMiddleware>();
 
 // --- Health (anonymous) -----------------------------------------------------------
 app.MapGet("/health", () => Results.Ok(new

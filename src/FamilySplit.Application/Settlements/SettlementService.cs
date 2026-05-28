@@ -1,4 +1,5 @@
 using FluentValidation;
+using FamilySplit.Application.Audit;
 using FamilySplit.Application.Core;
 using FamilySplit.Application.Exceptions;
 using FamilySplit.Application.Settlements.Dtos;
@@ -6,6 +7,7 @@ using FamilySplit.Domain.Entities;
 using FamilySplit.Domain.Enums;
 using FamilySplit.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace FamilySplit.Application.Settlements;
 
@@ -17,13 +19,23 @@ namespace FamilySplit.Application.Settlements;
 public class SettlementService
 {
     private readonly AppDbContext _db;
+    private readonly AuditService _audit;
+    private readonly ILogger<SettlementService> _logger;
 
-    public SettlementService(AppDbContext db) => _db = db;
+    public SettlementService(AppDbContext db, AuditService audit, ILogger<SettlementService> logger)
+    {
+        _db     = db;
+        _audit  = audit;
+        _logger = logger;
+    }
 
     // ── Get per-family balances (read-only, pre-settlement view) ──────────────
 
     public async Task<List<FamilyBalanceDto>> GetBalancesAsync(Guid activityId, Guid callerId)
     {
+        _logger.LogDebug("Getting balances for activity {ActivityId} requested by user {UserId}",
+            activityId, callerId);
+
         var activity = await _db.Activities
             .Where(a => a.Id == activityId)
             .Select(a => new { a.GroupId, a.Status })
@@ -35,6 +47,9 @@ public class SettlementService
         var currency = await GetActivityCurrencyAsync(activityId);
         var (expenses, participants) = await LoadExpenseDataAsync(activityId);
         var balances = BalanceCalculator.Compute(expenses, participants);
+
+        _logger.LogDebug("Computed balances for {FamilyCount} families on activity {ActivityId}",
+            balances.Count, activityId);
 
         // Resolve family names.
         var familyIds = balances.Keys.ToList();
@@ -56,6 +71,9 @@ public class SettlementService
 
     public async Task<List<SettlementSummaryDto>> GenerateAsync(Guid activityId, Guid callerId)
     {
+        _logger.LogDebug("Generating settlements for activity {ActivityId} requested by user {UserId}",
+            activityId, callerId);
+
         var activity = await _db.Activities
             .Where(a => a.Id == activityId)
             .Select(a => new { a.GroupId, a.Status })
@@ -73,8 +91,6 @@ public class SettlementService
         if (activity.Status == ActivityStatus.AbsorbedByParent)
             throw Throw422("Status", "Cannot settle a sub-activity that was absorbed by its parent.");
 
-        // Any sub-activity (even one pre-closed before the parent) must roll its
-        // expenses into the parent settlement — it cannot be settled independently.
         var parentId = await _db.Activities
             .Where(a => a.Id == activityId)
             .Select(a => a.ParentActivityId)
@@ -88,7 +104,11 @@ public class SettlementService
             .ToListAsync();
 
         if (existing.Count > 0)
+        {
+            _logger.LogDebug("Settlements already exist for activity {ActivityId} ({Count} rows) — returning existing",
+                activityId, existing.Count);
             return await BuildSummaryListAsync(activityId);
+        }
 
         var currency = await GetActivityCurrencyAsync(activityId);
         var (expenses, participants) = await LoadExpenseDataAsync(activityId);
@@ -97,7 +117,10 @@ public class SettlementService
 
         if (transfers.Count == 0)
         {
-            // Balances are already even — mark the activity as settled immediately.
+            _logger.LogInformation(
+                "All balances are zero for activity {ActivityId} — marking as Settled immediately",
+                activityId);
+
             var activityEntity = await _db.Activities.FindAsync(activityId);
             activityEntity!.Status = ActivityStatus.Settled;
             await _db.SaveChangesAsync();
@@ -119,7 +142,26 @@ public class SettlementService
         }).ToList();
 
         _db.Settlements.AddRange(settlements);
+
+        // Queue one audit entry per generated settlement — all persisted atomically below.
+        foreach (var s in settlements)
+        {
+            _audit.Queue(callerId, "Settlement", s.Id, "Generated", new
+            {
+                activityId,
+                payerFamilyId    = s.PayerFamilyId,
+                receiverFamilyId = s.ReceiverFamilyId,
+                amount           = s.Amount,
+                currency         = s.Currency,
+            });
+        }
+
         await _db.SaveChangesAsync();
+
+        _logger.LogInformation(
+            "Generated {Count} settlement(s) for activity {ActivityId} by user {UserId} — total transfers: {Total} {Currency}",
+            settlements.Count, activityId, callerId,
+            settlements.Sum(s => s.Amount), currency);
 
         return await BuildSummaryListAsync(activityId);
     }
@@ -128,9 +170,10 @@ public class SettlementService
 
     public async Task<List<GroupSettlementSummaryDto>> ListForGroupAsync(Guid groupId, Guid callerId)
     {
+        _logger.LogDebug("Listing settlements for group {GroupId} requested by user {UserId}", groupId, callerId);
+
         await RequireGroupMemberAsync(groupId, callerId);
 
-        // Top-level activities only (sub-activities don't have independent settlements).
         var activities = await _db.Activities
             .Where(a => a.GroupId == groupId && a.ParentActivityId == null)
             .Select(a => new { a.Id, a.Name })
@@ -141,7 +184,6 @@ public class SettlementService
         var activityIds = activities.Select(a => a.Id).ToList();
         var nameMap     = activities.ToDictionary(a => a.Id, a => a.Name);
 
-        // Only unsettled settlements (Proposed or PayerSent) — once Completed/Cancelled they leave the view.
         var rows = await (
             from s in _db.Settlements
             join pf in _db.Families on s.PayerFamilyId    equals pf.Id
@@ -164,6 +206,8 @@ public class SettlementService
                 s.ProposedAt,
             }
         ).ToListAsync();
+
+        _logger.LogDebug("Found {Count} pending settlements for group {GroupId}", rows.Count, groupId);
 
         return rows
             .Select(r => new GroupSettlementSummaryDto(
@@ -188,14 +232,14 @@ public class SettlementService
 
     public async Task<List<GroupSettlementSummaryDto>> ListMyPendingAsync(Guid callerId)
     {
-        // Resolve caller's family.
+        _logger.LogDebug("Listing all pending settlements for user {UserId}", callerId);
+
         var callerFamilyId = await _db.FamilyMembers
             .Where(m => m.UserId == callerId && m.IsActive)
             .Select(m => (Guid?)m.FamilyId)
             .FirstOrDefaultAsync()
             ?? throw new ForbiddenException();
 
-        // Groups the caller's family belongs to.
         var groupIds = await _db.GroupFamilies
             .Where(gf => gf.FamilyId == callerFamilyId)
             .Select(gf => gf.GroupId)
@@ -203,7 +247,6 @@ public class SettlementService
 
         if (groupIds.Count == 0) return [];
 
-        // Top-level activities across those groups (no sub-activities).
         var activities = await _db.Activities
             .Where(a => groupIds.Contains(a.GroupId) && a.ParentActivityId == null)
             .Select(a => new { a.Id, a.GroupId, a.Name })
@@ -238,6 +281,9 @@ public class SettlementService
             }
         ).ToListAsync();
 
+        _logger.LogDebug("Found {Count} pending settlements for user {UserId} across {GroupCount} group(s)",
+            rows.Count, callerId, groupIds.Count);
+
         return rows
             .Select(r =>
             {
@@ -265,6 +311,9 @@ public class SettlementService
 
     public async Task<List<SettlementSummaryDto>> ListAsync(Guid activityId, Guid callerId)
     {
+        _logger.LogDebug("Listing settlements for activity {ActivityId} requested by user {UserId}",
+            activityId, callerId);
+
         var activity = await _db.Activities
             .Where(a => a.Id == activityId)
             .Select(a => new { a.GroupId })
@@ -280,6 +329,8 @@ public class SettlementService
 
     public async Task<SettlementDetailDto> GetDetailAsync(Guid settlementId, Guid callerId)
     {
+        _logger.LogDebug("Getting settlement detail {SettlementId} for user {UserId}", settlementId, callerId);
+
         var settlement = await _db.Settlements
             .Where(s => s.Id == settlementId)
             .Select(s => new { s.Id, s.ActivityId })
@@ -301,6 +352,8 @@ public class SettlementService
 
     public async Task<SettlementDetailDto> ConfirmSentAsync(Guid settlementId, Guid callerId)
     {
+        _logger.LogDebug("ConfirmSent for settlement {SettlementId} by user {UserId}", settlementId, callerId);
+
         var settlement = await _db.Settlements.FindAsync(settlementId)
             ?? throw NotFound("Settlement not found.");
 
@@ -312,7 +365,6 @@ public class SettlementService
 
         await RequireGroupMemberAsync(activity.GroupId, callerId);
 
-        // Caller must be a member of the payer family.
         var callerFamilyId = await GetCallerFamilyIdAsync(callerId);
         if (callerFamilyId != settlement.PayerFamilyId)
             throw new ForbiddenException("Only a member of the paying family can confirm payment sent.");
@@ -335,7 +387,20 @@ public class SettlementService
             CreatedAt    = now,
         });
 
+        // Queue audit entry — persisted atomically with SaveChangesAsync below.
+        _audit.Queue(callerId, "Settlement", settlementId, "ConfirmSent", new
+        {
+            payerFamilyId    = settlement.PayerFamilyId,
+            receiverFamilyId = settlement.ReceiverFamilyId,
+            amount           = settlement.Amount,
+            currency         = settlement.Currency,
+        });
+
         await _db.SaveChangesAsync();
+
+        _logger.LogInformation(
+            "Settlement {SettlementId} marked as sent by user {UserId} (payer family {PayerFamilyId}) — {Amount} {Currency}",
+            settlementId, callerId, settlement.PayerFamilyId, settlement.Amount, settlement.Currency);
 
         return await BuildDetailDtoAsync(settlementId);
     }
@@ -344,6 +409,8 @@ public class SettlementService
 
     public async Task<SettlementDetailDto> ConfirmReceivedAsync(Guid settlementId, Guid callerId)
     {
+        _logger.LogDebug("ConfirmReceived for settlement {SettlementId} by user {UserId}", settlementId, callerId);
+
         var settlement = await _db.Settlements.FindAsync(settlementId)
             ?? throw NotFound("Settlement not found.");
 
@@ -355,7 +422,6 @@ public class SettlementService
 
         await RequireGroupMemberAsync(activity.GroupId, callerId);
 
-        // Caller must be a member of the receiver family.
         var callerFamilyId = await GetCallerFamilyIdAsync(callerId);
         if (callerFamilyId != settlement.ReceiverFamilyId)
             throw new ForbiddenException("Only a member of the receiving family can confirm payment received.");
@@ -379,7 +445,20 @@ public class SettlementService
             CreatedAt    = now,
         });
 
+        // Queue audit entry — persisted atomically with SaveChangesAsync below.
+        _audit.Queue(callerId, "Settlement", settlementId, "ConfirmReceived", new
+        {
+            payerFamilyId    = settlement.PayerFamilyId,
+            receiverFamilyId = settlement.ReceiverFamilyId,
+            amount           = settlement.Amount,
+            currency         = settlement.Currency,
+        });
+
         await _db.SaveChangesAsync();
+
+        _logger.LogInformation(
+            "Settlement {SettlementId} marked as received by user {UserId} (receiver family {ReceiverFamilyId}) — {Amount} {Currency}",
+            settlementId, callerId, settlement.ReceiverFamilyId, settlement.Amount, settlement.Currency);
 
         // If all settlements for this activity are now Completed, mark activity Settled.
         var allDone = await _db.Settlements
@@ -388,6 +467,10 @@ public class SettlementService
 
         if (allDone)
         {
+            _logger.LogInformation(
+                "All settlements for activity {ActivityId} are completed — transitioning activity to Settled",
+                settlement.ActivityId);
+
             var activityEntity = await _db.Activities.FindAsync(settlement.ActivityId);
             activityEntity!.Status = ActivityStatus.Settled;
             await _db.SaveChangesAsync();
@@ -424,7 +507,6 @@ public class SettlementService
 
     private async Task<string> GetActivityCurrencyAsync(Guid activityId)
     {
-        // Include sub-activity expenses when determining the dominant currency.
         var allIds = await GetActivityAndSubIdsAsync(activityId);
 
         var currency = await _db.Expenses
@@ -440,12 +522,8 @@ public class SettlementService
     private async Task<(List<BalanceCalculator.ExpenseData>, List<BalanceCalculator.ParticipantData>)>
         LoadExpenseDataAsync(Guid activityId)
     {
-        // Include expenses from all sub-activities so their costs roll into the
-        // parent settlement rather than generating separate (duplicate) transfers.
         var allIds = await GetActivityAndSubIdsAsync(activityId);
 
-        // Load payer family for each expense.
-        // Use a cross-join + where to avoid nullable Guid join issues (fm.UserId is Guid?).
         var expenseData = await (
             from e in _db.Expenses
             from fm in _db.FamilyMembers
@@ -456,7 +534,6 @@ public class SettlementService
             select new BalanceCalculator.ExpenseData(fm.FamilyId, e.TotalAmount)
         ).ToListAsync();
 
-        // Load participant shares with their family.
         var participantData = await (
             from ep in _db.ExpenseParticipants
             join e in _db.Expenses on ep.ExpenseId equals e.Id
@@ -468,10 +545,6 @@ public class SettlementService
         return (expenseData, participantData);
     }
 
-    /// <summary>
-    /// Returns the given activity ID plus the IDs of all its direct sub-activities.
-    /// Expenses from sub-activities are always rolled up into the parent settlement.
-    /// </summary>
     private async Task<List<Guid>> GetActivityAndSubIdsAsync(Guid activityId)
     {
         var subIds = await _db.Activities

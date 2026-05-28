@@ -72,6 +72,9 @@ public class RefreshTokenService
         _db.RefreshTokens.Add(entity);
         await _db.SaveChangesAsync(ct);
 
+        _logger.LogDebug("Refresh token issued for user {UserId} (tokenId: {TokenId}, expires: {ExpiresAt})",
+            userId, entity.Id, entity.ExpiresAt);
+
         return new IssuedToken(secret, entity.ExpiresAt);
     }
 
@@ -135,6 +138,10 @@ public class RefreshTokenService
 
         await _db.SaveChangesAsync(ct);
 
+        _logger.LogDebug(
+            "Refresh token rotated for user {UserId} (old: {OldTokenId} → new: {NewTokenId}, expires: {ExpiresAt})",
+            existing.UserId, existing.Id, replacement.Id, replacement.ExpiresAt);
+
         return new RotatedToken(existing.UserId, newSecret, replacement.ExpiresAt);
     }
 
@@ -156,6 +163,8 @@ public class RefreshTokenService
 
         row.RevokedAt = DateTimeOffset.UtcNow;
         await _db.SaveChangesAsync(ct);
+
+        _logger.LogDebug("Refresh token revoked for user {UserId} (tokenId: {TokenId})", row.UserId, row.Id);
     }
 
     // ── Revoke all active tokens for a user (theft, password change) ──────
@@ -163,9 +172,13 @@ public class RefreshTokenService
     public async Task RevokeAllForUserAsync(Guid userId, CancellationToken ct = default)
     {
         var now = DateTimeOffset.UtcNow;
-        await _db.RefreshTokens
+        var revoked = await _db.RefreshTokens
             .Where(t => t.UserId == userId && t.RevokedAt == null)
             .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, now), ct);
+
+        _logger.LogInformation(
+            "All refresh tokens revoked for user {UserId} ({Count} token(s) invalidated)",
+            userId, revoked);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────

@@ -7,6 +7,7 @@ using FamilySplit.Domain.Entities;
 using FamilySplit.Domain.Enums;
 using FamilySplit.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace FamilySplit.Application.Groups;
 
@@ -16,23 +17,27 @@ public class GroupService
     private readonly CreateGroupValidator _createValidator;
     private readonly UpdateGroupValidator _updateValidator;
     private readonly JoinGroupValidator _joinValidator;
+    private readonly ILogger<GroupService> _logger;
 
     public GroupService(
         AppDbContext db,
         CreateGroupValidator createValidator,
         UpdateGroupValidator updateValidator,
-        JoinGroupValidator joinValidator)
+        JoinGroupValidator joinValidator,
+        ILogger<GroupService> logger)
     {
         _db = db;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
         _joinValidator = joinValidator;
+        _logger = logger;
     }
 
     // ── List caller's groups ──────────────────────────────────────────────────
 
     public async Task<List<GroupSummaryDto>> ListAsync(Guid callerId)
     {
+        _logger.LogDebug("ListAsync called. {UserId}", callerId);
         var callerFamilyId = await GetCallerFamilyIdAsync(callerId);
 
         // Groups the caller's family belongs to.
@@ -75,6 +80,7 @@ public class GroupService
 
     public async Task<GroupDetailDto> GetDetailAsync(Guid groupId, Guid callerId)
     {
+        _logger.LogDebug("GetDetailAsync called. {GroupId} {UserId}", groupId, callerId);
         var callerFamilyId = await GetCallerFamilyIdAsync(callerId);
         var callerRole = await CallerFamilyRoleOrNullAsync(groupId, callerFamilyId)
             ?? throw Forbidden();
@@ -87,6 +93,7 @@ public class GroupService
 
     public async Task<GroupDetailDto> CreateAsync(CreateGroupRequest req, Guid callerId)
     {
+        _logger.LogDebug("CreateAsync called. {UserId} Name={Name}", callerId, req.Name);
         await _createValidator.ValidateAndThrowAsync(req);
         await RequireCallerIsFamilyAdminAsync(callerId);
 
@@ -116,6 +123,8 @@ public class GroupService
         _db.GroupFamilies.Add(adminGroupFamily);
         await _db.SaveChangesAsync();
 
+        _logger.LogInformation("Group created. {GroupId} by {UserId}", group.Id, callerId);
+
         return await BuildDetailDtoAsync(group.Id, MemberRole.Admin)
             ?? throw NotFound();
     }
@@ -124,6 +133,7 @@ public class GroupService
 
     public async Task<GroupDetailDto> UpdateAsync(Guid groupId, UpdateGroupRequest req, Guid callerId)
     {
+        _logger.LogDebug("UpdateAsync called. {GroupId} {UserId}", groupId, callerId);
         await _updateValidator.ValidateAndThrowAsync(req);
         await RequireAdminAsync(groupId, callerId);
 
@@ -136,6 +146,8 @@ public class GroupService
 
         await _db.SaveChangesAsync();
 
+        _logger.LogInformation("Group updated. {GroupId} by {UserId}", groupId, callerId);
+
         return await BuildDetailDtoAsync(groupId, MemberRole.Admin)
             ?? throw NotFound();
     }
@@ -144,6 +156,7 @@ public class GroupService
 
     public async Task<GroupDetailDto> JoinAsync(JoinGroupRequest req, Guid callerId)
     {
+        _logger.LogDebug("JoinAsync called. {UserId}", callerId);
         await _joinValidator.ValidateAndThrowAsync(req);
         await RequireCallerIsFamilyAdminAsync(callerId);
 
@@ -173,6 +186,8 @@ public class GroupService
         _db.GroupFamilies.Add(groupFamily);
         await _db.SaveChangesAsync();
 
+        _logger.LogInformation("Family joined group. {GroupId} {FamilyId} by {UserId}", group.Id, callerFamilyId, callerId);
+
         return await BuildDetailDtoAsync(group.Id, MemberRole.Member)
             ?? throw NotFound();
     }
@@ -181,6 +196,7 @@ public class GroupService
 
     public async Task LeaveAsync(Guid groupId, Guid callerId)
     {
+        _logger.LogDebug("LeaveAsync called. {GroupId} {UserId}", groupId, callerId);
         await RequireCallerIsFamilyAdminAsync(callerId);
 
         var callerFamilyId = await GetCallerFamilyIdAsync(callerId);
@@ -204,12 +220,15 @@ public class GroupService
 
         _db.GroupFamilies.Remove(groupFamily);
         await _db.SaveChangesAsync();
+
+        _logger.LogInformation("Family left group. {GroupId} {FamilyId} by {UserId}", groupId, callerFamilyId, callerId);
     }
 
     // ── Regenerate invite code ────────────────────────────────────────────────
 
     public async Task<string> RegenerateInviteCodeAsync(Guid groupId, Guid callerId)
     {
+        _logger.LogDebug("RegenerateInviteCodeAsync called. {GroupId} {UserId}", groupId, callerId);
         await RequireAdminAsync(groupId, callerId);
 
         var group = await _db.Groups.FindAsync(groupId)
@@ -219,6 +238,9 @@ public class GroupService
         group.UpdatedAt  = DateTimeOffset.UtcNow;
 
         await _db.SaveChangesAsync();
+
+        _logger.LogWarning("Invite code regenerated (old code is now invalid). {GroupId} by {UserId}", groupId, callerId);
+
         return group.InviteCode;
     }
 

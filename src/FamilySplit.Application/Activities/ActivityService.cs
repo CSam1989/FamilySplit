@@ -6,6 +6,7 @@ using FamilySplit.Domain.Entities;
 using FamilySplit.Domain.Enums;
 using FamilySplit.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace FamilySplit.Application.Activities;
 
@@ -19,17 +20,20 @@ public class ActivityService
     private readonly CreateActivityValidator _createValidator;
     private readonly UpdateActivityValidator _updateValidator;
     private readonly ParticipantSeeder _seeder;
+    private readonly ILogger<ActivityService> _logger;
 
     public ActivityService(
         AppDbContext db,
         CreateActivityValidator createValidator,
         UpdateActivityValidator updateValidator,
-        ParticipantSeeder seeder)
+        ParticipantSeeder seeder,
+        ILogger<ActivityService> logger)
     {
         _db              = db;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
         _seeder          = seeder;
+        _logger          = logger;
     }
 
     // ── List activities in a group ────────────────────────────────────────────
@@ -37,6 +41,7 @@ public class ActivityService
     /// <summary>Returns all top-level activities (no parent) for the group.</summary>
     public async Task<List<ActivitySummaryDto>> ListAsync(Guid groupId, Guid callerId)
     {
+        _logger.LogDebug("ListAsync called for {GroupId} by {UserId}", groupId, callerId);
         await RequireGroupMemberAsync(groupId, callerId);
 
         var activities = await _db.Activities
@@ -106,6 +111,7 @@ public class ActivityService
 
     public async Task<ActivityDetailDto> GetDetailAsync(Guid activityId, Guid callerId)
     {
+        _logger.LogDebug("GetDetailAsync called for {ActivityId} by {UserId}", activityId, callerId);
         var activity = await _db.Activities
             .Where(a => a.Id == activityId)
             .Select(a => new { a.Id, a.GroupId, a.Name, a.Description, a.Status, a.ParentActivityId, a.CreatedAt, a.ClosedAt })
@@ -123,6 +129,7 @@ public class ActivityService
 
     public async Task<ActivityDetailDto> CreateAsync(Guid groupId, CreateActivityRequest req, Guid callerId)
     {
+        _logger.LogDebug("CreateAsync called for {GroupId} by {UserId}", groupId, callerId);
         await _createValidator.ValidateAndThrowAsync(req);
         await RequireGroupMemberAsync(groupId, callerId);
 
@@ -142,6 +149,8 @@ public class ActivityService
         await _seeder.SeedForActivityAsync(activity);
         await _db.SaveChangesAsync();
 
+        _logger.LogInformation("Activity {ActivityId} created in group {GroupId} by {UserId}", activity.Id, groupId, callerId);
+
         return await BuildDetailDtoAsync(activity.Id, activity.GroupId, activity.Name,
             activity.Description, activity.Status, activity.ParentActivityId,
             activity.CreatedAt, activity.ClosedAt);
@@ -151,6 +160,7 @@ public class ActivityService
 
     public async Task<ActivityDetailDto> CreateSubActivityAsync(Guid parentActivityId, CreateActivityRequest req, Guid callerId)
     {
+        _logger.LogDebug("CreateSubActivityAsync called for parent {ActivityId} by {UserId}", parentActivityId, callerId);
         await _createValidator.ValidateAndThrowAsync(req);
 
         var parent = await _db.Activities
@@ -185,6 +195,8 @@ public class ActivityService
         await _seeder.SeedForSubActivityAsync(sub, parentActivityId);
         await _db.SaveChangesAsync();
 
+        _logger.LogInformation("Sub-activity {ActivityId} created under parent {ParentActivityId} by {UserId}", sub.Id, parentActivityId, callerId);
+
         return await BuildDetailDtoAsync(sub.Id, sub.GroupId, sub.Name,
             sub.Description, sub.Status, sub.ParentActivityId,
             sub.CreatedAt, sub.ClosedAt);
@@ -194,6 +206,7 @@ public class ActivityService
 
     public async Task<ActivityDetailDto> UpdateAsync(Guid activityId, UpdateActivityRequest req, Guid callerId)
     {
+        _logger.LogDebug("UpdateAsync called for {ActivityId} by {UserId}", activityId, callerId);
         await _updateValidator.ValidateAndThrowAsync(req);
 
         var activity = await _db.Activities.FindAsync(activityId)
@@ -210,6 +223,8 @@ public class ActivityService
 
         await _db.SaveChangesAsync();
 
+        _logger.LogInformation("Activity {ActivityId} updated by {UserId}", activityId, callerId);
+
         return await BuildDetailDtoAsync(activity.Id, activity.GroupId, activity.Name,
             activity.Description, activity.Status, activity.ParentActivityId,
             activity.CreatedAt, activity.ClosedAt);
@@ -223,6 +238,7 @@ public class ActivityService
     /// </summary>
     public async Task<ActivityDetailDto> CloseAsync(Guid activityId, Guid callerId)
     {
+        _logger.LogDebug("CloseAsync called for {ActivityId} by {UserId}", activityId, callerId);
         var activity = await _db.Activities.FindAsync(activityId)
             ?? throw NotFound();
 
@@ -257,6 +273,8 @@ public class ActivityService
 
         await _db.SaveChangesAsync();
 
+        _logger.LogInformation("Activity {ActivityId} closed by {UserId}; {Count} sub-activities absorbed", activityId, callerId, openSubs.Count);
+
         return await BuildDetailDtoAsync(activity.Id, activity.GroupId, activity.Name,
             activity.Description, activity.Status, activity.ParentActivityId,
             activity.CreatedAt, activity.ClosedAt);
@@ -266,6 +284,7 @@ public class ActivityService
 
     public async Task<ActivityDetailDto> AddParticipantAsync(Guid activityId, AddParticipantRequest req, Guid callerId)
     {
+        _logger.LogDebug("AddParticipantAsync called for {ActivityId} by {UserId}", activityId, callerId);
         var activity = await _db.Activities
             .Where(a => a.Id == activityId)
             .Select(a => new { a.Id, a.GroupId, a.Name, a.Description, a.Status, a.ParentActivityId, a.CreatedAt, a.ClosedAt })
@@ -303,6 +322,8 @@ public class ActivityService
 
         await _db.SaveChangesAsync();
 
+        _logger.LogInformation("FamilyMember {FamilyMemberId} added as participant to activity {ActivityId} by {UserId}", req.FamilyMemberId, activityId, callerId);
+
         return await BuildDetailDtoAsync(activity.Id, activity.GroupId, activity.Name,
             activity.Description, activity.Status, activity.ParentActivityId,
             activity.CreatedAt, activity.ClosedAt);
@@ -312,6 +333,7 @@ public class ActivityService
 
     public async Task<ActivityDetailDto> RemoveParticipantAsync(Guid activityId, Guid familyMemberId, Guid callerId)
     {
+        _logger.LogDebug("RemoveParticipantAsync called for {ActivityId}, member {FamilyMemberId} by {UserId}", activityId, familyMemberId, callerId);
         var activity = await _db.Activities
             .Where(a => a.Id == activityId)
             .Select(a => new { a.Id, a.GroupId, a.Name, a.Description, a.Status, a.ParentActivityId, a.CreatedAt, a.ClosedAt })
@@ -329,6 +351,8 @@ public class ActivityService
 
         _db.ActivityParticipants.Remove(participant);
         await _db.SaveChangesAsync();
+
+        _logger.LogInformation("FamilyMember {FamilyMemberId} removed as participant from activity {ActivityId} by {UserId}", familyMemberId, activityId, callerId);
 
         return await BuildDetailDtoAsync(activity.Id, activity.GroupId, activity.Name,
             activity.Description, activity.Status, activity.ParentActivityId,

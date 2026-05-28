@@ -5,6 +5,7 @@ using FamilySplit.Application.Families.Dtos;
 using FamilySplit.Domain.Entities;
 using FamilySplit.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace FamilySplit.Application.Families;
 
@@ -19,23 +20,27 @@ public class FamilyService
     private readonly AddFamilyMemberValidator _addValidator;
     private readonly UpdateFamilyMemberValidator _updateValidator;
     private readonly UpdateFamilyNameValidator _nameValidator;
+    private readonly ILogger<FamilyService> _logger;
 
     public FamilyService(
         AppDbContext db,
         AddFamilyMemberValidator addValidator,
         UpdateFamilyMemberValidator updateValidator,
-        UpdateFamilyNameValidator nameValidator)
+        UpdateFamilyNameValidator nameValidator,
+        ILogger<FamilyService> logger)
     {
         _db = db;
         _addValidator = addValidator;
         _updateValidator = updateValidator;
         _nameValidator = nameValidator;
+        _logger = logger;
     }
 
     // ── Get my family ─────────────────────────────────────────────────────────
 
     public async Task<FamilyDto?> GetMyFamilyAsync(Guid callerId)
     {
+        _logger.LogDebug("GetMyFamilyAsync called by {UserId}", callerId);
         var member = await GetCallerMemberAsync(callerId);
         if (member is null) return null;
         return await BuildFamilyDtoAsync(member.FamilyId);
@@ -45,6 +50,7 @@ public class FamilyService
 
     public async Task<FamilyMemberDto?> GetMyProfileAsync(Guid callerId)
     {
+        _logger.LogDebug("GetMyProfileAsync called by {UserId}", callerId);
         var member = await GetCallerMemberAsync(callerId);
         if (member is null) return null;
         return ToDto(member, DateOnly.FromDateTime(DateTime.UtcNow));
@@ -64,6 +70,8 @@ public class FamilyService
         family.Name      = req.Name.Trim();
         family.UpdatedAt = DateTimeOffset.UtcNow;
         await _db.SaveChangesAsync();
+
+        _logger.LogInformation("Family {FamilyId} renamed by admin {UserId}", family.Id, callerId);
 
         return await BuildFamilyDtoAsync(family.Id)
             ?? throw Forbidden();
@@ -118,6 +126,10 @@ public class FamilyService
         _db.FamilyMembers.Add(member);
         await _db.SaveChangesAsync();
 
+        _logger.LogInformation(
+            "FamilyMember {MemberId} added to family {FamilyId} by {UserId} (linked: {IsLinked})",
+            member.Id, caller.FamilyId, callerId, member.UserId is not null);
+
         return ToDto(member, DateOnly.FromDateTime(DateTime.UtcNow));
     }
 
@@ -161,6 +173,9 @@ public class FamilyService
             member.IsAdmin = req.IsAdmin;
 
         await _db.SaveChangesAsync();
+
+        _logger.LogInformation("FamilyMember {MemberId} updated by {UserId}", memberId, callerId);
+
         return ToDto(member, DateOnly.FromDateTime(DateTime.UtcNow));
     }
 
@@ -180,6 +195,8 @@ public class FamilyService
 
         member.IsActive = false;
         await _db.SaveChangesAsync();
+
+        _logger.LogInformation("FamilyMember {MemberId} deactivated by {UserId}", memberId, callerId);
     }
 
     // ── Internal helpers ──────────────────────────────────────────────────────
