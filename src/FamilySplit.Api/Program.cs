@@ -17,6 +17,15 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Validate that all registered services can be constructed at startup, catching
+// missing registrations and captive-dependency bugs before the first request.
+// ValidateScopes catches scoped services accidentally consumed from singletons.
+builder.Host.UseDefaultServiceProvider(options =>
+{
+    options.ValidateOnBuild = true;
+    options.ValidateScopes  = true;
+});
+
 // Remove the default "Server: Kestrel" response header to avoid advertising
 // the server technology to potential attackers.
 builder.WebHost.ConfigureKestrel(o => o.AddServerHeader = false);
