@@ -39,8 +39,15 @@ builder.Services.AddScoped<ExpenseEffects>();
 builder.Services.AddScoped<SettlementEffects>();
 builder.Services.AddScoped<DashboardEffects>();
 
-// --- Auth (sessionStorage-backed) -------------------------------------------------
-builder.Services.AddScoped<AuthService>();
+// --- Auth -------------------------------------------------------------------------
+// Singleton (not Scoped) so that the _refreshLock semaphore is shared across every
+// handler, component, and effect that touches AuthService. In Blazor WASM a single
+// root DI scope means Scoped ≈ Singleton for normal use, but Fluxor effects or
+// HttpClientFactory intermediaries can occasionally resolve services from child
+// scopes, creating a second instance with its own lock — which lets two concurrent
+// POST /auth/refresh calls race past the semaphore and trigger the concurrent-
+// detection path on the server.
+builder.Services.AddSingleton<AuthService>();
 builder.Services.AddTransient<JwtAuthHandler>();
 builder.Services.AddTransient<IncludeCredentialsHandler>();
 

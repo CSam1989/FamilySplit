@@ -26,7 +26,15 @@
         var ok = await Auth.TryRefreshAsync();
         if (ok)
         {
-            Nav.NavigateTo("/", forceLoad: true);
+            // Use replace:true (in-SPA navigation) rather than forceLoad:true.
+            // forceLoad restarts the entire WASM runtime, which boots a fresh AuthService
+            // with no JWT and immediately fires another POST /auth/refresh with the same
+            // cookie that was just rotated. That concurrent second call then triggers
+            // theft-detection and revokes the user's entire session.
+            // replace:true keeps the same WASM instance (same AuthService, same JWT already
+            // in memory) and replaces the history entry so the back button can't re-enter
+            // this callback page.
+            Nav.NavigateTo("/", replace: true);
             return;
         }
 

@@ -19,7 +19,14 @@ public class AuthEffects
     {
         // Silent refresh — succeeds if the browser still holds a valid HttpOnly
         // refresh cookie, which is the default for any prior signed-in session.
-        if (!await _auth.IsAuthenticatedAsync())
+        //
+        // Retry once: in the unlikely event a sibling refresh call (e.g. from
+        // JwtAuthHandler) is still in-flight when this runs, the first attempt
+        // may return false (transient 401) even though a valid token is about to
+        // land in memory. The _refreshLock semaphore serialises the HTTP calls, so
+        // the second attempt will simply see HasValidToken = true and return
+        // immediately without making another network request.
+        if (!await _auth.IsAuthenticatedAsync() && !await _auth.IsAuthenticatedAsync())
         {
             dispatcher.Dispatch(new CheckAuthNotAuthenticatedAction());
             return;

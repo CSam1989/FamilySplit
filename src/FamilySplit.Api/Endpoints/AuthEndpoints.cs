@@ -163,28 +163,51 @@ public static class AuthEndpoints
         {
             var presented = http.Request.Cookies[RefreshCookie];
 
-            var rotated = await refreshTokens.RotateAsync(
+            // CancellationToken.None is intentional for all DB work past this point.
+            // Once RotateAsync commits, the old token is revoked and the new one exists only in
+            // the DB. If the client disconnects before we write the cookie/JWT, the browser's
+            // next refresh attempt presents the now-revoked token, which triggers theft-detection
+            // and kills every session for that user. Using ct here would create that window.
+            var rotateResult = await refreshTokens.RotateAsync(
                 presented ?? "",
                 http.Connection.RemoteIpAddress?.ToString(),
                 http.Request.Headers.UserAgent.ToString(),
-                ct);
+                CancellationToken.None);
 
-            if (rotated is null)
+            // Accept both a full rotation (new cookie) and a within-window reuse (existing cookie kept).
+            // ConcurrentRetry and Rejected both return 401; only Rejected also clears the cookie.
+            if (rotateResult is not RefreshTokenService.RotateResult.Success
+                            and not RefreshTokenService.RotateResult.Reused)
             {
-                // Either no cookie, expired, unknown, or revoked. Clear any stale cookie.
-                ClearRefreshCookie(http);
+                // ConcurrentRetry: the browser already holds the correct replacement cookie
+                // from the first winning rotation — clearing it here would remove the only
+                // valid cookie the client has, causing an immediate logged-out state.
+                // Only clear the cookie for genuine failures (Rejected).
+                if (rotateResult is RefreshTokenService.RotateResult.Rejected)
+                    ClearRefreshCookie(http);
+
                 return Results.Unauthorized();
             }
 
+            var userId = rotateResult switch
+            {
+                RefreshTokenService.RotateResult.Success s => s.UserId,
+                RefreshTokenService.RotateResult.Reused  r => r.UserId,
+                _                                          => throw new InvalidOperationException("Unhandled RotateResult"),
+            };
+
             // Load the user record once so the JWT carries the right claims.
-            var user = await db.Users.FindAsync(new object?[] { rotated.UserId }, ct);
+            var user = await db.Users.FindAsync(new object?[] { userId }, CancellationToken.None);
             if (user is null)
             {
                 ClearRefreshCookie(http);
                 return Results.Unauthorized();
             }
 
-            WriteRefreshCookie(http, rotated.Secret, rotated.ExpiresAt);
+            // Only update the cookie when a new token was issued; for Reused the
+            // browser already holds the still-active cookie — touching it is unnecessary.
+            if (rotateResult is RefreshTokenService.RotateResult.Success rotated)
+                WriteRefreshCookie(http, rotated.Secret, rotated.ExpiresAt);
 
             var jwt = jwtFactory.Create(user);
             return Results.Ok(new

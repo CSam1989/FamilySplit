@@ -84,7 +84,11 @@
     protected override void OnInitialized()
     {
         base.OnInitialized();
-        Dispatcher.Dispatch(new CheckAuthAction());
+        // Guard: only dispatch if auth state is not already resolved or in-flight.
+        // This prevents a redundant CheckAuthAction (and its associated refresh call)
+        // if NavMenu ever re-mounts while authentication is already known.
+        if (!AuthState.Value.IsAuthenticated && !AuthState.Value.IsLoading)
+            Dispatcher.Dispatch(new CheckAuthAction());
     }
 
     private async Task OpenQuickAddAsync()

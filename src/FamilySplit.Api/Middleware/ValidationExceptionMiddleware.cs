@@ -58,5 +58,10 @@ public class ValidationExceptionMiddleware
                 errors
             }, JsonOptions));
         }
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+        {
+            // Client closed the connection before the response was sent — nothing to write back.
+            _logger.LogDebug("Request to {Path} cancelled by client", context.Request.Path);
+        }
     }
 }
