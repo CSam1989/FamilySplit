@@ -1,0 +1,46 @@
+logging targets (files? to where?) for debug & prod
+
+Cancellation support?
+
+Make api/client more sturdy (retries, rate limiting) with good defaults
+
+Validation (FluentValidation) every request where necessary (both frontend as on backend)
+
+PWA SUPPORT (for now only online features)
+In future, offline still be able to add expenses (need to see how to link them to groups/activities)
+
+Structuring a method
+• Happy Path always at the bottom of the method
+• Don’t want to scan for “what happens when all goes well” and find it in the 
+middle of a method
+• Use return’s instead of nested if => else
+
+Refactor client, extract and reuse components as much as possible
+this will make the different pages look more similar
+
+Automated Tests (good code coverage) (xUnit)
+* unit tests
+* bunit to test blazor components
+* integration tests (with test containers)
+* e2e tests with playwright and test containers
+All run in CI
+
+ CI/CD Pipelines
+• Confident Green
+• Feature Toggles
+• Work in small batches
+ Deploy frequently to Production (should be daily or more frequent)
+
+ feature folders or even vertical slice architecture
+*try to not duplicate code - library?
+*enforce cross-feature consistency
+*corresponding test projects
+
+ More features
+ UserProfile
+ Light/Dark theme
+ Translations (english/dutch/french/german)
+
+ Shared shoppinglist in main activity
+ Weekplanning in main activity with crud on "planned activities" wich can be linked with subactivities or even creates these subactivities
+ Drag and drop UI on a week planner
