@@ -17,6 +17,10 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Remove the default "Server: Kestrel" response header to avoid advertising
+// the server technology to potential attackers.
+builder.WebHost.ConfigureKestrel(o => o.AddServerHeader = false);
+
 // --- Logging -----------------------------------------------------------------------
 // Serilog is configured purely from appsettings to avoid double-write to console
 // during startup (the host's default logger is replaced cleanly).
@@ -138,6 +142,10 @@ if (builder.Environment.IsDevelopment())
 var app = builder.Build();
 
 // --- Middleware pipeline ----------------------------------------------------------
+// Security headers on every response — registered first so they are present even
+// on error responses produced by middleware further down the pipeline.
+app.UseMiddleware<SecurityHeadersMiddleware>();
+
 // HSTS + HTTPS redirection are production-only: dev typically runs on a self-signed
 // cert and `localhost` is exempt from HSTS preload anyway.
 if (!app.Environment.IsDevelopment())
