@@ -19,6 +19,7 @@ public class ActivityService
     private readonly AppDbContext _db;
     private readonly CreateActivityValidator _createValidator;
     private readonly UpdateActivityValidator _updateValidator;
+    private readonly AddParticipantValidator _addParticipantValidator;
     private readonly ParticipantSeeder _seeder;
     private readonly ILogger<ActivityService> _logger;
 
@@ -26,12 +27,14 @@ public class ActivityService
         AppDbContext db,
         CreateActivityValidator createValidator,
         UpdateActivityValidator updateValidator,
+        AddParticipantValidator addParticipantValidator,
         ParticipantSeeder seeder,
         ILogger<ActivityService> logger)
     {
         _db = db;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
+        _addParticipantValidator = addParticipantValidator;
         _seeder = seeder;
         _logger = logger;
     }
@@ -285,6 +288,7 @@ public class ActivityService
     public async Task<ActivityDetailDto> AddParticipantAsync(Guid activityId, AddParticipantRequest req, Guid callerId, CancellationToken ct = default)
     {
         _logger.LogDebug("AddParticipantAsync called for {ActivityId} by {UserId}", activityId, callerId);
+        await _addParticipantValidator.ValidateAndThrowAsync(req, ct);
         var activity = await _db.Activities
             .Where(a => a.Id == activityId)
             .Select(a => new { a.Id, a.GroupId, a.Name, a.Description, a.Status, a.ParentActivityId, a.CreatedAt, a.ClosedAt })

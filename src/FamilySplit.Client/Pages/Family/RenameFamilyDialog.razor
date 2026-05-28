@@ -3,19 +3,24 @@
         <MudText Typo="Typo.h6">Rename family</MudText>
     </TitleContent>
     <DialogContent>
-        <MudTextField T="string"
-                      @bind-Value="_name"
-                      Label="Family name"
-                      Required="true"
-                      MaxLength="100"
-                      Error="@_nameError"
-                      ErrorText="Family name is required."
-                      Immediate="true"
-                      Autofocus="true" />
+        <MudForm @ref="_form" @bind-IsValid="_isValid">
+            <MudTextField T="string"
+                          @bind-Value="_name"
+                          Label="Family name"
+                          Required="true"
+                          RequiredError="Family name is required."
+                          MaxLength="100"
+                          Counter="100"
+                          Immediate="true"
+                          Autofocus="true" />
+        </MudForm>
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="Cancel">Cancel</MudButton>
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">Save</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                   OnClick="Submit" Disabled="@(!_isValid)">
+            Save
+        </MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -24,15 +29,16 @@
 
     [Parameter] public string InitialName { get; set; } = "";
 
-    private string _name      = "";
-    private bool   _nameError;
+    private MudForm _form    = default!;
+    private bool    _isValid;
+    private string  _name    = "";
 
     protected override void OnParametersSet() => _name = InitialName;
 
-    private void Submit()
+    private async Task Submit()
     {
-        _nameError = string.IsNullOrWhiteSpace(_name);
-        if (_nameError) return;
+        await _form.ValidateAsync();
+        if (!_isValid) return;
         MudDialog.Close(DialogResult.Ok(_name.Trim()));
     }
 

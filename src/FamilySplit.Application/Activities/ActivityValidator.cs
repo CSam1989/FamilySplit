@@ -3,6 +3,15 @@ using FluentValidation;
 
 namespace FamilySplit.Application.Activities;
 
+public class AddParticipantValidator : AbstractValidator<AddParticipantRequest>
+{
+    public AddParticipantValidator()
+    {
+        RuleFor(x => x.FamilyMemberId)
+            .NotEmpty().WithMessage("FamilyMemberId is required.");
+    }
+}
+
 public class CreateActivityValidator : AbstractValidator<CreateActivityRequest>
 {
     public CreateActivityValidator()

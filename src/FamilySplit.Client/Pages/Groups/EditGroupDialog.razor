@@ -5,25 +5,32 @@
         <MudText Typo="Typo.h6">Edit group</MudText>
     </TitleContent>
     <DialogContent>
-        <MudTextField T="string"
-                      Label="Group name"
-                      @bind-Value="_name"
-                      Error="_nameError"
-                      ErrorText="Group name is required."
-                      MaxLength="100"
-                      Immediate="true"
-                      Class="mb-3" />
+        <MudForm @ref="_form" @bind-IsValid="_isValid">
+            <MudTextField T="string"
+                          Label="Group name"
+                          @bind-Value="_name"
+                          Required="true"
+                          RequiredError="Group name is required."
+                          MaxLength="100"
+                          Counter="100"
+                          Immediate="true"
+                          Class="mb-3" />
 
-        <MudTextField T="string"
-                      Label="Description (optional)"
-                      @bind-Value="_description"
-                      MaxLength="500"
-                      Lines="3"
-                      Immediate="true" />
+            <MudTextField T="string"
+                          Label="Description (optional)"
+                          @bind-Value="_description"
+                          MaxLength="500"
+                          Counter="500"
+                          Lines="3"
+                          Immediate="true" />
+        </MudForm>
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="Cancel">Cancel</MudButton>
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">Save</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                   OnClick="Submit" Disabled="@(!_isValid)">
+            Save
+        </MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -33,20 +40,21 @@
     [Parameter] public string InitialName { get; set; } = "";
     [Parameter] public string? InitialDescription { get; set; }
 
-    private string _name = "";
-    private string? _description;
-    private bool _nameError;
+    private MudForm  _form        = default!;
+    private bool     _isValid;
+    private string   _name        = "";
+    private string?  _description;
 
     protected override void OnInitialized()
     {
-        _name = InitialName;
+        _name        = InitialName;
         _description = InitialDescription;
     }
 
-    private void Submit()
+    private async Task Submit()
     {
-        _nameError = string.IsNullOrWhiteSpace(_name);
-        if (_nameError) return;
+        await _form.ValidateAsync();
+        if (!_isValid) return;
 
         MudDialog.Close(DialogResult.Ok(new EditGroupFormModel(_name.Trim(), _description?.Trim())));
     }

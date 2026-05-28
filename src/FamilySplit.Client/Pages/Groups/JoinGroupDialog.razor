@@ -8,45 +8,44 @@
         <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
             Enter the 8-character invite code shared by the group admin.
         </MudText>
-        <MudTextField T="string"
-                      Label="Invite code"
-                      @bind-Value="_inviteCode"
-                      Error="_inviteCodeError"
-                      ErrorText="@_inviteCodeErrorText"
-                      MaxLength="8"
-                      Immediate="true"
-                      Placeholder="e.g. AB3FGH7K" />
+        <MudForm @ref="_form" @bind-IsValid="_isValid">
+            <MudTextField T="string"
+                          Label="Invite code"
+                          @bind-Value="_inviteCode"
+                          Required="true"
+                          RequiredError="Invite code is required."
+                          MaxLength="8"
+                          Immediate="true"
+                          Placeholder="e.g. AB3FGH7K"
+                          Validation="@(new Func<string, IEnumerable<string>>(ValidateInviteCode))" />
+        </MudForm>
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="Cancel">Cancel</MudButton>
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">Join</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                   OnClick="Submit" Disabled="@(!_isValid)">
+            Join
+        </MudButton>
     </DialogActions>
 </MudDialog>
 
 @code {
     [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
 
-    private string _inviteCode = "";
-    private bool _inviteCodeError;
-    private string _inviteCodeErrorText = "Invite code is required.";
+    private MudForm _form       = default!;
+    private bool    _isValid;
+    private string  _inviteCode = "";
 
-    private void Submit()
+    private static IEnumerable<string> ValidateInviteCode(string code)
     {
-        if (string.IsNullOrWhiteSpace(_inviteCode))
-        {
-            _inviteCodeError = true;
-            _inviteCodeErrorText = "Invite code is required.";
-            return;
-        }
+        if (string.IsNullOrWhiteSpace(code)) yield break; // Required handles the empty case
+        if (code.Trim().Length != 8) yield return "Invite code must be exactly 8 characters.";
+    }
 
-        if (_inviteCode.Trim().Length != 8)
-        {
-            _inviteCodeError = true;
-            _inviteCodeErrorText = "Invite code must be exactly 8 characters.";
-            return;
-        }
-
-        _inviteCodeError = false;
+    private async Task Submit()
+    {
+        await _form.ValidateAsync();
+        if (!_isValid) return;
         MudDialog.Close(DialogResult.Ok(_inviteCode.Trim().ToUpperInvariant()));
     }
 

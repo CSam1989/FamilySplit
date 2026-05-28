@@ -5,64 +5,69 @@
         <MudText Typo="Typo.h6">@_title</MudText>
     </TitleContent>
     <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="_isValid">
 
-        <MudTextField T="string"
-                      @bind-Value="_model.DisplayName"
-                      Label="Name"
-                      Required="true"
-                      MaxLength="100"
-                      Error="@_nameError"
-                      ErrorText="Name is required."
-                      Immediate="true"
-                      Class="mb-4" />
+            <MudTextField T="string"
+                          @bind-Value="_model.DisplayName"
+                          Label="Name"
+                          Required="true"
+                          RequiredError="Name is required."
+                          MaxLength="100"
+                          Counter="100"
+                          Immediate="true"
+                          Class="mb-4" />
 
-        <MudTextField T="string"
-                      @bind-Value="_model.Email"
-                      Label="Email (optional)"
-                      InputType="InputType.Email"
-                      MaxLength="255"
-                      HelperText="Set for adults who will log in; leave blank for children."
-                      Immediate="true"
-                      Class="mb-4" />
+            <MudTextField T="string"
+                          @bind-Value="_model.Email"
+                          Label="Email (optional)"
+                          InputType="InputType.Email"
+                          MaxLength="255"
+                          HelperText="Set for adults who will log in; leave blank for children."
+                          Immediate="true"
+                          Class="mb-4"
+                          Validation="@(new Func<string?, IEnumerable<string>>(ValidateEmail))" />
 
-        <MudDatePicker @bind-Date="_dobDate"
-                       Label="Date of birth (optional)"
-                       MaxDate="DateTime.Today"
-                       Placeholder="Leave blank if unknown"
-                       Class="mb-4" />
+            <MudDatePicker @bind-Date="_dobDate"
+                           Label="Date of birth (optional)"
+                           MaxDate="DateTime.Today"
+                           Placeholder="Leave blank if unknown"
+                           Class="mb-4" />
 
-        <MudCheckBox T="bool"
-                     @bind-Value="_model.UseOverride"
-                     Label="Set a custom weight (overrides age tier)"
-                     Class="mb-2" />
-
-        @if (_model.UseOverride)
-        {
-            <MudNumericField T="decimal?"
-                             @bind-Value="_model.WeightOverride"
-                             Label="Custom weight"
-                             Min="0.01m"
-                             Max="10m"
-                             Step="0.05m"
-                             Format="0.##"
-                             HelperText="1.00 = one full adult share"
-                             Class="mb-4" />
-        }
-
-        @if (ShowAdminToggle)
-        {
             <MudCheckBox T="bool"
-                         @bind-Value="_model.IsAdmin"
-                         Label="Family admin (can manage members)"
+                         @bind-Value="_model.UseOverride"
+                         Label="Set a custom weight (overrides age tier)"
                          Class="mb-2" />
-        }
 
+            @if (_model.UseOverride)
+            {
+                <MudNumericField T="decimal?"
+                                 @bind-Value="_model.WeightOverride"
+                                 Label="Custom weight"
+                                 Min="0.01m"
+                                 Max="10m"
+                                 Step="0.05m"
+                                 Format="0.##"
+                                 HelperText="1.00 = one full adult share"
+                                 Class="mb-4"
+                                 Validation="@(new Func<decimal?, IEnumerable<string>>(ValidateWeightOverride))" />
+            }
+
+            @if (ShowAdminToggle)
+            {
+                <MudCheckBox T="bool"
+                             @bind-Value="_model.IsAdmin"
+                             Label="Family admin (can manage members)"
+                             Class="mb-2" />
+            }
+
+        </MudForm>
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="Cancel">Cancel</MudButton>
         <MudButton Color="Color.Primary"
                    Variant="Variant.Filled"
-                   OnClick="Submit">
+                   OnClick="Submit"
+                   Disabled="@(!_isValid)">
             Save
         </MudButton>
     </DialogActions>
@@ -77,9 +82,10 @@
     /// <summary>Whether to show the admin toggle. Pass false for non-admin callers.</summary>
     [Parameter] public bool ShowAdminToggle { get; set; } = true;
 
+    private MudForm               _form    = default!;
+    private bool                  _isValid;
     private FamilyMemberFormModel _model   = new();
     private DateTime?             _dobDate;
-    private bool                  _nameError;
     private string                _title   = "Family member";
 
     protected override void OnParametersSet()
@@ -105,10 +111,25 @@
         }
     }
 
-    private void Submit()
+    private static IEnumerable<string> ValidateEmail(string? email)
     {
-        _nameError = string.IsNullOrWhiteSpace(_model.DisplayName);
-        if (_nameError) return;
+        if (string.IsNullOrEmpty(email)) yield break;
+        if (email.Length > 255) yield return "Email cannot exceed 255 characters.";
+        var attr = new System.ComponentModel.DataAnnotations.EmailAddressAttribute();
+        if (!attr.IsValid(email)) yield return "Email must be a valid email address.";
+    }
+
+    private static IEnumerable<string> ValidateWeightOverride(decimal? weight)
+    {
+        if (weight is null) yield break;
+        if (weight.Value <= 0m || weight.Value > 10m)
+            yield return "Weight override must be between 0.01 and 10.";
+    }
+
+    private async Task Submit()
+    {
+        await _form.ValidateAsync();
+        if (!_isValid) return;
 
         _model.DateOfBirth = _dobDate.HasValue ? DateOnly.FromDateTime(_dobDate.Value) : null;
         if (!_model.UseOverride) _model.WeightOverride = null;

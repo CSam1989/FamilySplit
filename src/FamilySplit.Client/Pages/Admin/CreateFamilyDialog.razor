@@ -3,32 +3,38 @@
         <MudText Typo="Typo.h6">Create family</MudText>
     </TitleContent>
     <DialogContent>
-        <MudTextField T="string"
-                      @bind-Value="_name"
-                      Label="Family name"
-                      Required="true"
-                      MaxLength="100"
-                      Error="@_nameError"
-                      ErrorText="Family name is required."
-                      Immediate="true"
-                      Autofocus="true" />
+        <MudForm @ref="_form" @bind-IsValid="_isValid">
+            <MudTextField T="string"
+                          @bind-Value="_name"
+                          Label="Family name"
+                          Required="true"
+                          RequiredError="Family name is required."
+                          MaxLength="100"
+                          Counter="100"
+                          Immediate="true"
+                          Autofocus="true" />
+        </MudForm>
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="Cancel">Cancel</MudButton>
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">Create</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                   OnClick="Submit" Disabled="@(!_isValid)">
+            Create
+        </MudButton>
     </DialogActions>
 </MudDialog>
 
 @code {
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
 
-    private string _name      = "";
-    private bool   _nameError;
+    private MudForm _form    = default!;
+    private bool    _isValid;
+    private string  _name    = "";
 
-    private void Submit()
+    private async Task Submit()
     {
-        _nameError = string.IsNullOrWhiteSpace(_name);
-        if (_nameError) return;
+        await _form.ValidateAsync();
+        if (!_isValid) return;
         MudDialog.Close(DialogResult.Ok(_name.Trim()));
     }
 
