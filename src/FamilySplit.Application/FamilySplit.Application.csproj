@@ -8,8 +8,8 @@
   <ItemGroup>
     <!-- EF Core comes transitively through the Infrastructure project reference. -->
     <!-- Adding it here too causes the version to float independently and clash with Npgsql's constraint. -->
-    <PackageReference Include="FluentValidation" Version="11.*" />
-    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="11.*" />
+    <PackageReference Include="FluentValidation" Version="12.1.1" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.*" />
   </ItemGroup>
 

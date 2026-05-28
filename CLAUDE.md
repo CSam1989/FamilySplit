@@ -101,16 +101,38 @@ Expenses are split by weight, calculated from date of birth at expense-save time
 
 ## Authentication Flow
 
+Two-token design — a short-lived **access token** (JWT, 15 minutes) in the WASM client's memory, plus a long-lived **refresh token** (30 days) in an HttpOnly Secure SameSite=Strict cookie scoped to `/auth`. Neither token ever touches `localStorage` or `sessionStorage`.
+
 1. Client calls `GET /auth/login/Google?returnUrl=...`
-2. API generates PKCE flow, stores state in an HttpOnly cookie, redirects to Google.
+2. API generates PKCE flow, stores state in an encrypted HttpOnly cookie, redirects to Google.
 3. Google redirects back to `GET /auth/callback/Google?code=...`
 4. `OAuthHandler` exchanges the code, fetches Google userinfo, upserts the `User` row.
 5. **FamilyMember check:** looks up `FamilyMember` by email. If none found → redirects to `/not-registered`. If found, links `FamilyMember.UserId = user.Id` (first login only).
-6. API mints a JWT, drops it in a short-lived HttpOnly handoff cookie, redirects to `/auth/return`.
-7. Client's `AuthReturn.razor` calls `GET /auth/handoff` (with credentials) to retrieve the JWT.
-8. JWT is stored in `sessionStorage` and attached to API calls via `JwtAuthHandler`.
+6. `RefreshTokenService.IssueAsync` creates a new `refresh_tokens` row (only the SHA-256 hash is stored). The plaintext secret is dropped into the `fs_refresh` cookie (`HttpOnly; Secure; SameSite=Strict; Path=/auth`). The browser is redirected to `/auth/return` on the client.
+7. `AuthReturn.razor` immediately calls `POST /auth/refresh` with `credentials: 'include'`. The endpoint rotates the refresh row (marks the old `revoked_at`, `replaced_by_token_id` → new row id) and returns `{ token, expiresInSeconds }`.
+8. `AuthService` stores the JWT in memory only. `JwtAuthHandler` attaches it as `Authorization: Bearer …` on every authenticated call.
+
+**Silent refresh:**
+- On app boot, `AuthService.TryRefreshAsync()` is dispatched from `CheckAuthAction`. If the refresh cookie is still valid (default on any prior signed-in session), a JWT is obtained without any UI.
+- When a JWT call returns 401, `JwtAuthHandler` makes one silent refresh and retries the request once. Persistent 401 → user is treated as signed out.
+- `AuthService.GetTokenAsync` proactively refreshes when the cached JWT has <30 seconds of life left.
+
+**Theft detection:** if `/auth/refresh` is presented with a token whose row is already revoked, `RefreshTokenService` invokes `RevokeAllForUserAsync` — every active session for that user is killed immediately.
+
+**Sign-out:** `POST /auth/logout` revokes the presented refresh row server-side and clears the cookie. `AuthService.ClearTokenInMemory()` drops the in-memory JWT.
 
 **JWT claims:** `sub` = `User.Id` (Guid). All service methods receive `callerId` as a `Guid` (the User.Id).
+
+**Data Protection key ring:** persisted to the `DataProtectionKeys` table via `Microsoft.AspNetCore.DataProtection.EntityFrameworkCore` (`AppDbContext : IDataProtectionKeyContext`). The PKCE state cookie cannot be decrypted without these keys, so they must survive restarts. The old `.dp-keys` folder is no longer used.
+
+### Endpoints
+
+| Method | Route | Purpose |
+|---|---|---|
+| `GET`  | `/auth/login/{provider}` | Start OAuth (PKCE state cookie). |
+| `GET`  | `/auth/callback/{provider}` | Exchange code, issue refresh cookie, redirect to client. |
+| `POST` | `/auth/refresh` | Rotate refresh cookie + return a fresh JWT. |
+| `POST` | `/auth/logout` | Revoke refresh row server-side + clear cookie. |
 
 ---
 
@@ -252,11 +274,21 @@ select new { gf.FamilyId, f.Name, gf.Role, gf.JoinedAt }
 ### DbSets
 
 ```csharp
-DbSet<User>         Users
-DbSet<Family>       Families
-DbSet<FamilyMember> FamilyMembers
-DbSet<Group>        Groups
-DbSet<GroupFamily>  GroupFamilies
+DbSet<User>                Users
+DbSet<Family>              Families
+DbSet<FamilyMember>        FamilyMembers
+DbSet<Group>               Groups
+DbSet<GroupFamily>         GroupFamilies
+DbSet<Activity>            Activities
+DbSet<ActivityParticipant> ActivityParticipants
+DbSet<Expense>             Expenses
+DbSet<ExpenseParticipant>  ExpenseParticipants
+DbSet<Settlement>          Settlements
+DbSet<ApprovalStep>        ApprovalSteps
+DbSet<Category>            Categories
+DbSet<AuditLog>            AuditLogs
+DbSet<RefreshToken>        RefreshTokens         // Phase 7: refresh-token rotation
+DbSet<DataProtectionKey>   DataProtectionKeys    // ASP.NET DP key ring (encrypts PKCE cookie)
 ```
 
 ---

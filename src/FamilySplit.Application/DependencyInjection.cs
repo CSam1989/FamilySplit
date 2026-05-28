@@ -32,6 +32,9 @@ public static class DependencyInjection
         // ── Dashboard stats ───────────────────────────────────────────────────
         services.AddScoped<Dashboard.DashboardService>();
 
+        // ── Auth: refresh token rotation / revocation ─────────────────────────
+        services.AddScoped<Auth.RefreshTokenService>();
+
         return services;
     }
 }

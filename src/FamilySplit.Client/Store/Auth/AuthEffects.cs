@@ -17,6 +17,8 @@ public class AuthEffects
     [EffectMethod(typeof(CheckAuthAction))]
     public async Task HandleCheckAuth(IDispatcher dispatcher)
     {
+        // Silent refresh — succeeds if the browser still holds a valid HttpOnly
+        // refresh cookie, which is the default for any prior signed-in session.
         if (!await _auth.IsAuthenticatedAsync())
         {
             dispatcher.Dispatch(new CheckAuthNotAuthenticatedAction());
@@ -30,8 +32,8 @@ public class AuthEffects
         }
         catch
         {
-            // Token present but rejected (expired etc.) — treat as signed out.
-            await _auth.ClearAsync();
+            // JWT was refused even after refresh — fully sign out.
+            await _auth.LogoutAsync();
             dispatcher.Dispatch(new CheckAuthNotAuthenticatedAction());
         }
     }
@@ -39,7 +41,7 @@ public class AuthEffects
     [EffectMethod(typeof(SignOutAction))]
     public async Task HandleSignOut(IDispatcher dispatcher)
     {
-        await _auth.ClearAsync();
+        await _auth.LogoutAsync();
         // State is reset by the reducer; no further dispatch needed.
     }
 }

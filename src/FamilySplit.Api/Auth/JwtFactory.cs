@@ -7,9 +7,10 @@ using Microsoft.IdentityModel.Tokens;
 namespace FamilySplit.Api.Auth;
 
 /// <summary>
-/// Issues signed JWTs after a successful OAuth callback.
-/// Configuration keys (Jwt:SigningKey, Jwt:Issuer, Jwt:Audience, Jwt:LifetimeMinutes)
-/// are read from IConfiguration via user-secrets / env vars.
+/// Issues short-lived signed JWTs. Long-lived session persistence is handled
+/// separately by <see cref="FamilySplit.Application.Auth.RefreshTokenService"/>
+/// — the JWT itself never lives longer than <c>Jwt:LifetimeMinutes</c>
+/// (default 15 minutes).
 /// </summary>
 public class JwtFactory
 {
@@ -17,22 +18,16 @@ public class JwtFactory
 
     public JwtFactory(IConfiguration config) => _config = config;
 
-    public string Create(User user, bool rememberMe = false)
+    /// <summary>JWT lifetime in minutes. Exposed for the client so it can pre-empt expiry.</summary>
+    public int LifetimeMinutes =>
+        int.TryParse(_config["Jwt:LifetimeMinutes"], out var lm) ? lm : 15;
+
+    public string Create(User user)
     {
         var jwt = _config.GetSection("Jwt");
         var signingKey = jwt["SigningKey"] ?? throw new InvalidOperationException("Missing Jwt:SigningKey.");
         var issuer = jwt["Issuer"] ?? "familysplit";
         var audience = jwt["Audience"] ?? "familysplit-client";
-        int lifetimeMinutes;
-        if (rememberMe)
-        {
-            var days = int.TryParse(jwt["PersistentLifetimeDays"], out var d) ? d : 30;
-            lifetimeMinutes = days * 24 * 60;
-        }
-        else
-        {
-            lifetimeMinutes = int.TryParse(jwt["LifetimeMinutes"], out var lm) ? lm : 60;
-        }
 
         var creds = new SigningCredentials(
             new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)),
@@ -52,7 +47,7 @@ public class JwtFactory
             audience: audience,
             claims: claims,
             notBefore: DateTime.UtcNow,
-            expires: DateTime.UtcNow.AddMinutes(lifetimeMinutes),
+            expires: DateTime.UtcNow.AddMinutes(LifetimeMinutes),
             signingCredentials: creds);
 
         return new JwtSecurityTokenHandler().WriteToken(token);

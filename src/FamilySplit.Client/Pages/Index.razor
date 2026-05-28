@@ -59,11 +59,6 @@ else if (!AuthState.Value.IsAuthenticated)
                 Sign in to see your groups and expenses
             </MudText>
 
-            <MudCheckBox @bind-Value="_rememberMe"
-                         Label="Remember me on this device"
-                         Color="Color.Primary"
-                         Style="margin-bottom:16px" />
-
             <MudButton Variant="Variant.Filled"
                        Color="Color.Primary"
                        FullWidth="true"
@@ -452,8 +447,6 @@ else
 }
 
 @code {
-    private bool _rememberMe;
-
     protected override void OnInitialized()
     {
         base.OnInitialized();
@@ -523,13 +516,13 @@ else
         await DialogService.ShowAsync<QuickExpenseDialog>("Add expense", options);
     }
 
-    private async Task SignIn()
+    private void SignIn()
     {
-        await Auth.SetRememberAsync(_rememberMe);
-        var apiBaseUrl  = Config["Api:BaseUrl"] ?? "https://localhost:5081";
-        var returnUrl   = Nav.BaseUri.TrimEnd('/');
-        var rememberParam = _rememberMe ? "&remember=true" : string.Empty;
-        Nav.NavigateTo($"{apiBaseUrl}/auth/login/Google?returnUrl={Uri.EscapeDataString(returnUrl)}{rememberParam}", forceLoad: true);
+        // A persistent session is now the default — the API issues an HttpOnly
+        // refresh cookie on every successful OAuth callback.
+        var apiBaseUrl = Config["Api:BaseUrl"] ?? "https://localhost:5081";
+        var returnUrl  = Nav.BaseUri.TrimEnd('/');
+        Nav.NavigateTo($"{apiBaseUrl}/auth/login/Google?returnUrl={Uri.EscapeDataString(returnUrl)}", forceLoad: true);
     }
 
     private static string GetTimeOfDay()

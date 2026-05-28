@@ -81,8 +81,10 @@ public class FamilyService
 
         if (emailNorm is not null)
         {
+            // Email column stores the canonical lowercase form, so a direct
+            // equality predicate hits the unique index.
             var conflict = await _db.FamilyMembers
-                .AnyAsync(m => m.IsActive && m.Email != null && m.Email.ToLower() == emailNorm);
+                .AnyAsync(m => m.IsActive && m.Email == emailNorm);
             if (conflict)
                 throw Throw422("Email", "A family member with this email already exists.");
         }
@@ -101,11 +103,12 @@ public class FamilyService
             CreatedAt      = DateTimeOffset.UtcNow
         };
 
-        // Auto-link if a User with this email already exists.
+        // Auto-link if a User with this email already exists. User.Email is
+        // also stored lowercase (normalized in OAuthHandler).
         if (emailNorm is not null)
         {
             var existingUser = await _db.Users
-                .Where(u => u.Email.ToLower() == emailNorm)
+                .Where(u => u.Email == emailNorm)
                 .Select(u => new { u.Id })
                 .FirstOrDefaultAsync();
 
@@ -143,7 +146,7 @@ public class FamilyService
         if (emailNorm is not null && emailNorm != member.Email)
         {
             var conflict = await _db.FamilyMembers
-                .AnyAsync(m => m.IsActive && m.Id != memberId && m.Email != null && m.Email.ToLower() == emailNorm);
+                .AnyAsync(m => m.IsActive && m.Id != memberId && m.Email == emailNorm);
             if (conflict)
                 throw Throw422("Email", "A family member with this email already exists.");
         }

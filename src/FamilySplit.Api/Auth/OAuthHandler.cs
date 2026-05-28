@@ -91,6 +91,12 @@ public class OAuthHandler
         if (string.IsNullOrWhiteSpace(profile.Sub) || string.IsNullOrWhiteSpace(profile.Email))
             throw new InvalidOperationException("Google userinfo missing sub or email.");
 
+        // Normalize the email up-front so we both store the canonical form on
+        // the User row and use the same form for the FamilyMember lookup. This
+        // lets Postgres use the unique index on family_members.email (which
+        // would otherwise be defeated by a runtime LOWER() call).
+        var emailLower = profile.Email.Trim().ToLowerInvariant();
+
         // 3. Upsert User by (Provider, ExternalId).
         var user = await _db.Users.FirstOrDefaultAsync(
             u => u.Provider == Provider.Google && u.ExternalId == profile.Sub, ct);
@@ -102,7 +108,7 @@ public class OAuthHandler
                 Id = Guid.NewGuid(),
                 Provider = Provider.Google,
                 ExternalId = profile.Sub,
-                Email = profile.Email,
+                Email = emailLower,
                 DisplayName = profile.Name ?? profile.Email,
                 AvatarUrl = profile.Picture,
                 CreatedAt = DateTimeOffset.UtcNow
@@ -112,17 +118,16 @@ public class OAuthHandler
         }
         else
         {
-            user.Email = profile.Email;
+            user.Email = emailLower;
             user.DisplayName = profile.Name ?? profile.Email;
             user.AvatarUrl = profile.Picture;
         }
 
         // 4. Find the FamilyMember whose email matches this login email.
-        //    Case-insensitive match; normalize to lower before storing.
-        var emailLower = profile.Email.Trim().ToLowerInvariant();
-
+        //    Both columns now store lowercase, so a direct equality predicate
+        //    uses the existing unique index.
         var member = await _db.FamilyMembers
-            .FirstOrDefaultAsync(m => m.Email != null && m.Email.ToLower() == emailLower, ct);
+            .FirstOrDefaultAsync(m => m.Email == emailLower, ct);
 
         if (member is null)
         {

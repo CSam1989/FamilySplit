@@ -1,4 +1,5 @@
 using FamilySplit.Api.Auth;
+using FamilySplit.Application.Auth;
 using FamilySplit.Domain.Entities;
 using FamilySplit.Domain.Enums;
 using Microsoft.AspNetCore.WebUtilities;
@@ -8,7 +9,13 @@ namespace FamilySplit.Api.Endpoints;
 public static class AuthEndpoints
 {
     private const string StateCookie   = "fs_oauth_state";
-    private const string HandoffCookie = "fs_handoff";
+    private const string RefreshCookie = "fs_refresh";
+
+    /// <summary>
+    /// The refresh cookie is scoped to the auth subtree so it is only sent on
+    /// /auth/refresh and /auth/logout — nothing else can read or forward it.
+    /// </summary>
+    private const string RefreshCookiePath = "/auth";
 
     public static IEndpointRouteBuilder MapAuthEndpoints(this IEndpointRouteBuilder app)
     {
@@ -16,14 +23,12 @@ public static class AuthEndpoints
 
         // -----------------------------------------------------------------------------
         // GET /auth/login/Google
-        //
         // Generates state + PKCE verifier, stores them encrypted in an HttpOnly cookie,
         // and 302-redirects the browser to Google's consent screen.
         // -----------------------------------------------------------------------------
         group.MapGet("/login/{provider}", (
             string provider,
             string? returnUrl,
-            bool? remember,
             HttpContext http,
             IConfiguration config,
             PkceFlow pkce) =>
@@ -34,25 +39,27 @@ public static class AuthEndpoints
             var clientId = config["OAuth:Google:ClientId"] ?? throw new InvalidOperationException("Missing OAuth:Google:ClientId user-secret.");
             var authorizeUrl = config["OAuth:Google:AuthorizeUrl"] ?? "https://accounts.google.com/o/oauth2/v2/auth";
 
-            var safeReturnUrl = !string.IsNullOrWhiteSpace(returnUrl) && Uri.IsWellFormedUriString(returnUrl, UriKind.Absolute)
+            // Open-redirect guard.
+            var allowed = config.GetSection("Cors:AllowedOrigins").Get<string[]>()
+                ?? new[] { "https://localhost:5001" };
+            var safeReturnUrl = IsAllowedReturnUrl(returnUrl, allowed)
                 ? returnUrl!
-                : config["Cors:AllowedOrigins:0"] ?? "https://localhost:5001";
+                : allowed[0];
 
-            var flow = pkce.NewFlow(safeReturnUrl, remember == true);
+            var flow = pkce.NewFlow(safeReturnUrl);
             var codeChallenge = pkce.DeriveCodeChallenge(flow.CodeVerifier);
             var protectedPayload = pkce.Protect(flow);
 
             http.Response.Cookies.Append(StateCookie, protectedPayload, new CookieOptions
             {
-                HttpOnly = true,
-                Secure = true,
-                SameSite = SameSiteMode.Lax, // required: callback is a top-level cross-site GET
-                Path = "/auth",
-                MaxAge = TimeSpan.FromMinutes(10),
-                IsEssential = true
+                HttpOnly  = true,
+                Secure    = true,
+                SameSite  = SameSiteMode.Lax, // callback is a top-level cross-site GET from Google
+                Path      = "/auth",
+                MaxAge    = TimeSpan.FromMinutes(10),
+                IsEssential = true,
             });
 
-            // Mirror the path used by the callback endpoint so it matches Google's registered redirect URI exactly.
             var redirectUri = BuildRedirectUri(http, "Google");
 
             var query = QueryString.Create(new Dictionary<string, string?>
@@ -65,7 +72,7 @@ public static class AuthEndpoints
                 ["code_challenge"]        = codeChallenge,
                 ["code_challenge_method"] = "S256",
                 ["access_type"]           = "online",
-                ["prompt"]                = "select_account"
+                ["prompt"]                = "select_account",
             });
 
             return Results.Redirect(authorizeUrl + query.ToUriComponent());
@@ -73,10 +80,9 @@ public static class AuthEndpoints
 
         // -----------------------------------------------------------------------------
         // GET /auth/callback/Google?code=...&state=...
-        //
         // Validates state, exchanges code for tokens, fetches userinfo, upserts the User,
-        // mints a JWT, drops it in a short-lived HttpOnly handoff cookie, and redirects
-        // back to the Blazor return page.
+        // ISSUES A REFRESH TOKEN into an HttpOnly cookie, and redirects to /auth/return.
+        // The browser immediately calls /auth/refresh from that page to obtain the JWT.
         // -----------------------------------------------------------------------------
         group.MapGet("/callback/{provider}", async (
             string provider,
@@ -86,7 +92,7 @@ public static class AuthEndpoints
             HttpContext http,
             PkceFlow pkce,
             OAuthHandler handler,
-            JwtFactory jwtFactory,
+            RefreshTokenService refreshTokens,
             ILoggerFactory loggerFactory,
             CancellationToken ct) =>
         {
@@ -125,50 +131,112 @@ public static class AuthEndpoints
             }
             catch (NotRegisteredException)
             {
-                // No FamilyMember registered for this email — redirect to the "not registered" page.
-                http.Response.Cookies.Delete(StateCookie, new CookieOptions { Path = "/auth" });
                 return Results.Redirect(flow.ReturnUrl.TrimEnd('/') + "/not-registered");
             }
 
-            var jwt = jwtFactory.Create(user, flow.RememberMe);
+            var issued = await refreshTokens.IssueAsync(
+                user.Id,
+                http.Connection.RemoteIpAddress?.ToString(),
+                http.Request.Headers.UserAgent.ToString(),
+                ct);
 
-            http.Response.Cookies.Append(HandoffCookie, jwt, new CookieOptions
-            {
-                HttpOnly = true,
-                Secure = true,
-                SameSite = SameSiteMode.Strict,
-                Path = "/auth/handoff",
-                MaxAge = TimeSpan.FromSeconds(60),
-                IsEssential = true
-            });
+            WriteRefreshCookie(http, issued.Secret, issued.ExpiresAt);
 
             return Results.Redirect(flow.ReturnUrl.TrimEnd('/') + "/auth/return");
         });
 
         // -----------------------------------------------------------------------------
-        // GET /auth/handoff
-        //
-        // One-shot exchange: read the handoff cookie, return the JWT in the JSON body,
-        // and clear the cookie. Called by the Blazor /auth/return page with credentials.
+        // POST /auth/refresh
+        // Reads the refresh cookie, rotates it, and returns a fresh JWT.
+        // Called by AuthService:
+        //   • immediately after /auth/return (post-OAuth)
+        //   • on app boot before the user can interact (silent refresh)
+        //   • when the in-memory JWT is about to expire
+        //   • when an API call returned 401
         // -----------------------------------------------------------------------------
-        group.MapGet("/handoff", (HttpContext http) =>
+        group.MapPost("/refresh", async (
+            HttpContext http,
+            RefreshTokenService refreshTokens,
+            JwtFactory jwtFactory,
+            FamilySplit.Infrastructure.AppDbContext db,
+            CancellationToken ct) =>
         {
-            var jwt = http.Request.Cookies[HandoffCookie];
-            http.Response.Cookies.Delete(HandoffCookie, new CookieOptions { Path = "/auth/handoff" });
+            var presented = http.Request.Cookies[RefreshCookie];
 
-            if (string.IsNullOrWhiteSpace(jwt))
+            var rotated = await refreshTokens.RotateAsync(
+                presented ?? "",
+                http.Connection.RemoteIpAddress?.ToString(),
+                http.Request.Headers.UserAgent.ToString(),
+                ct);
+
+            if (rotated is null)
+            {
+                // Either no cookie, expired, unknown, or revoked. Clear any stale cookie.
+                ClearRefreshCookie(http);
                 return Results.Unauthorized();
+            }
 
-            return Results.Ok(new { token = jwt });
+            // Load the user record once so the JWT carries the right claims.
+            var user = await db.Users.FindAsync(new object?[] { rotated.UserId }, ct);
+            if (user is null)
+            {
+                ClearRefreshCookie(http);
+                return Results.Unauthorized();
+            }
+
+            WriteRefreshCookie(http, rotated.Secret, rotated.ExpiresAt);
+
+            var jwt = jwtFactory.Create(user);
+            return Results.Ok(new
+            {
+                token            = jwt,
+                expiresInSeconds = jwtFactory.LifetimeMinutes * 60,
+            });
         });
 
         // -----------------------------------------------------------------------------
-        // POST /auth/refresh — placeholder. MSAL silent refresh + refresh-token store
-        // lands later. Returning 501 until then.
+        // POST /auth/logout
+        // Revokes the refresh row server-side and clears the cookie. The in-memory
+        // JWT on the client is also dropped by AuthService.
         // -----------------------------------------------------------------------------
-        group.MapPost("/refresh", () => Results.StatusCode(StatusCodes.Status501NotImplemented));
+        group.MapPost("/logout", async (
+            HttpContext http,
+            RefreshTokenService refreshTokens,
+            CancellationToken ct) =>
+        {
+            var presented = http.Request.Cookies[RefreshCookie];
+            await refreshTokens.RevokeAsync(presented, ct);
+            ClearRefreshCookie(http);
+            return Results.NoContent();
+        });
 
         return app;
+    }
+
+    // ── Cookie helpers ────────────────────────────────────────────────────────
+
+    private static void WriteRefreshCookie(HttpContext http, string secret, DateTimeOffset expiresAt)
+    {
+        http.Response.Cookies.Append(RefreshCookie, secret, new CookieOptions
+        {
+            HttpOnly    = true,
+            Secure      = true,
+            SameSite    = SameSiteMode.Strict,
+            Path        = RefreshCookiePath,
+            Expires     = expiresAt,
+            IsEssential = true,
+        });
+    }
+
+    private static void ClearRefreshCookie(HttpContext http)
+    {
+        http.Response.Cookies.Delete(RefreshCookie, new CookieOptions
+        {
+            Path     = RefreshCookiePath,
+            Secure   = true,
+            HttpOnly = true,
+            SameSite = SameSiteMode.Strict,
+        });
     }
 
     private static string BuildRedirectUri(HttpContext http, string providerName)
@@ -178,6 +246,27 @@ public static class AuthEndpoints
     {
         var flow = pkce.Unprotect(http.Request.Cookies[StateCookie]);
         return flow?.ReturnUrl ?? "/";
+    }
+
+    /// <summary>
+    /// Accepts a candidate returnUrl only when it is a well-formed absolute URL
+    /// whose origin (scheme + host + port) appears in the configured allow-list.
+    /// </summary>
+    private static bool IsAllowedReturnUrl(string? candidate, string[] allowedOrigins)
+    {
+        if (string.IsNullOrWhiteSpace(candidate)) return false;
+        if (!Uri.TryCreate(candidate, UriKind.Absolute, out var uri)) return false;
+        if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps) return false;
+
+        foreach (var origin in allowedOrigins)
+        {
+            if (!Uri.TryCreate(origin, UriKind.Absolute, out var allowed)) continue;
+            if (string.Equals(uri.Scheme, allowed.Scheme, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(uri.Host, allowed.Host, StringComparison.OrdinalIgnoreCase)
+                && uri.Port == allowed.Port)
+                return true;
+        }
+        return false;
     }
 
     /// <summary>Constant-time string comparison to avoid timing leaks on state validation.</summary>

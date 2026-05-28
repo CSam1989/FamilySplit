@@ -12,6 +12,7 @@ using FamilySplit.Client.Store.Dashboard;
 using Fluxor;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
+using Microsoft.Extensions.DependencyInjection;
 using MudBlazor.Services;
 using Refit;
 
@@ -44,64 +45,38 @@ builder.Services.AddTransient<JwtAuthHandler>();
 builder.Services.AddTransient<IncludeCredentialsHandler>();
 
 // --- HTTP / Refit -----------------------------------------------------------------
-var apiBaseUrl = builder.Configuration["Api:BaseUrl"]
-                 ?? "https://localhost:5081";
+var apiBaseUri = new Uri(builder.Configuration["Api:BaseUrl"] ?? "https://localhost:5081");
+
+// Reuse a single Refit settings instance across all clients — avoids re-creating
+// the JsonSerializerOptions for every registration on cold start.
+var refitSettings = new RefitSettings();
 
 // Public API — no auth header, no credentials.
-builder.Services
-    .AddRefitClient<IHealthApi>()
-    .ConfigureHttpClient(c => c.BaseAddress = new Uri(apiBaseUrl));
+builder.Services.AddRefitClient<IHealthApi>(refitSettings)
+    .ConfigureHttpClient(c => c.BaseAddress = apiBaseUri);
 
-// Authenticated API — attaches Bearer token from AuthService.
-builder.Services
-    .AddRefitClient<IWhoAmIApi>()
-    .ConfigureHttpClient(c => c.BaseAddress = new Uri(apiBaseUrl))
-    .AddHttpMessageHandler<JwtAuthHandler>();
+// Authenticated APIs — attach Bearer token from AuthService via JwtAuthHandler.
+AddAuthedClient<IWhoAmIApi>();
+AddAuthedClient<IFamilyMemberClient>();
+AddAuthedClient<IFamilyClient>();
+AddAuthedClient<IAdminClient>();
+AddAuthedClient<IGroupClient>();
+AddAuthedClient<IActivityClient>();
+AddAuthedClient<IExpenseClient>();
+AddAuthedClient<ISettlementClient>();
+AddAuthedClient<IDashboardClient>();
 
-builder.Services
-    .AddRefitClient<IFamilyMemberClient>()
-    .ConfigureHttpClient(c => c.BaseAddress = new Uri(apiBaseUrl))
-    .AddHttpMessageHandler<JwtAuthHandler>();
-
-builder.Services
-    .AddRefitClient<IFamilyClient>()
-    .ConfigureHttpClient(c => c.BaseAddress = new Uri(apiBaseUrl))
-    .AddHttpMessageHandler<JwtAuthHandler>();
-
-builder.Services
-    .AddRefitClient<IAdminClient>()
-    .ConfigureHttpClient(c => c.BaseAddress = new Uri(apiBaseUrl))
-    .AddHttpMessageHandler<JwtAuthHandler>();
-
-builder.Services
-    .AddRefitClient<IGroupClient>()
-    .ConfigureHttpClient(c => c.BaseAddress = new Uri(apiBaseUrl))
-    .AddHttpMessageHandler<JwtAuthHandler>();
-
-builder.Services
-    .AddRefitClient<IActivityClient>()
-    .ConfigureHttpClient(c => c.BaseAddress = new Uri(apiBaseUrl))
-    .AddHttpMessageHandler<JwtAuthHandler>();
-
-builder.Services
-    .AddRefitClient<IExpenseClient>()
-    .ConfigureHttpClient(c => c.BaseAddress = new Uri(apiBaseUrl))
-    .AddHttpMessageHandler<JwtAuthHandler>();
-
-builder.Services
-    .AddRefitClient<ISettlementClient>()
-    .ConfigureHttpClient(c => c.BaseAddress = new Uri(apiBaseUrl))
-    .AddHttpMessageHandler<JwtAuthHandler>();
-
-builder.Services
-    .AddRefitClient<IDashboardClient>()
-    .ConfigureHttpClient(c => c.BaseAddress = new Uri(apiBaseUrl))
-    .AddHttpMessageHandler<JwtAuthHandler>();
-
-// Handoff API — needs credentials=include to send the HttpOnly handoff cookie.
-builder.Services
-    .AddRefitClient<IHandoffApi>()
-    .ConfigureHttpClient(c => c.BaseAddress = new Uri(apiBaseUrl))
+// Auth API (refresh + logout) — needs credentials=include so the HttpOnly
+// refresh cookie is attached on every call.
+builder.Services.AddRefitClient<IAuthApi>(refitSettings)
+    .ConfigureHttpClient(c => c.BaseAddress = apiBaseUri)
     .AddHttpMessageHandler<IncludeCredentialsHandler>();
 
 await builder.Build().RunAsync();
+
+void AddAuthedClient<TClient>() where TClient : class
+{
+    builder.Services.AddRefitClient<TClient>(refitSettings)
+        .ConfigureHttpClient(c => c.BaseAddress = apiBaseUri)
+        .AddHttpMessageHandler<JwtAuthHandler>();
+}

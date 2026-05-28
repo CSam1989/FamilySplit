@@ -1,17 +1,5 @@
-using Refit;
-
-namespace FamilySplit.Client.Services;
-
-/// <summary>
-/// One-shot endpoint that exchanges the HttpOnly handoff cookie for the JWT.
-/// Must be called with credentials=include so the browser sends the cookie.
-/// The HttpClient registered for this client sets BrowserRequestCredentials.Include
-/// via <see cref="System.Net.Http.HttpRequestMessage"/> extensions in Program.cs.
-/// </summary>
-public interface IHandoffApi
-{
-    [Get("/auth/handoff")]
-    Task<HandoffResponse> GetAsync();
-}
-
-public record HandoffResponse(string Token);
+// Retired: the handoff cookie + /auth/handoff endpoint were replaced by the
+// refresh-token flow. The OAuth callback now sets an HttpOnly refresh cookie,
+// and the client calls IAuthApi.RefreshAsync() from /auth/return to obtain
+// the first JWT. This file is intentionally empty so the change shows up
+// cleanly in git history; it can be deleted in the next cleanup commit.

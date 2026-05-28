@@ -1,5 +1,4 @@
 @page "/auth/return"
-@inject IHandoffApi HandoffApi
 @inject AuthService Auth
 @inject NavigationManager Nav
 
@@ -23,26 +22,14 @@
 
     protected override async Task OnInitializedAsync()
     {
-        try
+        // The OAuth callback set an HttpOnly refresh cookie. Trade it for a JWT.
+        var ok = await Auth.TryRefreshAsync();
+        if (ok)
         {
-            var response = await HandoffApi.GetAsync();
-            if (string.IsNullOrWhiteSpace(response.Token))
-            {
-                _error = "Handoff returned an empty token. Try signing in again.";
-                return;
-            }
-
-            var remember = await Auth.GetAndClearRememberAsync();
-            await Auth.SetTokenAsync(response.Token, remember);
             Nav.NavigateTo("/", forceLoad: true);
+            return;
         }
-        catch (Refit.ApiException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-        {
-            _error = "Sign-in session expired before we could collect the token. Please try again.";
-        }
-        catch (Exception ex)
-        {
-            _error = $"Sign-in failed: {ex.Message}";
-        }
+
+        _error = "Sign-in session expired before we could establish the session. Please try again.";
     }
 }
