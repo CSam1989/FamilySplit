@@ -480,7 +480,7 @@ else
 
     private async Task DashboardConfirmSent(GroupSettlementSummaryDto settlement)
     {
-        bool? confirmed = await DialogService.ShowMessageBox(
+        bool? confirmed = await DialogService.ShowMessageBoxAsync(
             "Confirm payment sent",
             $"Confirm that {settlement.PayerFamilyName} has sent {FormatAmount(settlement.Amount, settlement.Currency)} to {settlement.ReceiverFamilyName}?",
             yesText: "Confirm sent",
@@ -492,7 +492,7 @@ else
 
     private async Task DashboardConfirmReceived(GroupSettlementSummaryDto settlement)
     {
-        bool? confirmed = await DialogService.ShowMessageBox(
+        bool? confirmed = await DialogService.ShowMessageBoxAsync(
             "Confirm payment received",
             $"Confirm that {settlement.ReceiverFamilyName} has received {FormatAmount(settlement.Amount, settlement.Currency)} from {settlement.PayerFamilyName}?",
             yesText: "Confirm received",

@@ -767,7 +767,7 @@ else
             ? $"Close \"{activity.Name}\"? {openSubCount} open sub-activit{(openSubCount == 1 ? "y" : "ies")} will be absorbed."
             : $"Close \"{activity.Name}\"? This cannot be undone.";
 
-        bool? confirmed = await DialogService.ShowMessageBox(
+        bool? confirmed = await DialogService.ShowMessageBoxAsync(
             "Close activity", message, yesText: "Close", cancelText: "Cancel");
 
         if (confirmed == true)
@@ -790,7 +790,7 @@ else
 
         if (available.Count == 0)
         {
-            await DialogService.ShowMessageBox("Add participant",
+            await DialogService.ShowMessageBoxAsync("Add participant",
                 "All group members are already participating.", yesText: "OK");
             return;
         }
@@ -807,7 +807,7 @@ else
 
     private async Task ConfirmRemoveParticipant(ActivityParticipantDto p)
     {
-        bool? confirmed = await DialogService.ShowMessageBox(
+        bool? confirmed = await DialogService.ShowMessageBoxAsync(
             "Remove participant",
             $"Remove {p.DisplayName} from this activity?",
             yesText: "Remove", cancelText: "Cancel");
@@ -864,7 +864,7 @@ else
 
     private async Task ConfirmDeleteExpense(ExpenseSummaryDto expense)
     {
-        bool? confirmed = await DialogService.ShowMessageBox(
+        bool? confirmed = await DialogService.ShowMessageBoxAsync(
             "Delete expense",
             $"Delete \"{expense.Title}\" ({expense.TotalAmount:F2} {expense.Currency})? This cannot be undone.",
             yesText: "Delete", cancelText: "Cancel");
@@ -877,7 +877,7 @@ else
 
     private async Task ConfirmSent(SettlementSummaryDto settlement)
     {
-        bool? confirmed = await DialogService.ShowMessageBox(
+        bool? confirmed = await DialogService.ShowMessageBoxAsync(
             "Mark as sent",
             $"Confirm that {settlement.PayerFamilyName} has sent {FormatAmount(settlement.Amount, settlement.Currency)} to {settlement.ReceiverFamilyName}?",
             yesText: "Mark sent", cancelText: "Cancel");
@@ -888,7 +888,7 @@ else
 
     private async Task ConfirmReceived(SettlementSummaryDto settlement)
     {
-        bool? confirmed = await DialogService.ShowMessageBox(
+        bool? confirmed = await DialogService.ShowMessageBoxAsync(
             "Mark as received",
             $"Confirm that {settlement.ReceiverFamilyName} has received {FormatAmount(settlement.Amount, settlement.Currency)} from {settlement.PayerFamilyName}?",
             yesText: "Mark received", cancelText: "Cancel");

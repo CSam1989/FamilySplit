@@ -221,7 +221,7 @@ else
 
     private async Task ConfirmRemoveMember(FamilyMemberDto member)
     {
-        bool? confirmed = await DialogService.ShowMessageBox(
+        bool? confirmed = await DialogService.ShowMessageBoxAsync(
             "Remove member",
             $"Remove {member.DisplayName} from {State.Value.SelectedFamily!.Name}?",
             yesText: "Remove",

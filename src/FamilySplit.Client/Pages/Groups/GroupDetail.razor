@@ -515,7 +515,7 @@ else
 
     private async Task ConfirmRegenerate()
     {
-        bool? confirmed = await DialogService.ShowMessageBox(
+        bool? confirmed = await DialogService.ShowMessageBoxAsync(
             "Regenerate invite code",
             "The old invite code will stop working immediately. Continue?",
             yesText: "Regenerate",
@@ -546,7 +546,7 @@ else
 
     private async Task ConfirmLeave()
     {
-        bool? confirmed = await DialogService.ShowMessageBox(
+        bool? confirmed = await DialogService.ShowMessageBoxAsync(
             "Leave group",
             "Your family will be removed from this group. This cannot be undone. Continue?",
             yesText: "Leave group",
@@ -558,7 +558,7 @@ else
 
     private async Task ConfirmDelete()
     {
-        bool? confirmed = await DialogService.ShowMessageBox(
+        bool? confirmed = await DialogService.ShowMessageBoxAsync(
             "Delete group",
             $"This will permanently delete \"{State.Value.SelectedGroup?.Name}\" and all its activities. This cannot be undone. Continue?",
             yesText: "Delete group",
@@ -588,7 +588,7 @@ else
 
     private async Task ConfirmRemoveFamily(GroupFamilyDto family)
     {
-        bool? confirmed = await DialogService.ShowMessageBox(
+        bool? confirmed = await DialogService.ShowMessageBoxAsync(
             "Remove family",
             $"Remove \"{family.FamilyName}\" from this group? They will no longer participate in new activities.",
             yesText: "Remove",
@@ -602,7 +602,7 @@ else
 
     private async Task ConfirmGroupSettlementSent(GroupSettlementSummaryDto settlement)
     {
-        bool? confirmed = await DialogService.ShowMessageBox(
+        bool? confirmed = await DialogService.ShowMessageBoxAsync(
             "Mark as sent",
             $"Confirm that {settlement.PayerFamilyName} has sent {settlement.Amount:F2} {settlement.Currency} to {settlement.ReceiverFamilyName}?",
             yesText: "Mark sent",
@@ -614,7 +614,7 @@ else
 
     private async Task ConfirmGroupSettlementReceived(GroupSettlementSummaryDto settlement)
     {
-        bool? confirmed = await DialogService.ShowMessageBox(
+        bool? confirmed = await DialogService.ShowMessageBoxAsync(
             "Mark as received",
             $"Confirm that {settlement.ReceiverFamilyName} has received {settlement.Amount:F2} {settlement.Currency} from {settlement.PayerFamilyName}?",
             yesText: "Mark received",

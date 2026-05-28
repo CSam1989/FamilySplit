@@ -7,6 +7,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.8" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.8" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.8">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -15,7 +16,7 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.*" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.*" />
     <!-- DataProtection key ring persisted via EF Core — see AppDbContext / IDataProtectionKeyContext. -->
-    <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="10.0.*" />
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="10.0.8" />
   </ItemGroup>
 
   <ItemGroup>

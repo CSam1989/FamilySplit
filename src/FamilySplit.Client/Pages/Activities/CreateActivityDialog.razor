@@ -46,7 +46,7 @@
 
     private async Task Submit()
     {
-        await _form.Validate();
+        await _form.ValidateAsync();
         if (!_isValid) return;
         MudDialog.Close(DialogResult.Ok(_model));
     }

@@ -58,7 +58,7 @@ _expenseDate       = InitialDate == default
 
     private async Task Submit()
     {
-        await _form.Validate();
+        await _form.ValidateAsync();
         if (!_form.IsValid) return;
         _model.ExpenseDate = _expenseDate?.Date ?? DateTime.Today;
         MudDialog.Close(DialogResult.Ok(_model));

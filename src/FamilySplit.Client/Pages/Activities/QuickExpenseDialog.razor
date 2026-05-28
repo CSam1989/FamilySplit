@@ -383,7 +383,7 @@
     // ── Expense submission ─────────────────────────────────────────────────────
     private async Task SubmitExpenseAsync()
     {
-        await _expenseForm.Validate();
+        await _expenseForm.ValidateAsync();
         if (!_expenseForm.IsValid) return;
         if (!_selectedGroupId.HasValue || !_selectedActivityId.HasValue) return;
 
