@@ -51,6 +51,14 @@ builder.Services.AddSingleton<AuthService>();
 builder.Services.AddTransient<JwtAuthHandler>();
 builder.Services.AddTransient<IncludeCredentialsHandler>();
 
+// --- Real-time notifications (SignalR) --------------------------------------------
+// Singleton so the connection is shared across all components and survives
+// navigation. Connected once after auth, disconnected on logout.
+builder.Services.AddSingleton<NotificationHubConnection>();
+
+// --- VAPID push subscription management ------------------------------------------
+builder.Services.AddScoped<PushNotificationClientService>();
+
 // --- HTTP / Refit -----------------------------------------------------------------
 var apiBaseUri = new Uri(builder.Configuration["Api:BaseUrl"] ?? "https://localhost:5081");
 
@@ -72,6 +80,7 @@ AddAuthedClient<IActivityClient>();
 AddAuthedClient<IExpenseClient>();
 AddAuthedClient<ISettlementClient>();
 AddAuthedClient<IDashboardClient>();
+AddAuthedClient<IPushClient>();
 
 // Auth API (refresh + logout) — needs credentials=include so the HttpOnly
 // refresh cookie is attached on every call.

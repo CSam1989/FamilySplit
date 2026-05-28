@@ -1,6 +1,11 @@
 @inherits LayoutComponentBase
 @using FamilySplit.Client.Store.Auth
+@using FamilySplit.Client.Services
+@using FamilySplit.Client.Components
 @inject IState<AuthState> AuthState
+@inject NotificationHubConnection HubConnection
+@inject ISnackbar Snackbar
+@implements IAsyncDisposable
 
 <MudThemeProvider Theme="_theme" />
 <MudPopoverProvider />
@@ -101,6 +106,7 @@
         <MudContainer MaxWidth="MaxWidth.Medium"
                       Class="fs-page-content"
                       Style="padding-top:24px;padding-bottom:32px">
+            <PushPermissionBanner />
             @Body
         </MudContainer>
     </MudMainContent>
@@ -115,6 +121,7 @@
 @code {
     private bool _drawerOpen = true;
     private ErrorBoundary? _drawerBoundary;
+    private bool _hubConnected;
 
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
 
@@ -123,7 +130,42 @@
         // Recover the ErrorBoundary so the drawer re-renders after the transient
         // JS race condition on first WASM load. The second render always succeeds.
         _drawerBoundary?.Recover();
+
+        // Connect to the SignalR hub as soon as the user is authenticated.
+        if (AuthState.Value.IsAuthenticated && !_hubConnected)
+        {
+            _hubConnected = true;
+            HubConnection.OnNotificationReceived += ShowNotificationToast;
+            await HubConnection.ConnectAsync();
+        }
+        else if (!AuthState.Value.IsAuthenticated && _hubConnected)
+        {
+            _hubConnected = false;
+            HubConnection.OnNotificationReceived -= ShowNotificationToast;
+            await HubConnection.DisconnectAsync();
+        }
+
         await base.OnAfterRenderAsync(firstRender);
+    }
+
+    private void ShowNotificationToast(NotificationMessage msg)
+    {
+        Snackbar.Add(
+            $"**{msg.Title}** — {msg.Message}",
+            Severity.Info,
+            config =>
+            {
+                config.ShowCloseIcon     = true;
+                config.VisibleStateDuration = 6000;
+                config.HideTransitionDuration = 300;
+                config.ShowTransitionDuration  = 300;
+            });
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        HubConnection.OnNotificationReceived -= ShowNotificationToast;
+        await HubConnection.DisconnectAsync();
     }
 
     private readonly MudTheme _theme = new()

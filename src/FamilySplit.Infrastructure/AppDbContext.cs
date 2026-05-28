@@ -23,6 +23,7 @@ public class AppDbContext : DbContext, IDataProtectionKeyContext
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<PushSubscription> PushSubscriptions => Set<PushSubscription>();
 
     /// <summary>
     /// ASP.NET Core Data Protection key ring — replaces the on-disk .dp-keys

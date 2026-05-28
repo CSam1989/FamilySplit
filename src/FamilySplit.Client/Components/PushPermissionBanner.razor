@@ -1,0 +1,76 @@
+@using FamilySplit.Client.Services
+@using FamilySplit.Client.Store.Auth
+@inject PushNotificationClientService PushService
+@inject IState<AuthState> AuthState
+@inject ISnackbar Snackbar
+
+@* Prompts the user to enable notifications the first time they see it.
+   Shown only while signed in and only when permission is still "default".
+   Dismissed permanently via in-memory flag (no localStorage — just UX). *@
+
+@if (_showBanner)
+{
+    <MudAlert Severity="Severity.Info"
+              Icon="@Icons.Material.Filled.NotificationsActive"
+              ShowCloseIcon="true"
+              CloseIconClicked="Dismiss"
+              Style="margin-bottom:8px;border-radius:12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+            <MudText Typo="Typo.body2">
+                Enable notifications to be alerted when a payment is sent or confirmed.
+            </MudText>
+            <MudButton Variant="Variant.Text"
+                       Size="Size.Small"
+                       Color="Color.Primary"
+                       OnClick="EnableAsync"
+                       Disabled="_busy">
+                @if (_busy)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Style="margin-right:4px" />
+                }
+                Turn on
+            </MudButton>
+        </div>
+    </MudAlert>
+}
+
+@code {
+    private bool _showBanner;
+    private bool _busy;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || !AuthState.Value.IsAuthenticated) return;
+
+        var permission = await PushService.GetPermissionStateAsync();
+
+        if (permission == "granted")
+        {
+            // Already granted — silently subscribe in the background without
+            // surfacing the banner. This handles the case where the user
+            // granted permission in a previous session.
+            _ = PushService.SubscribeAsync();
+        }
+        else if (permission == "default")
+        {
+            _showBanner = true;
+            StateHasChanged();
+        }
+        // "denied" — don't nag. User has to manage from browser settings.
+    }
+
+    private async Task EnableAsync()
+    {
+        _busy = true;
+        var success = await PushService.SubscribeAsync();
+        _busy       = false;
+        _showBanner = false; // hide regardless — if denied, don't nag again this session
+
+        if (success)
+            Snackbar.Add("Notifications enabled", Severity.Success);
+
+        StateHasChanged();
+    }
+
+    private void Dismiss() => _showBanner = false;
+}

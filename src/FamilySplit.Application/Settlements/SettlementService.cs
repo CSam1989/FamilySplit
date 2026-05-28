@@ -2,6 +2,7 @@ using FluentValidation;
 using FamilySplit.Application.Audit;
 using FamilySplit.Application.Core;
 using FamilySplit.Application.Exceptions;
+using FamilySplit.Application.Notifications;
 using FamilySplit.Application.Settlements.Dtos;
 using FamilySplit.Domain.Entities;
 using FamilySplit.Domain.Enums;
@@ -20,13 +21,19 @@ public class SettlementService
 {
     private readonly AppDbContext _db;
     private readonly AuditService _audit;
+    private readonly INotificationService _notifications;
     private readonly ILogger<SettlementService> _logger;
 
-    public SettlementService(AppDbContext db, AuditService audit, ILogger<SettlementService> logger)
+    public SettlementService(
+        AppDbContext db,
+        AuditService audit,
+        INotificationService notifications,
+        ILogger<SettlementService> logger)
     {
-        _db     = db;
-        _audit  = audit;
-        _logger = logger;
+        _db            = db;
+        _audit         = audit;
+        _notifications = notifications;
+        _logger        = logger;
     }
 
     // ── Get per-family balances (read-only, pre-settlement view) ──────────────
@@ -402,6 +409,14 @@ public class SettlementService
             "Settlement {SettlementId} marked as sent by user {UserId} (payer family {PayerFamilyId}) — {Amount} {Currency}",
             settlementId, callerId, settlement.PayerFamilyId, settlement.Amount, settlement.Currency);
 
+        // Notify receiver family that payment is on its way (fire-and-forget).
+        _ = _notifications.NotifyFamilyAsync(
+            settlement.ReceiverFamilyId,
+            "Payment incoming",
+            $"{settlement.Amount:F2} {settlement.Currency} is on its way to you.",
+            $"/groups/{activity.GroupId}/activities/{settlement.ActivityId}",
+            ct);
+
         return await BuildDetailDtoAsync(settlementId, ct);
     }
 
@@ -459,6 +474,14 @@ public class SettlementService
         _logger.LogInformation(
             "Settlement {SettlementId} marked as received by user {UserId} (receiver family {ReceiverFamilyId}) — {Amount} {Currency}",
             settlementId, callerId, settlement.ReceiverFamilyId, settlement.Amount, settlement.Currency);
+
+        // Notify payer family that their payment was confirmed (fire-and-forget).
+        _ = _notifications.NotifyFamilyAsync(
+            settlement.PayerFamilyId,
+            "Payment confirmed",
+            $"Your payment of {settlement.Amount:F2} {settlement.Currency} was confirmed as received.",
+            $"/groups/{activity.GroupId}/activities/{settlement.ActivityId}",
+            ct);
 
         // If all settlements for this activity are now Completed, mark activity Settled.
         var allDone = await _db.Settlements

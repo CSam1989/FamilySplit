@@ -42,6 +42,11 @@ public static class DependencyInjection
         // ── Auth: refresh token rotation / revocation ─────────────────────────
         services.AddScoped<Auth.RefreshTokenService>();
 
+        // ── VAPID push notifications ──────────────────────────────────────────
+        // Scoped so it shares the AppDbContext with its callers.
+        // INotificationService is registered in the API layer (needs IHubContext).
+        services.AddScoped<Push.PushNotificationService>();
+
         return services;
     }
 }

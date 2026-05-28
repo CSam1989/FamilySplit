@@ -3,8 +3,10 @@ using System.Security.Claims;
 using System.Text;
 using FamilySplit.Api.Auth;
 using FamilySplit.Api.Endpoints;
+using FamilySplit.Api.Hubs;
 using FamilySplit.Api.Middleware;
 using FamilySplit.Application;
+using FamilySplit.Application.Notifications;
 using FamilySplit.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
@@ -108,6 +110,23 @@ builder.Services
         options.MapInboundClaims = false;
         options.SaveToken = false;
         options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
+
+        // SignalR: Blazor WASM cannot set Authorization headers on WebSocket
+        // upgrade requests. The client passes the JWT as ?access_token= instead.
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                if (!string.IsNullOrEmpty(accessToken) &&
+                    context.HttpContext.Request.Path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
+        };
+
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -133,6 +152,13 @@ builder.Services.AddAuthorization(options =>
         .RequireAuthenticatedUser()
         .Build();
 });
+
+// --- SignalR -----------------------------------------------------------------------
+// AddSignalR is part of the ASP.NET Core shared framework — no extra NuGet needed.
+// SignalRNotificationService is scoped and registered as INotificationService so
+// SettlementService can call it without a direct dependency on SignalR.
+builder.Services.AddSignalR();
+builder.Services.AddScoped<INotificationService, SignalRNotificationService>();
 
 // JwtFactory issues JWTs after OAuth callback. OAuthHandler exchanges codes
 // against Google and upserts the User row.
@@ -201,6 +227,11 @@ app.MapActivityEndpoints();       // /groups/{groupId}/activities — CRUD + par
 app.MapExpenseEndpoints();        // /groups/{groupId}/activities/{activityId}/expenses — Phase 5
 app.MapSettlementEndpoints();     // /groups/{groupId}/activities/{activityId}/settlements — Phase 6
 app.MapDashboardEndpoints();      // /dashboard/stats — per-group statistics
+app.MapPushEndpoints();           // /push — VAPID subscription management
+
+// SignalR hub — Blazor WASM passes JWT as ?access_token query param because
+// WebSocket upgrade requests cannot carry Authorization headers.
+app.MapHub<NotificationHub>("/hubs/notifications");
 
 
 // --- OpenAPI + Scalar UI (dev only) ----------------------------------------------
