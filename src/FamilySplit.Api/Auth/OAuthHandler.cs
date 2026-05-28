@@ -48,7 +48,7 @@ public class OAuthHandler
             ?? throw new InvalidOperationException("Missing OAuth:Google:ClientId user-secret.");
         var clientSecret = section["ClientSecret"]
             ?? throw new InvalidOperationException("Missing OAuth:Google:ClientSecret user-secret.");
-        var tokenUrl    = section["TokenUrl"]    ?? "https://oauth2.googleapis.com/token";
+        var tokenUrl = section["TokenUrl"] ?? "https://oauth2.googleapis.com/token";
         var userInfoUrl = section["UserInfoUrl"] ?? "https://openidconnect.googleapis.com/v1/userinfo";
 
         var http = _httpClientFactory.CreateClient("google-oauth");
@@ -58,11 +58,11 @@ public class OAuthHandler
         {
             Content = new FormUrlEncodedContent(new Dictionary<string, string>
             {
-                ["code"]          = code,
-                ["client_id"]     = clientId,
+                ["code"] = code,
+                ["client_id"] = clientId,
                 ["client_secret"] = clientSecret,
-                ["redirect_uri"]  = redirectUri,
-                ["grant_type"]    = "authorization_code",
+                ["redirect_uri"] = redirectUri,
+                ["grant_type"] = "authorization_code",
                 ["code_verifier"] = codeVerifier
             })
         };
@@ -156,19 +156,19 @@ public class OAuthHandler
     }
 
     private sealed record GoogleTokenResponse(
-        [property: JsonPropertyName("access_token")]  string AccessToken,
-        [property: JsonPropertyName("expires_in")]    int ExpiresIn,
-        [property: JsonPropertyName("token_type")]    string TokenType,
-        [property: JsonPropertyName("id_token")]      string? IdToken,
+        [property: JsonPropertyName("access_token")] string AccessToken,
+        [property: JsonPropertyName("expires_in")] int ExpiresIn,
+        [property: JsonPropertyName("token_type")] string TokenType,
+        [property: JsonPropertyName("id_token")] string? IdToken,
         [property: JsonPropertyName("refresh_token")] string? RefreshToken,
-        [property: JsonPropertyName("scope")]         string? Scope);
+        [property: JsonPropertyName("scope")] string? Scope);
 
     private sealed record GoogleUserInfo(
-        [property: JsonPropertyName("sub")]            string Sub,
-        [property: JsonPropertyName("email")]          string Email,
-        [property: JsonPropertyName("email_verified")] bool   EmailVerified,
-        [property: JsonPropertyName("name")]           string? Name,
-        [property: JsonPropertyName("picture")]        string? Picture);
+        [property: JsonPropertyName("sub")] string Sub,
+        [property: JsonPropertyName("email")] string Email,
+        [property: JsonPropertyName("email_verified")] bool EmailVerified,
+        [property: JsonPropertyName("name")] string? Name,
+        [property: JsonPropertyName("picture")] string? Picture);
 }
 
 /// <summary>

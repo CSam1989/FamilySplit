@@ -1,5 +1,5 @@
-using FamilySplit.Application.Dashboard;
 using System.Security.Claims;
+using FamilySplit.Application.Dashboard;
 
 namespace FamilySplit.Api.Endpoints;
 

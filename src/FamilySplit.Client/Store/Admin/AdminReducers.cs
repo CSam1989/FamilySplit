@@ -42,9 +42,9 @@ public static class AdminReducers
     public static AdminState OnCreateSuccess(AdminState state, CreateAdminFamilySuccessAction action) =>
         state with
         {
-            IsLoading      = false,
+            IsLoading = false,
             SelectedFamily = action.Family,
-            Families       = [.. state.Families, action.Family]
+            Families = [.. state.Families, action.Family]
         };
 
     [ReducerMethod]
@@ -82,7 +82,7 @@ public static class AdminReducers
 
         return state with
         {
-            IsLoading      = false,
+            IsLoading = false,
             SelectedFamily = state.SelectedFamily with { Members = updated }
         };
     }
@@ -108,7 +108,7 @@ public static class AdminReducers
 
         return state with
         {
-            IsLoading      = false,
+            IsLoading = false,
             SelectedFamily = state.SelectedFamily with { Members = updated }
         };
     }

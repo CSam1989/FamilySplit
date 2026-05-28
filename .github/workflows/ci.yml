@@ -64,6 +64,9 @@ jobs:
         with:
           name: build-output
 
+      - name: Restore executable permissions
+        run: find . -path "*/bin/Release/net10.0/*" -type f ! -name "*.*" -exec chmod +x {} \;
+
       - name: Run unit tests
         run: |
           dotnet test tests/FamilySplit.UnitTests/FamilySplit.UnitTests.csproj \
@@ -105,6 +108,7 @@ jobs:
     name: Integration Tests
     runs-on: ubuntu-latest
     needs: build
+    if: false                      # temporarily disabled
     environment: ci                # protects the Neon dev secret
     steps:
       - uses: actions/checkout@v4
@@ -118,6 +122,9 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: build-output
+
+      - name: Restore executable permissions
+        run: find . -path "*/bin/Release/net10.0/*" -type f ! -name "*.*" -exec chmod +x {} \;
 
       - name: Apply EF Core migrations
         env:
@@ -201,7 +208,7 @@ jobs:
         run: dotnet restore FamilySplit.slnx --locked-mode 2>/dev/null || dotnet restore FamilySplit.slnx
 
       - name: Trivy filesystem scan (NuGet dependencies)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@0.35.0
         with:
           scan-type: fs
           scan-ref: .

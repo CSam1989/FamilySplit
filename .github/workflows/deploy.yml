@@ -126,7 +126,7 @@ jobs:
             BUILD_VERSION=${{ github.sha }}
 
       - name: Container image scan + SBOM (Trivy)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@0.35.0
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           format: sarif
@@ -142,7 +142,7 @@ jobs:
           category: trivy-image
 
       - name: Generate SBOM with Trivy
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@0.35.0
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           format: spdx-json

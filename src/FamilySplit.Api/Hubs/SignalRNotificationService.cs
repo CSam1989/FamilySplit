@@ -30,13 +30,13 @@ public class SignalRNotificationService : INotificationService
         PushNotificationService vapid,
         ILogger<SignalRNotificationService> logger)
     {
-        _hub    = hub;
-        _vapid  = vapid;
+        _hub = hub;
+        _vapid = vapid;
         _logger = logger;
     }
 
     public async Task NotifyFamilyAsync(
-        Guid   targetFamilyId,
+        Guid targetFamilyId,
         string title,
         string message,
         string? url = null,

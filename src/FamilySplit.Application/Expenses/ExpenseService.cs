@@ -1,4 +1,3 @@
-using FluentValidation;
 using FamilySplit.Application.Audit;
 using FamilySplit.Application.Core;
 using FamilySplit.Application.Exceptions;
@@ -6,6 +5,7 @@ using FamilySplit.Application.Expenses.Dtos;
 using FamilySplit.Domain.Entities;
 using FamilySplit.Domain.Enums;
 using FamilySplit.Infrastructure;
+using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -31,11 +31,11 @@ public class ExpenseService
         AuditService audit,
         ILogger<ExpenseService> logger)
     {
-        _db              = db;
+        _db = db;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
-        _audit           = audit;
-        _logger          = logger;
+        _audit = audit;
+        _logger = logger;
     }
 
     // ── List expenses for an activity ─────────────────────────────────────────
@@ -164,18 +164,18 @@ public class ExpenseService
 
         var expense = new Expense
         {
-            Id           = Guid.NewGuid(),
-            ActivityId   = activityId,
+            Id = Guid.NewGuid(),
+            ActivityId = activityId,
             PaidByUserId = callerId,
-            Title        = req.Title.Trim(),
-            Description  = req.Description?.Trim(),
-            TotalAmount  = req.TotalAmount,
-            Currency     = (req.Currency ?? "EUR").ToUpperInvariant(),
-            ExpenseDate  = expenseDate,
-            CategoryId   = req.CategoryId,
-            Status       = ExpenseStatus.Active,
-            CreatedAt    = now,
-            UpdatedAt    = now,
+            Title = req.Title.Trim(),
+            Description = req.Description?.Trim(),
+            TotalAmount = req.TotalAmount,
+            Currency = (req.Currency ?? "EUR").ToUpperInvariant(),
+            ExpenseDate = expenseDate,
+            CategoryId = req.CategoryId,
+            Status = ExpenseStatus.Active,
+            CreatedAt = now,
+            UpdatedAt = now,
         };
 
         _db.Expenses.Add(expense);
@@ -185,17 +185,17 @@ public class ExpenseService
         {
             var shell = new FamilyMember
             {
-                Id             = p.Id,
-                DateOfBirth    = p.DateOfBirth,
+                Id = p.Id,
+                DateOfBirth = p.DateOfBirth,
                 WeightOverride = p.WeightOverride,
             };
             return new ExpenseParticipant
             {
-                Id             = Guid.NewGuid(),
-                ExpenseId      = expense.Id,
+                Id = Guid.NewGuid(),
+                ExpenseId = expense.Id,
                 FamilyMemberId = p.Id,
                 WeightSnapshot = WeightCalculator.GetWeight(shell, expenseDate),
-                IsExcluded     = false,
+                IsExcluded = false,
             };
         }).ToList();
 
@@ -208,9 +208,9 @@ public class ExpenseService
         _audit.Queue(callerId, "Expense", expense.Id, "Created", new
         {
             activityId,
-            title        = expense.Title,
-            amount       = expense.TotalAmount,
-            currency     = expense.Currency,
+            title = expense.Title,
+            amount = expense.TotalAmount,
+            currency = expense.Currency,
             expenseDate,
             participants = expenseParticipants.Count,
         });
@@ -256,19 +256,19 @@ public class ExpenseService
         // Capture before-state for audit diff.
         var before = new
         {
-            title       = expense.Title,
-            amount      = expense.TotalAmount,
-            currency    = expense.Currency,
+            title = expense.Title,
+            amount = expense.TotalAmount,
+            currency = expense.Currency,
             expenseDate = expense.ExpenseDate,
         };
 
-        expense.Title       = req.Title.Trim();
+        expense.Title = req.Title.Trim();
         expense.Description = req.Description?.Trim();
         expense.TotalAmount = req.TotalAmount;
-        expense.Currency    = (req.Currency ?? expense.Currency).ToUpperInvariant();
+        expense.Currency = (req.Currency ?? expense.Currency).ToUpperInvariant();
         expense.ExpenseDate = req.ExpenseDate;
-        expense.CategoryId  = req.CategoryId;
-        expense.UpdatedAt   = DateTimeOffset.UtcNow;
+        expense.CategoryId = req.CategoryId;
+        expense.UpdatedAt = DateTimeOffset.UtcNow;
 
         // If amount or date changed, re-snapshot weights and recalculate shares.
         if (amountOrDateChanged)
@@ -295,8 +295,8 @@ public class ExpenseService
                     {
                         var shell = new FamilyMember
                         {
-                            Id             = m.Id,
-                            DateOfBirth    = m.DateOfBirth,
+                            Id = m.Id,
+                            DateOfBirth = m.DateOfBirth,
                             WeightOverride = m.WeightOverride,
                         };
                         ep.WeightSnapshot = WeightCalculator.GetWeight(shell, expense.ExpenseDate);
@@ -313,9 +313,9 @@ public class ExpenseService
             before,
             after = new
             {
-                title       = expense.Title,
-                amount      = expense.TotalAmount,
-                currency    = expense.Currency,
+                title = expense.Title,
+                amount = expense.TotalAmount,
+                currency = expense.Currency,
                 expenseDate = expense.ExpenseDate,
             },
             recalculated = amountOrDateChanged,
@@ -358,10 +358,10 @@ public class ExpenseService
         // Queue audit entry — persisted atomically with SaveChangesAsync below.
         _audit.Queue(callerId, "Expense", expenseId, "Deleted", new
         {
-            activityId  = expense.ActivityId,
-            title       = expense.Title,
-            amount      = expense.TotalAmount,
-            currency    = expense.Currency,
+            activityId = expense.ActivityId,
+            title = expense.Title,
+            amount = expense.TotalAmount,
+            currency = expense.Currency,
             expenseDate = expense.ExpenseDate,
         });
 

@@ -8,7 +8,7 @@ namespace FamilySplit.Api.Endpoints;
 
 public static class AuthEndpoints
 {
-    private const string StateCookie   = "fs_oauth_state";
+    private const string StateCookie = "fs_oauth_state";
     private const string RefreshCookie = "fs_refresh";
 
     /// <summary>
@@ -52,11 +52,11 @@ public static class AuthEndpoints
 
             http.Response.Cookies.Append(StateCookie, protectedPayload, new CookieOptions
             {
-                HttpOnly  = true,
-                Secure    = true,
-                SameSite  = SameSiteMode.Lax, // callback is a top-level cross-site GET from Google
-                Path      = "/auth",
-                MaxAge    = TimeSpan.FromMinutes(10),
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.Lax, // callback is a top-level cross-site GET from Google
+                Path = "/auth",
+                MaxAge = TimeSpan.FromMinutes(10),
                 IsEssential = true,
             });
 
@@ -64,15 +64,15 @@ public static class AuthEndpoints
 
             var query = QueryString.Create(new Dictionary<string, string?>
             {
-                ["client_id"]             = clientId,
-                ["redirect_uri"]          = redirectUri,
-                ["response_type"]         = "code",
-                ["scope"]                 = "openid email profile",
-                ["state"]                 = flow.State,
-                ["code_challenge"]        = codeChallenge,
+                ["client_id"] = clientId,
+                ["redirect_uri"] = redirectUri,
+                ["response_type"] = "code",
+                ["scope"] = "openid email profile",
+                ["state"] = flow.State,
+                ["code_challenge"] = codeChallenge,
                 ["code_challenge_method"] = "S256",
-                ["access_type"]           = "online",
-                ["prompt"]                = "select_account",
+                ["access_type"] = "online",
+                ["prompt"] = "select_account",
             });
 
             return Results.Redirect(authorizeUrl + query.ToUriComponent());
@@ -192,8 +192,8 @@ public static class AuthEndpoints
             var userId = rotateResult switch
             {
                 RefreshTokenService.RotateResult.Success s => s.UserId,
-                RefreshTokenService.RotateResult.Reused  r => r.UserId,
-                _                                          => throw new InvalidOperationException("Unhandled RotateResult"),
+                RefreshTokenService.RotateResult.Reused r => r.UserId,
+                _ => throw new InvalidOperationException("Unhandled RotateResult"),
             };
 
             // Load the user record once so the JWT carries the right claims.
@@ -212,7 +212,7 @@ public static class AuthEndpoints
             var jwt = jwtFactory.Create(user);
             return Results.Ok(new
             {
-                token            = jwt,
+                token = jwt,
                 expiresInSeconds = jwtFactory.LifetimeMinutes * 60,
             });
         });
@@ -242,11 +242,11 @@ public static class AuthEndpoints
     {
         http.Response.Cookies.Append(RefreshCookie, secret, new CookieOptions
         {
-            HttpOnly    = true,
-            Secure      = true,
-            SameSite    = SameSiteMode.Strict,
-            Path        = RefreshCookiePath,
-            Expires     = expiresAt,
+            HttpOnly = true,
+            Secure = true,
+            SameSite = SameSiteMode.Strict,
+            Path = RefreshCookiePath,
+            Expires = expiresAt,
             IsEssential = true,
         });
     }
@@ -255,8 +255,8 @@ public static class AuthEndpoints
     {
         http.Response.Cookies.Delete(RefreshCookie, new CookieOptions
         {
-            Path     = RefreshCookiePath,
-            Secure   = true,
+            Path = RefreshCookiePath,
+            Secure = true,
             HttpOnly = true,
             SameSite = SameSiteMode.Strict,
         });

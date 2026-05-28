@@ -20,10 +20,10 @@ public static class WeightCalculator
 
         return age switch
         {
-            < 6  => 0.25m, // kleuterschool
+            < 6 => 0.25m, // kleuterschool
             < 12 => 0.50m, // lager onderwijs
             < 18 => 0.75m, // middelbaar onderwijs
-            _    => 1.00m  // volwassene
+            _ => 1.00m  // volwassene
         };
     }
 
@@ -37,10 +37,10 @@ public static class WeightCalculator
 
         return age switch
         {
-            < 6  => WeightTier.Kleuterschool,
+            < 6 => WeightTier.Kleuterschool,
             < 12 => WeightTier.LagerOnderwijs,
             < 18 => WeightTier.MiddelbaarOnderwijs,
-            _    => WeightTier.Volwassene
+            _ => WeightTier.Volwassene
         };
     }
 }

@@ -1,5 +1,5 @@
-using FluentValidation;
 using FamilySplit.Application.Families.Dtos;
+using FluentValidation;
 
 namespace FamilySplit.Application.Families;
 

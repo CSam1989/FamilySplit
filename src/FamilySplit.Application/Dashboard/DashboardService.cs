@@ -99,7 +99,7 @@ public class DashboardService
             .ToList();
 
         var activeExpensesByGroup = new Dictionary<Guid, decimal>();
-        var activeShareByGroup    = new Dictionary<Guid, decimal>();
+        var activeShareByGroup = new Dictionary<Guid, decimal>();
 
         if (balanceActivityIds.Count > 0)
         {
@@ -133,8 +133,8 @@ public class DashboardService
         // ── 9. Net balance across Open + Closed activities only ───────────────
         //   Balance = what my family PAID  minus  what my family OWES.
         //   This mirrors BalanceCalculator logic but scoped to the caller's family.
-        var paidByGroup  = new Dictionary<Guid, decimal>();
-        var owedByGroup  = new Dictionary<Guid, decimal>();
+        var paidByGroup = new Dictionary<Guid, decimal>();
+        var owedByGroup = new Dictionary<Guid, decimal>();
 
         if (balanceActivityIds.Count > 0)
         {
@@ -186,7 +186,7 @@ public class DashboardService
                 join a in _db.Activities on s.ActivityId equals a.Id
                 where activityIds.Contains(s.ActivityId)
                    && (
-                       (s.PayerFamilyId    == callerFamilyId && s.Status == SettlementStatus.Proposed)
+                       (s.PayerFamilyId == callerFamilyId && s.Status == SettlementStatus.Proposed)
                     || (s.ReceiverFamilyId == callerFamilyId && s.Status == SettlementStatus.PayerSent)
                    )
                 select a.GroupId
@@ -204,16 +204,16 @@ public class DashboardService
                 g => g.Key,
                 g => new
                 {
-                    Total   = g.Count(),
-                    Open    = g.Count(a => a.Status == ActivityStatus.Open),
-                    Closed  = g.Count(a => a.Status == ActivityStatus.Closed),
+                    Total = g.Count(),
+                    Open = g.Count(a => a.Status == ActivityStatus.Open),
+                    Closed = g.Count(a => a.Status == ActivityStatus.Closed),
                     Settled = g.Count(a => a.Status == ActivityStatus.Settled),
-                    Latest  = g.OrderByDescending(a => a.CreatedAt).First(),
+                    Latest = g.OrderByDescending(a => a.CreatedAt).First(),
                 });
 
         return groupInfos.Select(g =>
         {
-            var counts  = activityCountByGroup.GetValueOrDefault(g.Id);
+            var counts = activityCountByGroup.GetValueOrDefault(g.Id);
             expensesByGroup.TryGetValue(g.Id, out var spend);
             shareByGroup.TryGetValue(g.Id, out var share);
             activeExpensesByGroup.TryGetValue(g.Id, out var activeSpend);
@@ -227,15 +227,15 @@ public class DashboardService
             return new DashboardGroupStatDto(
                 g.Id,
                 g.Name,
-                counts?.Total       ?? 0,
-                counts?.Open        ?? 0,
-                counts?.Closed      ?? 0,
-                counts?.Settled     ?? 0,
+                counts?.Total ?? 0,
+                counts?.Open ?? 0,
+                counts?.Closed ?? 0,
+                counts?.Settled ?? 0,
                 Math.Round(spend.Total, 2, MidpointRounding.AwayFromZero),
                 Math.Round(share, 2, MidpointRounding.AwayFromZero),
                 Math.Round(activeSpend, 2, MidpointRounding.AwayFromZero),
                 Math.Round(activeShare, 2, MidpointRounding.AwayFromZero),
-                spend.Currency      ?? "EUR",
+                spend.Currency ?? "EUR",
                 balance,
                 pending,
                 counts?.Latest.Name,

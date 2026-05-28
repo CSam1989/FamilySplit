@@ -1,4 +1,3 @@
-using FluentValidation;
 using FamilySplit.Application.Admin.Dtos;
 using FamilySplit.Application.Exceptions;
 using FamilySplit.Application.Families;
@@ -6,6 +5,7 @@ using FamilySplit.Application.Families.Dtos;
 using FamilySplit.Domain.Entities;
 using FamilySplit.Domain.Enums;
 using FamilySplit.Infrastructure;
+using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -91,11 +91,11 @@ public class AdminService
 
         var family = new Family
         {
-            Id               = Guid.NewGuid(),
-            Name             = req.Name.Trim(),
-            CreatedByUserId  = callerId,
-            CreatedAt        = DateTimeOffset.UtcNow,
-            UpdatedAt        = DateTimeOffset.UtcNow
+            Id = Guid.NewGuid(),
+            Name = req.Name.Trim(),
+            CreatedByUserId = callerId,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
         };
 
         _db.Families.Add(family);
@@ -135,16 +135,16 @@ public class AdminService
 
         var member = new FamilyMember
         {
-            Id             = Guid.NewGuid(),
-            FamilyId       = familyId,
-            Email          = emailNorm,
-            UserId         = null,
-            IsAdmin        = req.IsAdmin,
-            DisplayName    = req.DisplayName.Trim(),
-            DateOfBirth    = req.DateOfBirth,
+            Id = Guid.NewGuid(),
+            FamilyId = familyId,
+            Email = emailNorm,
+            UserId = null,
+            IsAdmin = req.IsAdmin,
+            DisplayName = req.DisplayName.Trim(),
+            DateOfBirth = req.DateOfBirth,
             WeightOverride = req.WeightOverride,
-            IsActive       = true,
-            CreatedAt      = DateTimeOffset.UtcNow
+            IsActive = true,
+            CreatedAt = DateTimeOffset.UtcNow
         };
 
         // Auto-link if a User with this email already exists. User.Email is
@@ -195,11 +195,11 @@ public class AdminService
                 throw Throw422("Email", "A family member with this email already exists.");
         }
 
-        member.DisplayName    = req.DisplayName.Trim();
-        member.Email          = emailNorm;
-        member.DateOfBirth    = req.DateOfBirth;
+        member.DisplayName = req.DisplayName.Trim();
+        member.Email = emailNorm;
+        member.DateOfBirth = req.DateOfBirth;
         member.WeightOverride = req.WeightOverride;
-        member.IsAdmin        = req.IsAdmin;
+        member.IsAdmin = req.IsAdmin;
 
         await _db.SaveChangesAsync(ct);
 
@@ -246,10 +246,10 @@ public class AdminService
 
         _db.GroupFamilies.Add(new GroupFamily
         {
-            Id       = Guid.NewGuid(),
-            GroupId  = groupId,
+            Id = Guid.NewGuid(),
+            GroupId = groupId,
             FamilyId = familyId,
-            Role     = MemberRole.Member,
+            Role = MemberRole.Member,
             JoinedAt = DateTimeOffset.UtcNow,
         });
         await _db.SaveChangesAsync(ct);

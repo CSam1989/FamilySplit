@@ -1,4 +1,3 @@
-using FluentValidation;
 using FamilySplit.Application.Audit;
 using FamilySplit.Application.Core;
 using FamilySplit.Application.Exceptions;
@@ -7,6 +6,7 @@ using FamilySplit.Application.Settlements.Dtos;
 using FamilySplit.Domain.Entities;
 using FamilySplit.Domain.Enums;
 using FamilySplit.Infrastructure;
+using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -30,10 +30,10 @@ public class SettlementService
         INotificationService notifications,
         ILogger<SettlementService> logger)
     {
-        _db            = db;
-        _audit         = audit;
+        _db = db;
+        _audit = audit;
         _notifications = notifications;
-        _logger        = logger;
+        _logger = logger;
     }
 
     // ── Get per-family balances (read-only, pre-settlement view) ──────────────
@@ -138,14 +138,14 @@ public class SettlementService
 
         var settlements = transfers.Select(t => new Settlement
         {
-            Id               = Guid.NewGuid(),
-            ActivityId       = activityId,
-            PayerFamilyId    = t.PayerFamilyId,
+            Id = Guid.NewGuid(),
+            ActivityId = activityId,
+            PayerFamilyId = t.PayerFamilyId,
             ReceiverFamilyId = t.ReceiverFamilyId,
-            Amount           = t.Amount,
-            Currency         = currency,
-            Status           = SettlementStatus.Proposed,
-            ProposedAt       = now,
+            Amount = t.Amount,
+            Currency = currency,
+            Status = SettlementStatus.Proposed,
+            ProposedAt = now,
         }).ToList();
 
         _db.Settlements.AddRange(settlements);
@@ -156,10 +156,10 @@ public class SettlementService
             _audit.Queue(callerId, "Settlement", s.Id, "Generated", new
             {
                 activityId,
-                payerFamilyId    = s.PayerFamilyId,
+                payerFamilyId = s.PayerFamilyId,
                 receiverFamilyId = s.ReceiverFamilyId,
-                amount           = s.Amount,
-                currency         = s.Currency,
+                amount = s.Amount,
+                currency = s.Currency,
             });
         }
 
@@ -189,11 +189,11 @@ public class SettlementService
         if (activities.Count == 0) return [];
 
         var activityIds = activities.Select(a => a.Id).ToList();
-        var nameMap     = activities.ToDictionary(a => a.Id, a => a.Name);
+        var nameMap = activities.ToDictionary(a => a.Id, a => a.Name);
 
         var rows = await (
             from s in _db.Settlements
-            join pf in _db.Families on s.PayerFamilyId    equals pf.Id
+            join pf in _db.Families on s.PayerFamilyId equals pf.Id
             join rf in _db.Families on s.ReceiverFamilyId equals rf.Id
             where activityIds.Contains(s.ActivityId)
                && s.Status != SettlementStatus.Completed
@@ -204,7 +204,7 @@ public class SettlementService
                 s.Id,
                 s.ActivityId,
                 s.PayerFamilyId,
-                PayerFamilyName    = pf.Name,
+                PayerFamilyName = pf.Name,
                 s.ReceiverFamilyId,
                 ReceiverFamilyName = rf.Name,
                 s.Amount,
@@ -266,7 +266,7 @@ public class SettlementService
 
         var rows = await (
             from s in _db.Settlements
-            join pf in _db.Families on s.PayerFamilyId    equals pf.Id
+            join pf in _db.Families on s.PayerFamilyId equals pf.Id
             join rf in _db.Families on s.ReceiverFamilyId equals rf.Id
             where activityIds.Contains(s.ActivityId)
                && s.Status != SettlementStatus.Completed
@@ -278,7 +278,7 @@ public class SettlementService
                 s.Id,
                 s.ActivityId,
                 s.PayerFamilyId,
-                PayerFamilyName    = pf.Name,
+                PayerFamilyName = pf.Name,
                 s.ReceiverFamilyId,
                 ReceiverFamilyName = rf.Name,
                 s.Amount,
@@ -385,22 +385,22 @@ public class SettlementService
 
         _db.ApprovalSteps.Add(new ApprovalStep
         {
-            Id           = Guid.NewGuid(),
+            Id = Guid.NewGuid(),
             SettlementId = settlementId,
-            ApproverId   = callerId,
-            StepType     = StepType.PayerSent,
-            Status       = StepStatus.Done,
-            ActionedAt   = now,
-            CreatedAt    = now,
+            ApproverId = callerId,
+            StepType = StepType.PayerSent,
+            Status = StepStatus.Done,
+            ActionedAt = now,
+            CreatedAt = now,
         });
 
         // Queue audit entry — persisted atomically with SaveChangesAsync below.
         _audit.Queue(callerId, "Settlement", settlementId, "ConfirmSent", new
         {
-            payerFamilyId    = settlement.PayerFamilyId,
+            payerFamilyId = settlement.PayerFamilyId,
             receiverFamilyId = settlement.ReceiverFamilyId,
-            amount           = settlement.Amount,
-            currency         = settlement.Currency,
+            amount = settlement.Amount,
+            currency = settlement.Currency,
         });
 
         await _db.SaveChangesAsync(ct);
@@ -446,27 +446,27 @@ public class SettlementService
 
         var now = DateTimeOffset.UtcNow;
 
-        settlement.Status      = SettlementStatus.Completed;
+        settlement.Status = SettlementStatus.Completed;
         settlement.CompletedAt = now;
 
         _db.ApprovalSteps.Add(new ApprovalStep
         {
-            Id           = Guid.NewGuid(),
+            Id = Guid.NewGuid(),
             SettlementId = settlementId,
-            ApproverId   = callerId,
-            StepType     = StepType.ReceiverConfirmed,
-            Status       = StepStatus.Done,
-            ActionedAt   = now,
-            CreatedAt    = now,
+            ApproverId = callerId,
+            StepType = StepType.ReceiverConfirmed,
+            Status = StepStatus.Done,
+            ActionedAt = now,
+            CreatedAt = now,
         });
 
         // Queue audit entry — persisted atomically with SaveChangesAsync below.
         _audit.Queue(callerId, "Settlement", settlementId, "ConfirmReceived", new
         {
-            payerFamilyId    = settlement.PayerFamilyId,
+            payerFamilyId = settlement.PayerFamilyId,
             receiverFamilyId = settlement.ReceiverFamilyId,
-            amount           = settlement.Amount,
-            currency         = settlement.Currency,
+            amount = settlement.Amount,
+            currency = settlement.Currency,
         });
 
         await _db.SaveChangesAsync(ct);
@@ -592,7 +592,7 @@ public class SettlementService
                 s.Id,
                 s.ActivityId,
                 s.PayerFamilyId,
-                PayerFamilyName   = pf.Name,
+                PayerFamilyName = pf.Name,
                 s.ReceiverFamilyId,
                 ReceiverFamilyName = rf.Name,
                 s.Amount,
@@ -629,7 +629,7 @@ public class SettlementService
                 settlement.Id,
                 settlement.ActivityId,
                 settlement.PayerFamilyId,
-                PayerFamilyName   = pf.Name,
+                PayerFamilyName = pf.Name,
                 settlement.ReceiverFamilyId,
                 ReceiverFamilyName = rf.Name,
                 settlement.Amount,

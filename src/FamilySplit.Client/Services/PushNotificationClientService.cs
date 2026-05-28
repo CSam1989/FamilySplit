@@ -10,18 +10,18 @@ namespace FamilySplit.Client.Services;
 /// </summary>
 public class PushNotificationClientService
 {
-    private readonly IJSRuntime   _js;
-    private readonly IPushClient  _pushClient;
+    private readonly IJSRuntime _js;
+    private readonly IPushClient _pushClient;
     private readonly ILogger<PushNotificationClientService> _logger;
 
     public PushNotificationClientService(
-        IJSRuntime  js,
+        IJSRuntime js,
         IPushClient pushClient,
         ILogger<PushNotificationClientService> logger)
     {
-        _js         = js;
+        _js = js;
         _pushClient = pushClient;
-        _logger     = logger;
+        _logger = logger;
     }
 
     // ── Feature / permission helpers ──────────────────────────────────────────

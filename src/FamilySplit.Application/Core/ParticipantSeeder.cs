@@ -37,8 +37,8 @@ public class ParticipantSeeder
         {
             _db.ActivityParticipants.Add(new ActivityParticipant
             {
-                Id             = Guid.NewGuid(),
-                ActivityId     = activity.Id,
+                Id = Guid.NewGuid(),
+                ActivityId = activity.Id,
                 FamilyMemberId = memberId,
             });
         }
@@ -59,8 +59,8 @@ public class ParticipantSeeder
         {
             _db.ActivityParticipants.Add(new ActivityParticipant
             {
-                Id             = Guid.NewGuid(),
-                ActivityId     = subActivity.Id,
+                Id = Guid.NewGuid(),
+                ActivityId = subActivity.Id,
                 FamilyMemberId = memberId,
             });
         }

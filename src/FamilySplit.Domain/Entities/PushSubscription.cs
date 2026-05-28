@@ -7,17 +7,17 @@ namespace FamilySplit.Domain.Entities;
 /// </summary>
 public class PushSubscription
 {
-    public Guid   Id        { get; set; }
-    public Guid   UserId    { get; set; }
+    public Guid Id { get; set; }
+    public Guid UserId { get; set; }
 
     /// <summary>Browser-provided push endpoint URL (unique per subscription).</summary>
-    public string Endpoint  { get; set; } = "";
+    public string Endpoint { get; set; } = "";
 
     /// <summary>ECDH public key (base64url) from PushSubscription.getKey('p256dh').</summary>
-    public string P256dh    { get; set; } = "";
+    public string P256dh { get; set; } = "";
 
     /// <summary>Authentication secret (base64url) from PushSubscription.getKey('auth').</summary>
-    public string Auth      { get; set; } = "";
+    public string Auth { get; set; } = "";
 
     public DateTimeOffset CreatedAt { get; set; }
 

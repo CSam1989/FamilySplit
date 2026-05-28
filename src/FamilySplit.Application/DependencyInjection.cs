@@ -1,5 +1,5 @@
-using FluentValidation;
 using FamilySplit.Application.Audit;
+using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace FamilySplit.Application;

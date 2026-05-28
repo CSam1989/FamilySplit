@@ -1,5 +1,5 @@
-using Fluxor;
 using FamilySplit.Client.Services;
+using Fluxor;
 using Microsoft.Extensions.Logging;
 
 namespace FamilySplit.Client.Store.FamilyMembers;

@@ -126,9 +126,9 @@ public static class GroupReducers
     public static GroupState OnDeleteSuccess(GroupState state, DeleteGroupSuccessAction action) =>
         state with
         {
-            IsLoading     = false,
+            IsLoading = false,
             SelectedGroup = null,
-            Groups        = state.Groups.Where(g => g.Id != action.GroupId).ToList()
+            Groups = state.Groups.Where(g => g.Id != action.GroupId).ToList()
         };
 
     [ReducerMethod]

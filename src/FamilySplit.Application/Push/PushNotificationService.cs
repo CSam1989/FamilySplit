@@ -1,11 +1,10 @@
+using System.Text.Json;
 using FamilySplit.Infrastructure;
 using Lib.Net.Http.WebPush;
 using Lib.Net.Http.WebPush.Authentication;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using System.Text.Json;
-
 // Alias avoids ambiguity with FamilySplit.Domain.Entities.PushSubscription
 using LibPushSubscription = Lib.Net.Http.WebPush.PushSubscription;
 
@@ -28,7 +27,7 @@ public class PushNotificationService
         IConfiguration config,
         ILogger<PushNotificationService> logger)
     {
-        _db     = db;
+        _db = db;
         _config = config;
         _logger = logger;
     }
@@ -59,17 +58,17 @@ public class PushNotificationService
         {
             existing.UserId = userId;
             existing.P256dh = p256dh;
-            existing.Auth   = auth;
+            existing.Auth = auth;
         }
         else
         {
             _db.PushSubscriptions.Add(new Domain.Entities.PushSubscription
             {
-                Id        = Guid.NewGuid(),
-                UserId    = userId,
-                Endpoint  = endpoint,
-                P256dh    = p256dh,
-                Auth      = auth,
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                Endpoint = endpoint,
+                P256dh = p256dh,
+                Auth = auth,
                 CreatedAt = DateTimeOffset.UtcNow,
             });
         }
@@ -100,15 +99,15 @@ public class PushNotificationService
     /// (HTTP 410/404) are pruned automatically.
     /// </summary>
     public async Task SendToFamilyAsync(
-        Guid   familyId,
+        Guid familyId,
         string title,
         string body,
         string? url = null,
         CancellationToken ct = default)
     {
-        var publicKey  = _config["Push:Vapid:PublicKey"];
+        var publicKey = _config["Push:Vapid:PublicKey"];
         var privateKey = _config["Push:Vapid:PrivateKey"];
-        var subject    = _config["Push:Vapid:Subject"] ?? "mailto:noreply@familysplit.app";
+        var subject = _config["Push:Vapid:Subject"] ?? "mailto:noreply@familysplit.app";
 
         if (string.IsNullOrWhiteSpace(publicKey) || string.IsNullOrWhiteSpace(privateKey))
         {
@@ -134,15 +133,15 @@ public class PushNotificationService
         {
             title,
             body,
-            url   = url ?? "/",
-            tag   = "familysplit-settlement",
-            icon  = "/icons/icon-192.png",
+            url = url ?? "/",
+            tag = "familysplit-settlement",
+            icon = "/icons/icon-192.png",
             badge = "/icons/icon-192.png",
         });
 
         // PushServiceClient is not IDisposable — do not wrap in using.
         var vapidAuth = new VapidAuthentication(publicKey, privateKey) { Subject = subject };
-        var client    = new PushServiceClient { DefaultAuthentication = vapidAuth };
+        var client = new PushServiceClient { DefaultAuthentication = vapidAuth };
 
         var staleEndpoints = new List<string>();
 
@@ -153,12 +152,12 @@ public class PushNotificationService
                 // PushEncryptionKeyName is an enum; use SetKey() rather than dictionary indexer.
                 var subscription = new LibPushSubscription();
                 subscription.Endpoint = sub.Endpoint;
-                subscription.SetKey(PushEncryptionKeyName.Auth,   sub.Auth);
+                subscription.SetKey(PushEncryptionKeyName.Auth, sub.Auth);
                 subscription.SetKey(PushEncryptionKeyName.P256DH, sub.P256dh);
 
                 var message = new PushMessage(payload)
                 {
-                    Topic      = "familysplit-settlement",
+                    Topic = "familysplit-settlement",
                     TimeToLive = 0, // deliver now or discard
                 };
 

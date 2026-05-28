@@ -1,10 +1,10 @@
-using FluentValidation;
 using FamilySplit.Application.Activities.Dtos;
 using FamilySplit.Application.Core;
 using FamilySplit.Application.Exceptions;
 using FamilySplit.Domain.Entities;
 using FamilySplit.Domain.Enums;
 using FamilySplit.Infrastructure;
+using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -29,11 +29,11 @@ public class ActivityService
         ParticipantSeeder seeder,
         ILogger<ActivityService> logger)
     {
-        _db              = db;
+        _db = db;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
-        _seeder          = seeder;
-        _logger          = logger;
+        _seeder = seeder;
+        _logger = logger;
     }
 
     // ── List activities in a group ────────────────────────────────────────────
@@ -81,9 +81,9 @@ public class ActivityService
             .Select(g => new
             {
                 ActivityId = g.Key,
-                Count      = g.Count(),
-                Total      = g.Sum(e => e.TotalAmount),
-                Currency   = g.Min(e => e.Currency)!,
+                Count = g.Count(),
+                Total = g.Sum(e => e.TotalAmount),
+                Currency = g.Min(e => e.Currency)!,
             })
             .ToDictionaryAsync(x => x.ActivityId, ct);
 
@@ -135,14 +135,14 @@ public class ActivityService
 
         var activity = new Activity
         {
-            Id              = Guid.NewGuid(),
-            GroupId         = groupId,
-            Name            = req.Name.Trim(),
-            Description     = req.Description?.Trim(),
+            Id = Guid.NewGuid(),
+            GroupId = groupId,
+            Name = req.Name.Trim(),
+            Description = req.Description?.Trim(),
             CreatedByUserId = callerId,
-            Status          = ActivityStatus.Open,
-            CreatedAt       = DateTimeOffset.UtcNow,
-            UpdatedAt       = DateTimeOffset.UtcNow,
+            Status = ActivityStatus.Open,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
         };
 
         _db.Activities.Add(activity);
@@ -180,15 +180,15 @@ public class ActivityService
 
         var sub = new Activity
         {
-            Id               = Guid.NewGuid(),
-            GroupId          = parent.GroupId,
+            Id = Guid.NewGuid(),
+            GroupId = parent.GroupId,
             ParentActivityId = parentActivityId,
-            Name             = req.Name.Trim(),
-            Description      = req.Description?.Trim(),
-            CreatedByUserId  = callerId,
-            Status           = ActivityStatus.Open,
-            CreatedAt        = DateTimeOffset.UtcNow,
-            UpdatedAt        = DateTimeOffset.UtcNow,
+            Name = req.Name.Trim(),
+            Description = req.Description?.Trim(),
+            CreatedByUserId = callerId,
+            Status = ActivityStatus.Open,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
         };
 
         _db.Activities.Add(sub);
@@ -217,9 +217,9 @@ public class ActivityService
         if (activity.Status != ActivityStatus.Open)
             throw Throw422("Status", "Only open activities can be edited.");
 
-        activity.Name        = req.Name.Trim();
+        activity.Name = req.Name.Trim();
         activity.Description = req.Description?.Trim();
-        activity.UpdatedAt   = DateTimeOffset.UtcNow;
+        activity.UpdatedAt = DateTimeOffset.UtcNow;
 
         await _db.SaveChangesAsync(ct);
 
@@ -260,16 +260,16 @@ public class ActivityService
 
         foreach (var sub in openSubs)
         {
-            sub.Status         = ActivityStatus.AbsorbedByParent;
-            sub.ClosedAt       = now;
+            sub.Status = ActivityStatus.AbsorbedByParent;
+            sub.ClosedAt = now;
             sub.ClosedByUserId = callerId;
-            sub.UpdatedAt      = now;
+            sub.UpdatedAt = now;
         }
 
-        activity.Status        = ActivityStatus.Closed;
-        activity.ClosedAt      = now;
+        activity.Status = ActivityStatus.Closed;
+        activity.ClosedAt = now;
         activity.ClosedByUserId = callerId;
-        activity.UpdatedAt     = now;
+        activity.UpdatedAt = now;
 
         await _db.SaveChangesAsync(ct);
 
@@ -315,8 +315,8 @@ public class ActivityService
 
         _db.ActivityParticipants.Add(new ActivityParticipant
         {
-            Id             = Guid.NewGuid(),
-            ActivityId     = activityId,
+            Id = Guid.NewGuid(),
+            ActivityId = activityId,
             FamilyMemberId = req.FamilyMemberId,
         });
 
@@ -408,10 +408,10 @@ public class ActivityService
             // Reconstruct a lightweight member shell for WeightCalculator.
             var shell = new FamilyMember
             {
-                Id             = p.FamilyMemberId,
-                DisplayName    = p.DisplayName,
-                FamilyId       = p.FamilyId,
-                DateOfBirth    = p.DateOfBirth,
+                Id = p.FamilyMemberId,
+                DisplayName = p.DisplayName,
+                FamilyId = p.FamilyId,
+                DateOfBirth = p.DateOfBirth,
                 WeightOverride = p.WeightOverride,
             };
             return new ActivityParticipantDto(
@@ -455,9 +455,9 @@ public class ActivityService
                     .Select(g => new
                     {
                         ActivityId = g.Key,
-                        Count      = g.Count(),
-                        Total      = g.Sum(e => e.TotalAmount),
-                        Currency   = g.Min(e => e.Currency)!,
+                        Count = g.Count(),
+                        Total = g.Sum(e => e.TotalAmount),
+                        Currency = g.Min(e => e.Currency)!,
                     })
                     .ToDictionaryAsync(
                         x => x.ActivityId,

@@ -12,10 +12,10 @@ public static class AuthReducers
     public static AuthState OnSuccess(AuthState state, CheckAuthSuccessAction action) =>
         state with
         {
-            IsLoading       = false,
+            IsLoading = false,
             IsAuthenticated = true,
-            IsGlobalAdmin   = action.User.IsGlobalAdmin,
-            CurrentUser     = action.User
+            IsGlobalAdmin = action.User.IsGlobalAdmin,
+            CurrentUser = action.User
         };
 
     [ReducerMethod(typeof(CheckAuthNotAuthenticatedAction))]

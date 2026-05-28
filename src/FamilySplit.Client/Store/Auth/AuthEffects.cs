@@ -1,16 +1,16 @@
-using Fluxor;
 using FamilySplit.Client.Services;
+using Fluxor;
 
 namespace FamilySplit.Client.Store.Auth;
 
 public class AuthEffects
 {
     private readonly AuthService _auth;
-    private readonly IWhoAmIApi  _whoAmI;
+    private readonly IWhoAmIApi _whoAmI;
 
     public AuthEffects(AuthService auth, IWhoAmIApi whoAmI)
     {
-        _auth   = auth;
+        _auth = auth;
         _whoAmI = whoAmI;
     }
 

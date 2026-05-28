@@ -13,8 +13,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.ResponseCompression;
-using Microsoft.IdentityModel.Tokens;
 using Microsoft.IdentityModel.JsonWebTokens;
+using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 using Serilog;
 
@@ -26,7 +26,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseDefaultServiceProvider(options =>
 {
     options.ValidateOnBuild = true;
-    options.ValidateScopes  = true;
+    options.ValidateScopes = true;
 });
 
 // Remove the default "Server: Kestrel" response header to avoid advertising
@@ -95,10 +95,10 @@ builder.Services.AddRateLimiter(options =>
             partitionKey: ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit          = 300,
-                Window               = TimeSpan.FromMinutes(1),
+                PermitLimit = 300,
+                Window = TimeSpan.FromMinutes(1),
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit           = 0,
+                QueueLimit = 0,
             }));
 
     options.AddPolicy("auth", ctx =>
@@ -106,18 +106,18 @@ builder.Services.AddRateLimiter(options =>
             partitionKey: ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             factory: _ => new SlidingWindowRateLimiterOptions
             {
-                PermitLimit          = 20,
-                Window               = TimeSpan.FromMinutes(1),
-                SegmentsPerWindow    = 4,        // 15-second resolution
+                PermitLimit = 20,
+                Window = TimeSpan.FromMinutes(1),
+                SegmentsPerWindow = 4,        // 15-second resolution
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit           = 0,
+                QueueLimit = 0,
             }));
 
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
     options.OnRejected = async (ctx, ct) =>
     {
-        ctx.HttpContext.Response.StatusCode  = StatusCodes.Status429TooManyRequests;
+        ctx.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
         ctx.HttpContext.Response.ContentType = "application/json";
 
         if (ctx.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
@@ -142,10 +142,10 @@ builder.Services.AddHttpClient("google-oauth", c =>
 })
 .AddStandardResilienceHandler(o =>
 {
-    o.Retry.MaxRetryAttempts     = 2;
-    o.Retry.UseJitter            = true;
-    o.Retry.Delay                = TimeSpan.FromMilliseconds(300);
-    o.AttemptTimeout.Timeout     = TimeSpan.FromSeconds(12);
+    o.Retry.MaxRetryAttempts = 2;
+    o.Retry.UseJitter = true;
+    o.Retry.Delay = TimeSpan.FromMilliseconds(300);
+    o.AttemptTimeout.Timeout = TimeSpan.FromSeconds(12);
     o.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(35);
 });
 
@@ -159,7 +159,7 @@ var signingKey = jwt["SigningKey"]
     ?? throw new InvalidOperationException("Missing config Jwt:SigningKey. Set via user-secrets or env.");
 if (Encoding.UTF8.GetByteCount(signingKey) < 32)
     throw new InvalidOperationException("Jwt:SigningKey must be at least 32 bytes (256 bits) for HMAC-SHA256.");
-var issuer   = jwt["Issuer"]   ?? "familysplit";
+var issuer = jwt["Issuer"] ?? "familysplit";
 var audience = jwt["Audience"] ?? "familysplit-client";
 
 builder.Services

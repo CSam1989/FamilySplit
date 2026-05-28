@@ -1,9 +1,9 @@
-using FluentValidation;
 using FamilySplit.Application.Core;
 using FamilySplit.Application.Exceptions;
 using FamilySplit.Application.Families.Dtos;
 using FamilySplit.Domain.Entities;
 using FamilySplit.Infrastructure;
+using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -67,7 +67,7 @@ public class FamilyService
         var family = await _db.Families.FindAsync([member.FamilyId], ct)
             ?? throw Forbidden();
 
-        family.Name      = req.Name.Trim();
+        family.Name = req.Name.Trim();
         family.UpdatedAt = DateTimeOffset.UtcNow;
         await _db.SaveChangesAsync(ct);
 
@@ -99,16 +99,16 @@ public class FamilyService
 
         var member = new FamilyMember
         {
-            Id             = Guid.NewGuid(),
-            FamilyId       = caller.FamilyId,
-            Email          = emailNorm,
-            UserId         = null,
-            IsAdmin        = req.IsAdmin,
-            DisplayName    = req.DisplayName.Trim(),
-            DateOfBirth    = req.DateOfBirth,
+            Id = Guid.NewGuid(),
+            FamilyId = caller.FamilyId,
+            Email = emailNorm,
+            UserId = null,
+            IsAdmin = req.IsAdmin,
+            DisplayName = req.DisplayName.Trim(),
+            DateOfBirth = req.DateOfBirth,
             WeightOverride = req.WeightOverride,
-            IsActive       = true,
-            CreatedAt      = DateTimeOffset.UtcNow
+            IsActive = true,
+            CreatedAt = DateTimeOffset.UtcNow
         };
 
         // Auto-link if a User with this email already exists. User.Email is
@@ -164,9 +164,9 @@ public class FamilyService
                 throw Throw422("Email", "A family member with this email already exists.");
         }
 
-        member.DisplayName    = req.DisplayName.Trim();
-        member.Email          = emailNorm;
-        member.DateOfBirth    = req.DateOfBirth;
+        member.DisplayName = req.DisplayName.Trim();
+        member.Email = emailNorm;
+        member.DateOfBirth = req.DateOfBirth;
         member.WeightOverride = req.WeightOverride;
         // Only family admins may change the IsAdmin flag; non-admins editing their
         // own profile cannot self-elevate or self-demote.
@@ -235,17 +235,17 @@ public class FamilyService
     }
 
     internal static FamilyMemberDto ToDto(FamilyMember m, DateOnly asOfDate) => new(
-        Id:             m.Id,
-        DisplayName:    m.DisplayName,
-        Email:          m.Email,
-        DateOfBirth:    m.DateOfBirth,
+        Id: m.Id,
+        DisplayName: m.DisplayName,
+        Email: m.Email,
+        DateOfBirth: m.DateOfBirth,
         WeightOverride: m.WeightOverride,
-        CurrentWeight:  WeightCalculator.GetWeight(m, asOfDate),
-        CurrentTier:    WeightCalculator.GetTier(m, asOfDate),
-        IsActive:       m.IsActive,
-        IsLinked:       m.UserId is not null,
-        IsAdmin:        m.IsAdmin,
-        CreatedAt:      m.CreatedAt);
+        CurrentWeight: WeightCalculator.GetWeight(m, asOfDate),
+        CurrentTier: WeightCalculator.GetTier(m, asOfDate),
+        IsActive: m.IsActive,
+        IsLinked: m.UserId is not null,
+        IsAdmin: m.IsAdmin,
+        CreatedAt: m.CreatedAt);
 
     private static ForbiddenException Forbidden() => new();
     private static ValidationException Throw422(string field, string message) =>

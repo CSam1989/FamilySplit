@@ -28,7 +28,7 @@ public class AuditService
 
     public AuditService(AppDbContext db, ILogger<AuditService> logger)
     {
-        _db     = db;
+        _db = db;
         _logger = logger;
     }
 
@@ -41,13 +41,13 @@ public class AuditService
     {
         var entry = new AuditLog
         {
-            Id         = Guid.NewGuid(),
-            UserId     = userId,
+            Id = Guid.NewGuid(),
+            UserId = userId,
             EntityType = entityType,
-            EntityId   = entityId,
-            Action     = action,
-            Metadata   = metadata is null ? null : JsonSerializer.Serialize(metadata, JsonOpts),
-            Timestamp  = DateTimeOffset.UtcNow,
+            EntityId = entityId,
+            Action = action,
+            Metadata = metadata is null ? null : JsonSerializer.Serialize(metadata, JsonOpts),
+            Timestamp = DateTimeOffset.UtcNow,
         };
 
         _db.AuditLogs.Add(entry);

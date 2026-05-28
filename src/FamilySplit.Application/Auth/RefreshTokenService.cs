@@ -82,13 +82,13 @@ public class RefreshTokenService
 
         var entity = new RefreshToken
         {
-            Id            = Guid.NewGuid(),
-            UserId        = userId,
-            TokenHash     = hash,
-            CreatedAt     = now,
-            ExpiresAt     = now + TokenLifetime,
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            TokenHash = hash,
+            CreatedAt = now,
+            ExpiresAt = now + TokenLifetime,
             CreatedFromIp = Trim(ip, 45),
-            UserAgent     = Trim(userAgent, 512),
+            UserAgent = Trim(userAgent, 512),
         };
 
         _db.RefreshTokens.Add(entity);
@@ -187,17 +187,17 @@ public class RefreshTokenService
         var (newSecret, newHash) = NewSecret();
         var replacement = new RefreshToken
         {
-            Id            = Guid.NewGuid(),
-            UserId        = existing.UserId,
-            TokenHash     = newHash,
-            CreatedAt     = now,
-            ExpiresAt     = now + TokenLifetime,
+            Id = Guid.NewGuid(),
+            UserId = existing.UserId,
+            TokenHash = newHash,
+            CreatedAt = now,
+            ExpiresAt = now + TokenLifetime,
             CreatedFromIp = Trim(ip, 45),
-            UserAgent     = Trim(userAgent, 512),
+            UserAgent = Trim(userAgent, 512),
         };
         _db.RefreshTokens.Add(replacement);
 
-        existing.RevokedAt         = now;
+        existing.RevokedAt = now;
         existing.ReplacedByTokenId = replacement.Id;
 
         await _db.SaveChangesAsync(ct);
@@ -244,8 +244,8 @@ public class RefreshTokenService
         var cutoff = DateTimeOffset.UtcNow - TimeSpan.FromDays(retentionDays);
 
         var deleted = await _db.RefreshTokens
-            .Where(t => (t.RevokedAt != null  && t.RevokedAt  < cutoff)
-                     || (t.RevokedAt == null   && t.ExpiresAt  < cutoff))
+            .Where(t => (t.RevokedAt != null && t.RevokedAt < cutoff)
+                     || (t.RevokedAt == null && t.ExpiresAt < cutoff))
             .ExecuteDeleteAsync(ct);
 
         if (deleted > 0)

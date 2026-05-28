@@ -21,7 +21,7 @@ public class NotificationHub : Hub
 
     public NotificationHub(AppDbContext db, ILogger<NotificationHub> logger)
     {
-        _db     = db;
+        _db = db;
         _logger = logger;
     }
 

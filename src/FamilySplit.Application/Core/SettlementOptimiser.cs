@@ -22,7 +22,7 @@ public static class SettlementOptimiser
     public static List<Transfer> Optimise(Dictionary<Guid, decimal> balances)
     {
         // Work on mutable copies, ignoring near-zero residuals.
-        var debtors   = balances
+        var debtors = balances
             .Where(kv => kv.Value < -Epsilon)
             .Select(kv => (FamilyId: kv.Key, Balance: kv.Value))
             .OrderBy(x => x.Balance)      // most negative first
@@ -39,12 +39,12 @@ public static class SettlementOptimiser
         int di = 0, ci = 0;
 
         // Use arrays for fast in-place balance mutation.
-        var debtorBal   = debtors.Select(x => x.Balance).ToArray();
+        var debtorBal = debtors.Select(x => x.Balance).ToArray();
         var creditorBal = creditors.Select(x => x.Balance).ToArray();
 
         while (di < debtors.Count && ci < creditors.Count)
         {
-            var debtAmt   = -debtorBal[di];   // positive amount owed
+            var debtAmt = -debtorBal[di];   // positive amount owed
             var creditAmt = creditorBal[ci];  // positive amount due
 
             var transfer = Math.Round(Math.Min(debtAmt, creditAmt), 2, MidpointRounding.AwayFromZero);
@@ -54,7 +54,7 @@ public static class SettlementOptimiser
                 creditors[ci].FamilyId,
                 transfer));
 
-            debtorBal[di]   += transfer;
+            debtorBal[di] += transfer;
             creditorBal[ci] -= transfer;
 
             if (Math.Abs(debtorBal[di]) < Epsilon) di++;

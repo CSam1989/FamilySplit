@@ -17,7 +17,7 @@ namespace FamilySplit.Client.Services;
 public class NotificationHubConnection : IAsyncDisposable
 {
     private readonly IConfiguration _config;
-    private readonly AuthService    _authService;
+    private readonly AuthService _authService;
     private readonly ILogger<NotificationHubConnection> _logger;
 
     private HubConnection? _hub;
@@ -29,12 +29,12 @@ public class NotificationHubConnection : IAsyncDisposable
 
     public NotificationHubConnection(
         IConfiguration config,
-        AuthService    authService,
+        AuthService authService,
         ILogger<NotificationHubConnection> logger)
     {
-        _config      = config;
+        _config = config;
         _authService = authService;
-        _logger      = logger;
+        _logger = logger;
     }
 
     // ── Connect ───────────────────────────────────────────────────────────────
@@ -51,7 +51,7 @@ public class NotificationHubConnection : IAsyncDisposable
         }
 
         var baseUrl = _config["Api:BaseUrl"] ?? "https://localhost:5081";
-        var hubUrl  = $"{baseUrl.TrimEnd('/')}/hubs/notifications";
+        var hubUrl = $"{baseUrl.TrimEnd('/')}/hubs/notifications";
 
         _hub = new HubConnectionBuilder()
             .WithUrl(hubUrl, options =>

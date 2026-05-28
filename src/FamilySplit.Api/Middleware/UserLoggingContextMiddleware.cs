@@ -27,7 +27,7 @@ public class UserLoggingContextMiddleware
         // sub is the User.Id (Guid).  email is optional — may be absent on some flows.
         var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier)
                      ?? context.User.FindFirstValue("sub");
-        var email  = context.User.FindFirstValue(ClaimTypes.Email)
+        var email = context.User.FindFirstValue(ClaimTypes.Email)
                      ?? context.User.FindFirstValue("email");
 
         // PushProperty adds the value to every log entry emitted while _next executes.

@@ -1,6 +1,6 @@
-using Fluxor;
 using FamilySplit.Client.Services;
 using FamilySplit.Client.Store.Activities;
+using Fluxor;
 using Microsoft.Extensions.Logging;
 
 namespace FamilySplit.Client.Store.Settlements;

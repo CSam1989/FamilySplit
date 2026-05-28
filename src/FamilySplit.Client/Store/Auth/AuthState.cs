@@ -1,5 +1,5 @@
-using Fluxor;
 using FamilySplit.Client.Services;
+using Fluxor;
 
 namespace FamilySplit.Client.Store.Auth;
 
@@ -7,8 +7,8 @@ namespace FamilySplit.Client.Store.Auth;
 public record AuthState
 {
     public bool IsAuthenticated { get; init; }
-    public bool IsGlobalAdmin   { get; init; }
+    public bool IsGlobalAdmin { get; init; }
     public WhoAmIResponse? CurrentUser { get; init; }
-    public bool IsLoading  { get; init; }
-    public string? Error   { get; init; }
+    public bool IsLoading { get; init; }
+    public string? Error { get; init; }
 }

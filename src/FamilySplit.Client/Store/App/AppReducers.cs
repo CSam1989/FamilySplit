@@ -8,9 +8,9 @@ public static class AppReducers
     public static AppState OnSetLastUsedActivity(AppState state, SetLastUsedActivityAction action) =>
         state with
         {
-            LastUsedGroupId      = action.GroupId,
-            LastUsedActivityId   = action.ActivityId,
+            LastUsedGroupId = action.GroupId,
+            LastUsedActivityId = action.ActivityId,
             LastUsedActivityName = action.ActivityName,
-            LastUsedGroupName    = action.GroupName,
+            LastUsedGroupName = action.GroupName,
         };
 }

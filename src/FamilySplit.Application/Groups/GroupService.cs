@@ -1,4 +1,3 @@
-using FluentValidation;
 using FamilySplit.Application.Core;
 using FamilySplit.Application.Exceptions;
 using FamilySplit.Application.Families;
@@ -6,6 +5,7 @@ using FamilySplit.Application.Groups.Dtos;
 using FamilySplit.Domain.Entities;
 using FamilySplit.Domain.Enums;
 using FamilySplit.Infrastructure;
+using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -101,21 +101,21 @@ public class GroupService
 
         var group = new Group
         {
-            Id              = Guid.NewGuid(),
-            Name            = req.Name.Trim(),
-            Description     = req.Description?.Trim(),
-            InviteCode      = GenerateInviteCode(),
+            Id = Guid.NewGuid(),
+            Name = req.Name.Trim(),
+            Description = req.Description?.Trim(),
+            InviteCode = GenerateInviteCode(),
             CreatedByUserId = callerId,
-            CreatedAt       = DateTimeOffset.UtcNow,
-            UpdatedAt       = DateTimeOffset.UtcNow,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
         };
 
         var adminGroupFamily = new GroupFamily
         {
-            Id       = Guid.NewGuid(),
-            GroupId  = group.Id,
+            Id = Guid.NewGuid(),
+            GroupId = group.Id,
             FamilyId = callerFamilyId,
-            Role     = MemberRole.Admin,
+            Role = MemberRole.Admin,
             JoinedAt = DateTimeOffset.UtcNow,
         };
 
@@ -140,9 +140,9 @@ public class GroupService
         var group = await _db.Groups.FindAsync([groupId], ct)
             ?? throw NotFound();
 
-        group.Name        = req.Name.Trim();
+        group.Name = req.Name.Trim();
         group.Description = req.Description?.Trim();
-        group.UpdatedAt   = DateTimeOffset.UtcNow;
+        group.UpdatedAt = DateTimeOffset.UtcNow;
 
         await _db.SaveChangesAsync(ct);
 
@@ -176,10 +176,10 @@ public class GroupService
 
         var groupFamily = new GroupFamily
         {
-            Id       = Guid.NewGuid(),
-            GroupId  = group.Id,
+            Id = Guid.NewGuid(),
+            GroupId = group.Id,
             FamilyId = callerFamilyId,
-            Role     = MemberRole.Member,
+            Role = MemberRole.Member,
             JoinedAt = DateTimeOffset.UtcNow,
         };
 
@@ -235,7 +235,7 @@ public class GroupService
             ?? throw NotFound();
 
         group.InviteCode = GenerateInviteCode();
-        group.UpdatedAt  = DateTimeOffset.UtcNow;
+        group.UpdatedAt = DateTimeOffset.UtcNow;
 
         await _db.SaveChangesAsync(ct);
 

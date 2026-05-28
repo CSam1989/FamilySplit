@@ -61,14 +61,14 @@ public static class ErrorHelper
 
         return api.StatusCode switch
         {
-            HttpStatusCode.Forbidden           => "You don't have permission to do this.",
-            HttpStatusCode.Unauthorized        => "Your session has expired. Please log in again.",
-            HttpStatusCode.NotFound            => "The requested item could not be found.",
+            HttpStatusCode.Forbidden => "You don't have permission to do this.",
+            HttpStatusCode.Unauthorized => "Your session has expired. Please log in again.",
+            HttpStatusCode.NotFound => "The requested item could not be found.",
             HttpStatusCode.UnprocessableEntity => "The request was invalid. Please check your input.",
-            HttpStatusCode.Conflict            => "This conflicts with existing data. Please review and try again.",
-            HttpStatusCode.TooManyRequests     => "Too many requests. Please wait a moment and try again.",
+            HttpStatusCode.Conflict => "This conflicts with existing data. Please review and try again.",
+            HttpStatusCode.TooManyRequests => "Too many requests. Please wait a moment and try again.",
             HttpStatusCode.InternalServerError => "A server error occurred. Please try again later.",
-            HttpStatusCode.ServiceUnavailable  => "The service is temporarily unavailable. Please try again later.",
+            HttpStatusCode.ServiceUnavailable => "The service is temporarily unavailable. Please try again later.",
             _ => "Something went wrong. Please try again."
         };
     }

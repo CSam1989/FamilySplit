@@ -19,8 +19,8 @@ public static class PushEndpoints
 
         // ── POST /push/subscribe ───────────────────────────────────────────
         group.MapPost("/subscribe", async (
-            [FromBody]   SubscribeRequest req,
-            HttpContext  ctx,
+            [FromBody] SubscribeRequest req,
+            HttpContext ctx,
             PushNotificationService svc,
             CancellationToken ct) =>
         {
@@ -31,8 +31,8 @@ public static class PushEndpoints
 
         // ── DELETE /push/unsubscribe ───────────────────────────────────────
         group.MapDelete("/unsubscribe", async (
-            [FromBody]   UnsubscribeRequest req,
-            HttpContext  ctx,
+            [FromBody] UnsubscribeRequest req,
+            HttpContext ctx,
             PushNotificationService svc,
             CancellationToken ct) =>
         {

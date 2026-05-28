@@ -1,14 +1,14 @@
 using FamilySplit.Client;
 using FamilySplit.Client.Services;
 using FamilySplit.Client.Store.Activities;
-using FamilySplit.Client.Store.Expenses;
-using FamilySplit.Client.Store.Settlements;
 using FamilySplit.Client.Store.Admin;
 using FamilySplit.Client.Store.Auth;
+using FamilySplit.Client.Store.Dashboard;
+using FamilySplit.Client.Store.Expenses;
 using FamilySplit.Client.Store.Family;
 using FamilySplit.Client.Store.FamilyMembers;
 using FamilySplit.Client.Store.Groups;
-using FamilySplit.Client.Store.Dashboard;
+using FamilySplit.Client.Store.Settlements;
 using Fluxor;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
@@ -72,7 +72,7 @@ builder.Services.AddRefitClient<IHealthApi>(refitSettings)
     .ConfigureHttpClient(c =>
     {
         c.BaseAddress = apiBaseUri;
-        c.Timeout     = TimeSpan.FromSeconds(10);
+        c.Timeout = TimeSpan.FromSeconds(10);
     });
 
 // Authenticated APIs — attach Bearer token from AuthService via JwtAuthHandler.
@@ -120,9 +120,9 @@ void AddAuthedClient<TClient>() where TClient : class
         //   • AttemptTimeout       — per-attempt deadline
         .AddStandardResilienceHandler(o =>
         {
-            o.Retry.MaxRetryAttempts      = 2;       // 3 total attempts
-            o.Retry.UseJitter             = true;    // spread retries across clients
-            o.AttemptTimeout.Timeout      = TimeSpan.FromSeconds(15);
+            o.Retry.MaxRetryAttempts = 2;       // 3 total attempts
+            o.Retry.UseJitter = true;    // spread retries across clients
+            o.AttemptTimeout.Timeout = TimeSpan.FromSeconds(15);
             o.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(40);
         });
 }

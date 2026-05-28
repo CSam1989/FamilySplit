@@ -10,7 +10,7 @@ public interface INotificationService
     /// Sends a settlement notification to all connected members of the target family.
     /// </summary>
     Task NotifyFamilyAsync(
-        Guid   targetFamilyId,
+        Guid targetFamilyId,
         string title,
         string message,
         string? url = null,

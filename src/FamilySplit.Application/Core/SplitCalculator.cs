@@ -49,7 +49,7 @@ public class SplitCalculator
             if (p.WeightSnapshot > maxWeight)
             {
                 maxWeight = p.WeightSnapshot;
-                heaviest  = p;
+                heaviest = p;
             }
         }
 

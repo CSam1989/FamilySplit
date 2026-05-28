@@ -58,7 +58,7 @@ public static class SettlementEndpoints
             async (SettlementService svc, HttpContext ctx, CancellationToken ct) =>
             {
                 var callerId = ctx.User.GetUserId();
-                var result   = await svc.ListMyPendingAsync(callerId, ct);
+                var result = await svc.ListMyPendingAsync(callerId, ct);
                 return Results.Ok(result);
             })
             .WithTags("Settlements");
@@ -68,7 +68,7 @@ public static class SettlementEndpoints
             async (Guid groupId, SettlementService svc, HttpContext ctx, CancellationToken ct) =>
             {
                 var callerId = ctx.User.GetUserId();
-                var result   = await svc.ListForGroupAsync(groupId, callerId, ct);
+                var result = await svc.ListForGroupAsync(groupId, callerId, ct);
                 return Results.Ok(result);
             })
             .WithTags("Settlements");
