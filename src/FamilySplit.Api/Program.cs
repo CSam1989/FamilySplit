@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Security.Claims;
 using System.Text;
+using System.Threading.RateLimiting;
 using FamilySplit.Api.Auth;
 using FamilySplit.Api.Endpoints;
 using FamilySplit.Api.Hubs;
@@ -80,12 +81,72 @@ builder.Services.AddResponseCompression(o =>
 builder.Services.Configure<BrotliCompressionProviderOptions>(o => o.Level = CompressionLevel.Fastest);
 builder.Services.Configure<GzipCompressionProviderOptions>(o => o.Level = CompressionLevel.Fastest);
 
+// --- Rate limiting ----------------------------------------------------------------
+// Two-tier protection:
+//   • Global per-IP fixed window   — blanket safety net (300 req/min).
+//   • Named "auth" sliding window  — tighter per-IP limit on auth endpoints
+//     to slow brute-force and credential-stuffing (20 req/min, 15-s buckets).
+//     20/min comfortably covers multi-tab silent refreshes while still being
+//     far too low for any meaningful automated attack.
+builder.Services.AddRateLimiter(options =>
+{
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(ctx =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit          = 300,
+                Window               = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit           = 0,
+            }));
+
+    options.AddPolicy("auth", ctx =>
+        RateLimitPartition.GetSlidingWindowLimiter(
+            partitionKey: ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new SlidingWindowRateLimiterOptions
+            {
+                PermitLimit          = 20,
+                Window               = TimeSpan.FromMinutes(1),
+                SegmentsPerWindow    = 4,        // 15-second resolution
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit           = 0,
+            }));
+
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.OnRejected = async (ctx, ct) =>
+    {
+        ctx.HttpContext.Response.StatusCode  = StatusCodes.Status429TooManyRequests;
+        ctx.HttpContext.Response.ContentType = "application/json";
+
+        if (ctx.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+        {
+            ctx.HttpContext.Response.Headers.RetryAfter =
+                ((int)retryAfter.TotalSeconds).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        await ctx.HttpContext.Response.WriteAsync(
+            """{"title":"Too many requests","status":429}""", ct);
+    };
+});
+
 // --- HTTP client factory (needed by OAuthHandler for token exchange) -------------
-// Named client lets us bound the upstream call so a slow Google response can't
-// pin a request thread for minutes on end.
+// Timeout is delegated entirely to the resilience pipeline below, so we use
+// InfiniteTimeSpan here — the TotalRequestTimeout handler acts as the backstop.
+// Two retries handle transient Google 5xx/network blips without hammering the
+// endpoint; exponential backoff with jitter avoids synchronized retry storms.
 builder.Services.AddHttpClient("google-oauth", c =>
 {
-    c.Timeout = TimeSpan.FromSeconds(15);
+    c.Timeout = System.Threading.Timeout.InfiniteTimeSpan;
+})
+.AddStandardResilienceHandler(o =>
+{
+    o.Retry.MaxRetryAttempts     = 2;
+    o.Retry.UseJitter            = true;
+    o.Retry.Delay                = TimeSpan.FromMilliseconds(300);
+    o.AttemptTimeout.Timeout     = TimeSpan.FromSeconds(12);
+    o.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(35);
 });
 
 // --- Application + Infrastructure -------------------------------------------------
@@ -201,6 +262,7 @@ app.UseResponseCompression();
 app.UseSerilogRequestLogging();
 app.UseMiddleware<ValidationExceptionMiddleware>();
 app.UseCors("ClientApp");
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 // Enriches Serilog log entries with the authenticated caller's UserId and

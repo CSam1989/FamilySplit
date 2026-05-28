@@ -66,9 +66,14 @@ var apiBaseUri = new Uri(builder.Configuration["Api:BaseUrl"] ?? "https://localh
 // the JsonSerializerOptions for every registration on cold start.
 var refitSettings = new RefitSettings();
 
-// Public API — no auth header, no credentials.
+// Public API — no auth header, no credentials. Short explicit timeout since
+// a health check that doesn't respond in 10 s is itself a failure signal.
 builder.Services.AddRefitClient<IHealthApi>(refitSettings)
-    .ConfigureHttpClient(c => c.BaseAddress = apiBaseUri);
+    .ConfigureHttpClient(c =>
+    {
+        c.BaseAddress = apiBaseUri;
+        c.Timeout     = TimeSpan.FromSeconds(10);
+    });
 
 // Authenticated APIs — attach Bearer token from AuthService via JwtAuthHandler.
 AddAuthedClient<IWhoAmIApi>();
@@ -84,6 +89,8 @@ AddAuthedClient<IPushClient>();
 
 // Auth API (refresh + logout) — needs credentials=include so the HttpOnly
 // refresh cookie is attached on every call.
+// No resilience handler here: POST /auth/refresh rotates the token row and is
+// NOT idempotent — retrying a failed rotation could trigger theft-detection.
 builder.Services.AddRefitClient<IAuthApi>(refitSettings)
     .ConfigureHttpClient(c => c.BaseAddress = apiBaseUri)
     .AddHttpMessageHandler<IncludeCredentialsHandler>();
@@ -93,6 +100,29 @@ await builder.Build().RunAsync();
 void AddAuthedClient<TClient>() where TClient : class
 {
     builder.Services.AddRefitClient<TClient>(refitSettings)
-        .ConfigureHttpClient(c => c.BaseAddress = apiBaseUri)
-        .AddHttpMessageHandler<JwtAuthHandler>();
+        .ConfigureHttpClient(c =>
+        {
+            c.BaseAddress = apiBaseUri;
+            // Disable the default 100-s HttpClient timeout — the resilience
+            // pipeline's TotalRequestTimeout acts as the authoritative deadline.
+            c.Timeout = System.Threading.Timeout.InfiniteTimeSpan;
+        })
+        // JwtAuthHandler is outermost: it attaches the Bearer token and handles
+        // 401 by refreshing once and retrying. It wraps the resilience pipeline
+        // so transient 5xx failures are retried before JwtAuthHandler ever sees
+        // them — no unnecessary token refreshes for server-side blips.
+        .AddHttpMessageHandler<JwtAuthHandler>()
+        // Standard resilience pipeline (Polly v8 under the hood):
+        //   • TotalRequestTimeout  — overall deadline including all retries
+        //   • Retry                — exponential back-off with jitter on 5xx /
+        //                           network errors / 408 / 429; never on 4xx
+        //   • CircuitBreaker       — stops hammering an unavailable server
+        //   • AttemptTimeout       — per-attempt deadline
+        .AddStandardResilienceHandler(o =>
+        {
+            o.Retry.MaxRetryAttempts      = 2;       // 3 total attempts
+            o.Retry.UseJitter             = true;    // spread retries across clients
+            o.AttemptTimeout.Timeout      = TimeSpan.FromSeconds(15);
+            o.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(40);
+        });
 }

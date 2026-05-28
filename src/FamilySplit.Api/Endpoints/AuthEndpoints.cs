@@ -19,7 +19,7 @@ public static class AuthEndpoints
 
     public static IEndpointRouteBuilder MapAuthEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/auth").AllowAnonymous();
+        var group = app.MapGroup("/auth").AllowAnonymous().RequireRateLimiting("auth");
 
         // -----------------------------------------------------------------------------
         // GET /auth/login/Google

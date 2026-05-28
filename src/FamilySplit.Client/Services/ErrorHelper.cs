@@ -66,6 +66,7 @@ public static class ErrorHelper
             HttpStatusCode.NotFound            => "The requested item could not be found.",
             HttpStatusCode.UnprocessableEntity => "The request was invalid. Please check your input.",
             HttpStatusCode.Conflict            => "This conflicts with existing data. Please review and try again.",
+            HttpStatusCode.TooManyRequests     => "Too many requests. Please wait a moment and try again.",
             HttpStatusCode.InternalServerError => "A server error occurred. Please try again later.",
             HttpStatusCode.ServiceUnavailable  => "The service is temporarily unavailable. Please try again later.",
             _ => "Something went wrong. Please try again."
