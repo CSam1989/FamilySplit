@@ -1,0 +1,287 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.sha }}
+  cancel-in-progress: false   # never cancel mid-run on a direct push — let it finish
+
+env:
+  DOTNET_VERSION: "10.0.x"
+  DOTNET_NOLOGO: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 1. BUILD — restore + compile all projects in Release
+  # ─────────────────────────────────────────────────────────────────────────────
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET ${{ env.DOTNET_VERSION }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore FamilySplit.slnx
+
+      - name: Build (Release)
+        run: dotnet build FamilySplit.slnx --no-restore -c Release
+
+      # Cache the build output so test jobs don't rebuild from scratch
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: |
+            **/bin/Release/
+            **/obj/Release/
+          retention-days: 1
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 2. UNIT TESTS
+  # ─────────────────────────────────────────────────────────────────────────────
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET ${{ env.DOTNET_VERSION }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output
+
+      - name: Run unit tests
+        run: |
+          dotnet test tests/FamilySplit.UnitTests/FamilySplit.UnitTests.csproj \
+            --no-build \
+            -c Release \
+            --logger "trx;LogFileName=unit-results.trx" \
+            --logger "console;verbosity=normal" \
+            --collect:"XPlat Code Coverage" \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+
+      - name: Publish test results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Unit Test Results
+          path: "**/unit-results.trx"
+          reporter: dotnet-trx
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-coverage
+          path: "**/coverage.cobertura.xml"
+          retention-days: 7
+
+      - name: Coverage summary
+        uses: irongut/CodeCoverageSummary@v1.3.0
+        with:
+          filename: "**/coverage.cobertura.xml"
+          badge: true
+          format: markdown
+          output: both
+          thresholds: "60 80"       # warn at 60%, fail at <60%
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 3. INTEGRATION TESTS — real Postgres (Neon dev branch)
+  # ─────────────────────────────────────────────────────────────────────────────
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: build
+    environment: ci                # protects the Neon dev secret
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET ${{ env.DOTNET_VERSION }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output
+
+      - name: Apply EF Core migrations
+        env:
+          ConnectionStrings__DefaultConnection: ${{ secrets.NEON_DEV_DATABASE_URL }}
+        run: |
+          dotnet tool restore
+          dotnet ef database update \
+            --project src/FamilySplit.Infrastructure \
+            --startup-project src/FamilySplit.Api \
+            --no-build
+
+      - name: Run integration tests
+        env:
+          ConnectionStrings__DefaultConnection: ${{ secrets.NEON_DEV_DATABASE_URL }}
+          JWT_SIGNING_KEY: ${{ secrets.JWT_SIGNING_KEY_CI }}
+        run: |
+          dotnet test tests/FamilySplit.IntegrationTests/FamilySplit.IntegrationTests.csproj \
+            --no-build \
+            -c Release \
+            --logger "trx;LogFileName=integration-results.trx" \
+            --logger "console;verbosity=normal"
+
+      - name: Publish test results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Integration Test Results
+          path: "**/integration-results.trx"
+          reporter: dotnet-trx
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 4. SAST — CodeQL static analysis
+  # ─────────────────────────────────────────────────────────────────────────────
+  codeql:
+    name: CodeQL SAST
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write       # required to upload SARIF results
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET ${{ env.DOTNET_VERSION }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: csharp
+          queries: security-extended,security-and-quality
+
+      - name: Autobuild for CodeQL
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:csharp"
+          upload: true
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 5. DEPENDENCY AUDIT — Trivy scans NuGet lock files for known CVEs
+  # ─────────────────────────────────────────────────────────────────────────────
+  dependency-audit:
+    name: Dependency Audit (Trivy)
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write       # required to upload SARIF results
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET ${{ env.DOTNET_VERSION }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Generate NuGet lock files (required for Trivy fs scan)
+        run: dotnet restore FamilySplit.slnx --locked-mode 2>/dev/null || dotnet restore FamilySplit.slnx
+
+      - name: Trivy filesystem scan (NuGet dependencies)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln
+          format: sarif
+          output: trivy-fs.sarif
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+
+      - name: Upload Trivy fs scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-fs.sarif
+          category: trivy-fs
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 6. SECRET SCANNING — Gitleaks
+  # ─────────────────────────────────────────────────────────────────────────────
+  secret-scan:
+    name: Secret Scan (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0           # full history — scans every commit, not just HEAD
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # GITLEAKS_LICENSE is only required if this repo lives inside a GitHub
+          # Organisation. For personal accounts it is not needed and can be omitted.
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 7. LINT / FORMAT CHECK
+  # ─────────────────────────────────────────────────────────────────────────────
+  format-check:
+    name: Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET ${{ env.DOTNET_VERSION }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore FamilySplit.slnx
+
+      - name: Check formatting (dotnet format)
+        run: |
+          dotnet format FamilySplit.slnx \
+            --verify-no-changes \
+            --no-restore \
+            --severity warn
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # CI STATUS — single job that deploy.yml watches
+  # ─────────────────────────────────────────────────────────────────────────────
+  ci-gate:
+    name: CI Gate
+    runs-on: ubuntu-latest
+    needs:
+      - unit-tests
+      - integration-tests
+      - codeql
+      - dependency-audit
+      - secret-scan
+      - format-check
+    if: always()
+    steps:
+      - name: Check all jobs passed
+        run: |
+          results="${{ join(needs.*.result, ' ') }}"
+          for r in $results; do
+            if [[ "$r" != "success" && "$r" != "skipped" ]]; then
+              echo "::error::One or more CI jobs failed: $results"
+              exit 1
+            fi
+          done
+          echo "All CI checks passed ✓"

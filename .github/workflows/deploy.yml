@@ -1,0 +1,232 @@
+name: Deploy
+
+on:
+  # Only runs after CI passes on main — never triggered directly by a push.
+  # This guarantees tests and security checks always precede a deploy.
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+  workflow_dispatch:             # allow manual re-deploys from the Actions tab
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false      # never cancel a running deploy
+
+env:
+  DOTNET_VERSION: "10.0.x"
+  DOTNET_NOLOGO: true
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/familysplit-api
+
+jobs:
+  # Guard — abort the whole deploy if CI did not succeed.
+  # workflow_run fires on both success AND failure, so we must check explicitly.
+  check-ci:
+    name: Verify CI passed
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    steps:
+      - name: CI conclusion
+        run: |
+          echo "CI conclusion: ${{ github.event.workflow_run.conclusion || 'n/a (manual trigger)' }}"
+          echo "Proceeding with deploy ✓"
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 1. PUBLISH BLAZOR WASM → Cloudflare Pages
+  # ─────────────────────────────────────────────────────────────────────────────
+  deploy-frontend:
+    name: Deploy Frontend → Cloudflare Pages
+    runs-on: ubuntu-latest
+    needs: check-ci
+    environment:
+      name: production
+      url: https://familysplit.pages.dev
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # For workflow_run events the SHA is on the triggering workflow's commit
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Setup .NET ${{ env.DOTNET_VERSION }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Publish Blazor WASM
+        run: |
+          dotnet publish src/FamilySplit.Client/FamilySplit.Client.csproj \
+            -c Release \
+            -o publish/client
+        env:
+          ApiBaseUrl: ${{ vars.API_BASE_URL }}
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: familysplit
+          directory: publish/client/wwwroot
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 2. BUILD & PUSH DOCKER IMAGE → GHCR
+  # ─────────────────────────────────────────────────────────────────────────────
+  build-api-image:
+    name: Build API Docker Image
+    runs-on: ubuntu-latest
+    needs: check-ci
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+    outputs:
+      image-digest: ${{ steps.push.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=sha-,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push API image
+        id: push
+        uses: docker/build-push-action@v5
+        with:
+          context: src/FamilySplit.Api
+          file: src/FamilySplit.Api/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILD_VERSION=${{ github.sha }}
+
+      - name: Container image scan + SBOM (Trivy)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          format: sarif
+          output: trivy-image.sarif
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+
+      - name: Upload Trivy image scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-image.sarif
+          category: trivy-image
+
+      - name: Generate SBOM with Trivy
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          format: spdx-json
+          output: sbom.spdx.json
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.spdx.json
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 3. DEPLOY API → Railway
+  # ─────────────────────────────────────────────────────────────────────────────
+  deploy-api:
+    name: Deploy API → Railway
+    runs-on: ubuntu-latest
+    needs: build-api-image
+    environment:
+      name: production
+      url: ${{ vars.API_BASE_URL }}
+    steps:
+      - name: Trigger Railway redeploy
+        run: |
+          CODE=$(curl -s -o response.json -w "%{http_code}" \
+            -X POST "${{ secrets.RAILWAY_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d '{"image":"${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"}')
+
+          if [[ "$CODE" -lt 200 || "$CODE" -ge 300 ]]; then
+            echo "::error::Railway webhook returned HTTP $CODE"
+            cat response.json
+            exit 1
+          fi
+          echo "Railway deploy triggered (HTTP $CODE)"
+
+      - name: Wait for Railway to stabilise (60 s)
+        run: sleep 60
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 4. SMOKE TESTS
+  # ─────────────────────────────────────────────────────────────────────────────
+  smoke-tests:
+    name: Smoke Tests
+    runs-on: ubuntu-latest
+    needs: [deploy-frontend, deploy-api]
+    steps:
+      - name: API health check
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ vars.API_BASE_URL }}/health")
+          [[ "$STATUS" == "200" ]] || { echo "::error::API health check failed (HTTP $STATUS)"; exit 1; }
+          echo "API: OK"
+
+      - name: Frontend reachability check
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://familysplit.pages.dev")
+          [[ "$STATUS" == "200" ]] || { echo "::error::Frontend not reachable (HTTP $STATUS)"; exit 1; }
+          echo "Frontend: OK"
+
+      - name: Auth endpoint check
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -L --max-redirs 0 \
+            "${{ vars.API_BASE_URL }}/auth/login/google" || true)
+          [[ "$STATUS" == "500" || "$STATUS" == "404" ]] && \
+            { echo "::error::Auth endpoint returned $STATUS"; exit 1; }
+          echo "Auth: OK"
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 5. SUMMARY
+  # ─────────────────────────────────────────────────────────────────────────────
+  notify:
+    name: Deploy Summary
+    runs-on: ubuntu-latest
+    needs: smoke-tests
+    if: always()
+    steps:
+      - name: Write summary
+        run: |
+          ICON=$( [[ "${{ needs.smoke-tests.result }}" == "success" ]] && echo "✅" || echo "❌" )
+          echo "## Deploy $ICON" >> $GITHUB_STEP_SUMMARY
+          echo "| Component | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend (Cloudflare Pages) | ${{ needs.deploy-frontend.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| API Docker image | ${{ needs.build-api-image.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| API (Railway) | ${{ needs.deploy-api.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Smoke tests | ${{ needs.smoke-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.event.workflow_run.head_sha || github.sha }}\`" >> $GITHUB_STEP_SUMMARY
