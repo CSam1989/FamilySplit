@@ -13,7 +13,6 @@ public static class AdminEndpoints
     public static WebApplication MapAdminEndpoints(this WebApplication app)
     {
         var grp = app.MapGroup("/admin")
-            .RequireAuthorization()
             .WithTags("Admin");
 
         // GET /admin/families — list all families

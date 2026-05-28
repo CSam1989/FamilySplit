@@ -11,7 +11,6 @@ public static class FamilyMembersEndpoints
     public static WebApplication MapFamilyMemberEndpoints(this WebApplication app)
     {
         var grp = app.MapGroup("/users/me")
-            .RequireAuthorization()
             .WithTags("Profile");
 
         // GET /users/me/profile — caller's own FamilyMember profile

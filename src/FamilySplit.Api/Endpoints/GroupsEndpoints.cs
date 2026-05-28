@@ -8,7 +8,6 @@ public static class GroupsEndpoints
     public static WebApplication MapGroupEndpoints(this WebApplication app)
     {
         var grp = app.MapGroup("/groups")
-            .RequireAuthorization()
             .WithTags("Groups");
 
         // GET /groups — list caller's groups

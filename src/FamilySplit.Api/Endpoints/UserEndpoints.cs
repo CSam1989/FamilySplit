@@ -36,7 +36,7 @@ public static class UserEndpoints
                 .FirstOrDefaultAsync(ct);
 
             return row is null ? Results.NotFound() : Results.Ok(row);
-        }).RequireAuthorization();
+        });
 
         return app;
     }

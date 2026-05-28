@@ -7,7 +7,7 @@ public static class DashboardEndpoints
 {
     public static void MapDashboardEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/dashboard").RequireAuthorization();
+        var group = app.MapGroup("/dashboard");
 
         // GET /dashboard/stats
         // Returns per-group statistics for the authenticated caller's dashboard.

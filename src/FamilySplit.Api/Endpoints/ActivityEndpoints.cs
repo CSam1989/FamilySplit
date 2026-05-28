@@ -8,7 +8,6 @@ public static class ActivityEndpoints
     public static WebApplication MapActivityEndpoints(this WebApplication app)
     {
         var grp = app.MapGroup("/groups/{groupId:guid}/activities")
-            .RequireAuthorization()
             .WithTags("Activities");
 
         // GET /groups/{groupId}/activities — list top-level activities in a group

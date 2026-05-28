@@ -7,7 +7,6 @@ public static class SettlementEndpoints
     public static WebApplication MapSettlementEndpoints(this WebApplication app)
     {
         var grp = app.MapGroup("/groups/{groupId:guid}/activities/{activityId:guid}/settlements")
-            .RequireAuthorization()
             .WithTags("Settlements");
 
         // GET  /groups/{groupId}/activities/{activityId}/settlements
@@ -62,7 +61,6 @@ public static class SettlementEndpoints
                 var result   = await svc.ListMyPendingAsync(callerId);
                 return Results.Ok(result);
             })
-            .RequireAuthorization()
             .WithTags("Settlements");
 
         // GET  /groups/{groupId}/settlements — active (non-completed) settlements across all activities
@@ -73,13 +71,11 @@ public static class SettlementEndpoints
                 var result   = await svc.ListForGroupAsync(groupId, callerId);
                 return Results.Ok(result);
             })
-            .RequireAuthorization()
             .WithTags("Settlements");
 
         // GET  /groups/{groupId}/activities/{activityId}/balances
         // Pre-settlement per-family balance view (does not create any rows).
         var balGrp = app.MapGroup("/groups/{groupId:guid}/activities/{activityId:guid}/balances")
-            .RequireAuthorization()
             .WithTags("Settlements");
 
         balGrp.MapGet("/", async (Guid groupId, Guid activityId, SettlementService svc, HttpContext ctx) =>

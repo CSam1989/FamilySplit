@@ -104,7 +104,14 @@ builder.Services
         };
     });
 
-builder.Services.AddAuthorization();
+// Require authentication globally. Every endpoint is protected by default;
+// public routes (OAuth callbacks, /health) opt out explicitly with .AllowAnonymous().
+builder.Services.AddAuthorization(options =>
+{
+    options.FallbackPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build();
+});
 
 // JwtFactory issues JWTs after OAuth callback. OAuthHandler exchanges codes
 // against Google and upserts the User row.
@@ -174,8 +181,8 @@ app.MapDashboardEndpoints();      // /dashboard/stats — per-group statistics
 // --- OpenAPI + Scalar UI (dev only) ----------------------------------------------
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
-    app.MapScalarApiReference();
+    app.MapOpenApi().AllowAnonymous();
+    app.MapScalarApiReference().AllowAnonymous();
 }
 
 app.Run();

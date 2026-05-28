@@ -13,7 +13,6 @@ public static class FamilyEndpoints
     public static WebApplication MapFamilyEndpoints(this WebApplication app)
     {
         var grp = app.MapGroup("/families/mine")
-            .RequireAuthorization()
             .WithTags("Family");
 
         // GET /families/mine — full family with all members

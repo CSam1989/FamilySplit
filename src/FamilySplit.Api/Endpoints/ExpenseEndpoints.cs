@@ -8,7 +8,6 @@ public static class ExpenseEndpoints
     public static WebApplication MapExpenseEndpoints(this WebApplication app)
     {
         var grp = app.MapGroup("/groups/{groupId:guid}/activities/{activityId:guid}/expenses")
-            .RequireAuthorization()
             .WithTags("Expenses");
 
         // GET /groups/{groupId}/activities/{activityId}/expenses
