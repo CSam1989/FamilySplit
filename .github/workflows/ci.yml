@@ -204,18 +204,31 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
+      - name: Cache Trivy vulnerability database
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/trivy
+          key: trivy-db-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: trivy-db-${{ runner.os }}-
+
+      - name: Install Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | \
+            sh -s -- -b /usr/local/bin
+          trivy --version
+
       - name: Generate NuGet lock files (required for Trivy fs scan)
         run: dotnet restore FamilySplit.slnx --locked-mode 2>/dev/null || dotnet restore FamilySplit.slnx
 
       - name: Trivy filesystem scan (NuGet dependencies)
-        uses: aquasecurity/trivy-action@0.35.0
-        with:
-          scan-type: fs
-          scan-ref: .
-          scanners: vuln
-          format: sarif
-          output: trivy-fs.sarif
-          severity: HIGH,CRITICAL
+        run: |
+          trivy fs . \
+            --scanners vuln \
+            --format sarif \
+            --output trivy-fs.sarif \
+            --severity HIGH,CRITICAL \
+            --cache-dir ~/.cache/trivy \
+            --exit-code 0
 
       - name: Upload Trivy fs scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v4
