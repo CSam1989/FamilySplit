@@ -35,16 +35,16 @@ public class GroupService
 
     // ── List caller's groups ──────────────────────────────────────────────────
 
-    public async Task<List<GroupSummaryDto>> ListAsync(Guid callerId)
+    public async Task<List<GroupSummaryDto>> ListAsync(Guid callerId, CancellationToken ct = default)
     {
         _logger.LogDebug("ListAsync called. {UserId}", callerId);
-        var callerFamilyId = await GetCallerFamilyIdAsync(callerId);
+        var callerFamilyId = await GetCallerFamilyIdAsync(callerId, ct);
 
         // Groups the caller's family belongs to.
         var callerGroupFamilies = await _db.GroupFamilies
             .Where(gf => gf.FamilyId == callerFamilyId)
             .Select(gf => new { gf.GroupId, gf.Role })
-            .ToListAsync();
+            .ToListAsync(ct);
 
         if (callerGroupFamilies.Count == 0) return [];
 
@@ -53,14 +53,14 @@ public class GroupService
         var groups = await _db.Groups
             .Where(g => groupIds.Contains(g.Id))
             .Select(g => new { g.Id, g.Name, g.Description, g.InviteCode, g.CreatedAt })
-            .ToListAsync();
+            .ToListAsync(ct);
 
         // Family counts per group (one query).
         var familyCounts = await _db.GroupFamilies
             .Where(gf => groupIds.Contains(gf.GroupId))
             .GroupBy(gf => gf.GroupId)
             .Select(grp => new { GroupId = grp.Key, Count = grp.Count() })
-            .ToDictionaryAsync(x => x.GroupId, x => x.Count);
+            .ToDictionaryAsync(x => x.GroupId, x => x.Count, ct);
 
         var callerRoleByGroup = callerGroupFamilies.ToDictionary(gf => gf.GroupId, gf => gf.Role);
 
@@ -78,26 +78,26 @@ public class GroupService
 
     // ── Get group detail ──────────────────────────────────────────────────────
 
-    public async Task<GroupDetailDto> GetDetailAsync(Guid groupId, Guid callerId)
+    public async Task<GroupDetailDto> GetDetailAsync(Guid groupId, Guid callerId, CancellationToken ct = default)
     {
         _logger.LogDebug("GetDetailAsync called. {GroupId} {UserId}", groupId, callerId);
-        var callerFamilyId = await GetCallerFamilyIdAsync(callerId);
-        var callerRole = await CallerFamilyRoleOrNullAsync(groupId, callerFamilyId)
+        var callerFamilyId = await GetCallerFamilyIdAsync(callerId, ct);
+        var callerRole = await CallerFamilyRoleOrNullAsync(groupId, callerFamilyId, ct)
             ?? throw Forbidden();
 
-        return await BuildDetailDtoAsync(groupId, callerRole)
+        return await BuildDetailDtoAsync(groupId, callerRole, ct)
             ?? throw NotFound();
     }
 
     // ── Create group ──────────────────────────────────────────────────────────
 
-    public async Task<GroupDetailDto> CreateAsync(CreateGroupRequest req, Guid callerId)
+    public async Task<GroupDetailDto> CreateAsync(CreateGroupRequest req, Guid callerId, CancellationToken ct = default)
     {
         _logger.LogDebug("CreateAsync called. {UserId} Name={Name}", callerId, req.Name);
-        await _createValidator.ValidateAndThrowAsync(req);
-        await RequireCallerIsFamilyAdminAsync(callerId);
+        await _createValidator.ValidateAndThrowAsync(req, ct);
+        await RequireCallerIsFamilyAdminAsync(callerId, ct);
 
-        var callerFamilyId = await GetCallerFamilyIdAsync(callerId);
+        var callerFamilyId = await GetCallerFamilyIdAsync(callerId, ct);
 
         var group = new Group
         {
@@ -121,55 +121,55 @@ public class GroupService
 
         _db.Groups.Add(group);
         _db.GroupFamilies.Add(adminGroupFamily);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("Group created. {GroupId} by {UserId}", group.Id, callerId);
 
-        return await BuildDetailDtoAsync(group.Id, MemberRole.Admin)
+        return await BuildDetailDtoAsync(group.Id, MemberRole.Admin, ct)
             ?? throw NotFound();
     }
 
     // ── Update group ──────────────────────────────────────────────────────────
 
-    public async Task<GroupDetailDto> UpdateAsync(Guid groupId, UpdateGroupRequest req, Guid callerId)
+    public async Task<GroupDetailDto> UpdateAsync(Guid groupId, UpdateGroupRequest req, Guid callerId, CancellationToken ct = default)
     {
         _logger.LogDebug("UpdateAsync called. {GroupId} {UserId}", groupId, callerId);
-        await _updateValidator.ValidateAndThrowAsync(req);
-        await RequireAdminAsync(groupId, callerId);
+        await _updateValidator.ValidateAndThrowAsync(req, ct);
+        await RequireAdminAsync(groupId, callerId, ct);
 
-        var group = await _db.Groups.FindAsync(groupId)
+        var group = await _db.Groups.FindAsync([groupId], ct)
             ?? throw NotFound();
 
         group.Name        = req.Name.Trim();
         group.Description = req.Description?.Trim();
         group.UpdatedAt   = DateTimeOffset.UtcNow;
 
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("Group updated. {GroupId} by {UserId}", groupId, callerId);
 
-        return await BuildDetailDtoAsync(groupId, MemberRole.Admin)
+        return await BuildDetailDtoAsync(groupId, MemberRole.Admin, ct)
             ?? throw NotFound();
     }
 
     // ── Join via invite code ──────────────────────────────────────────────────
 
-    public async Task<GroupDetailDto> JoinAsync(JoinGroupRequest req, Guid callerId)
+    public async Task<GroupDetailDto> JoinAsync(JoinGroupRequest req, Guid callerId, CancellationToken ct = default)
     {
         _logger.LogDebug("JoinAsync called. {UserId}", callerId);
-        await _joinValidator.ValidateAndThrowAsync(req);
-        await RequireCallerIsFamilyAdminAsync(callerId);
+        await _joinValidator.ValidateAndThrowAsync(req, ct);
+        await RequireCallerIsFamilyAdminAsync(callerId, ct);
 
-        var callerFamilyId = await GetCallerFamilyIdAsync(callerId);
+        var callerFamilyId = await GetCallerFamilyIdAsync(callerId, ct);
 
         var group = await _db.Groups
             .Where(g => g.InviteCode == req.InviteCode.ToUpperInvariant())
             .Select(g => new { g.Id })
-            .FirstOrDefaultAsync()
+            .FirstOrDefaultAsync(ct)
             ?? throw Throw422("InviteCode", "Invite code is invalid or has expired.");
 
         var alreadyMember = await _db.GroupFamilies
-            .AnyAsync(gf => gf.GroupId == group.Id && gf.FamilyId == callerFamilyId);
+            .AnyAsync(gf => gf.GroupId == group.Id && gf.FamilyId == callerFamilyId, ct);
 
         if (alreadyMember)
             throw Throw422("InviteCode", "Your family is already a member of this group.");
@@ -184,33 +184,33 @@ public class GroupService
         };
 
         _db.GroupFamilies.Add(groupFamily);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("Family joined group. {GroupId} {FamilyId} by {UserId}", group.Id, callerFamilyId, callerId);
 
-        return await BuildDetailDtoAsync(group.Id, MemberRole.Member)
+        return await BuildDetailDtoAsync(group.Id, MemberRole.Member, ct)
             ?? throw NotFound();
     }
 
     // ── Leave group ───────────────────────────────────────────────────────────
 
-    public async Task LeaveAsync(Guid groupId, Guid callerId)
+    public async Task LeaveAsync(Guid groupId, Guid callerId, CancellationToken ct = default)
     {
         _logger.LogDebug("LeaveAsync called. {GroupId} {UserId}", groupId, callerId);
-        await RequireCallerIsFamilyAdminAsync(callerId);
+        await RequireCallerIsFamilyAdminAsync(callerId, ct);
 
-        var callerFamilyId = await GetCallerFamilyIdAsync(callerId);
+        var callerFamilyId = await GetCallerFamilyIdAsync(callerId, ct);
 
         var groupFamily = await _db.GroupFamilies
             .Where(gf => gf.GroupId == groupId && gf.FamilyId == callerFamilyId)
-            .FirstOrDefaultAsync()
+            .FirstOrDefaultAsync(ct)
             ?? throw Throw422("Group", "Your family is not a member of this group.");
 
         // Guard: if this family is the sole admin, refuse the leave.
         if (groupFamily.Role == MemberRole.Admin)
         {
             var adminCount = await _db.GroupFamilies
-                .CountAsync(gf => gf.GroupId == groupId && gf.Role == MemberRole.Admin);
+                .CountAsync(gf => gf.GroupId == groupId && gf.Role == MemberRole.Admin, ct);
 
             if (adminCount <= 1)
                 throw Throw422("Group",
@@ -219,25 +219,25 @@ public class GroupService
         }
 
         _db.GroupFamilies.Remove(groupFamily);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("Family left group. {GroupId} {FamilyId} by {UserId}", groupId, callerFamilyId, callerId);
     }
 
     // ── Regenerate invite code ────────────────────────────────────────────────
 
-    public async Task<string> RegenerateInviteCodeAsync(Guid groupId, Guid callerId)
+    public async Task<string> RegenerateInviteCodeAsync(Guid groupId, Guid callerId, CancellationToken ct = default)
     {
         _logger.LogDebug("RegenerateInviteCodeAsync called. {GroupId} {UserId}", groupId, callerId);
-        await RequireAdminAsync(groupId, callerId);
+        await RequireAdminAsync(groupId, callerId, ct);
 
-        var group = await _db.Groups.FindAsync(groupId)
+        var group = await _db.Groups.FindAsync([groupId], ct)
             ?? throw NotFound();
 
         group.InviteCode = GenerateInviteCode();
         group.UpdatedAt  = DateTimeOffset.UtcNow;
 
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         _logger.LogWarning("Invite code regenerated (old code is now invalid). {GroupId} by {UserId}", groupId, callerId);
 
@@ -249,12 +249,12 @@ public class GroupService
     /// <summary>
     /// Throws 403 unless the caller's active FamilyMember has IsAdmin = true.
     /// </summary>
-    private async Task RequireCallerIsFamilyAdminAsync(Guid userId)
+    private async Task RequireCallerIsFamilyAdminAsync(Guid userId, CancellationToken ct)
     {
         var isAdmin = await _db.FamilyMembers
             .Where(m => m.UserId == userId && m.IsActive)
             .Select(m => (bool?)m.IsAdmin)
-            .FirstOrDefaultAsync();
+            .FirstOrDefaultAsync(ct);
 
         if (isAdmin is not true)
             throw Forbidden();
@@ -264,40 +264,40 @@ public class GroupService
     /// Resolves the FamilyId for the authenticated caller via their linked FamilyMember.
     /// Throws 403 if the user has no linked FamilyMember record.
     /// </summary>
-    private async Task<Guid> GetCallerFamilyIdAsync(Guid userId)
+    private async Task<Guid> GetCallerFamilyIdAsync(Guid userId, CancellationToken ct)
     {
         var familyId = await _db.FamilyMembers
             .Where(m => m.UserId == userId && m.IsActive)
             .Select(m => (Guid?)m.FamilyId)
-            .FirstOrDefaultAsync();
+            .FirstOrDefaultAsync(ct);
 
         return familyId ?? throw Forbidden();
     }
 
-    private async Task<MemberRole?> CallerFamilyRoleOrNullAsync(Guid groupId, Guid familyId)
+    private async Task<MemberRole?> CallerFamilyRoleOrNullAsync(Guid groupId, Guid familyId, CancellationToken ct)
     {
         var row = await _db.GroupFamilies
             .Where(gf => gf.GroupId == groupId && gf.FamilyId == familyId)
             .Select(gf => new { gf.Role })
-            .FirstOrDefaultAsync();
+            .FirstOrDefaultAsync(ct);
 
         return row?.Role;
     }
 
-    private async Task RequireAdminAsync(Guid groupId, Guid callerId)
+    private async Task RequireAdminAsync(Guid groupId, Guid callerId, CancellationToken ct)
     {
-        var callerFamilyId = await GetCallerFamilyIdAsync(callerId);
-        var role = await CallerFamilyRoleOrNullAsync(groupId, callerFamilyId);
+        var callerFamilyId = await GetCallerFamilyIdAsync(callerId, ct);
+        var role = await CallerFamilyRoleOrNullAsync(groupId, callerFamilyId, ct);
         if (role is null || role != MemberRole.Admin)
             throw Forbidden();
     }
 
-    private async Task<GroupDetailDto?> BuildDetailDtoAsync(Guid groupId, MemberRole callerRole)
+    private async Task<GroupDetailDto?> BuildDetailDtoAsync(Guid groupId, MemberRole callerRole, CancellationToken ct)
     {
         var group = await _db.Groups
             .Where(g => g.Id == groupId)
             .Select(g => new { g.Id, g.Name, g.Description, g.InviteCode, g.CreatedAt, g.UpdatedAt })
-            .FirstOrDefaultAsync();
+            .FirstOrDefaultAsync(ct);
 
         if (group is null) return null;
 
@@ -311,7 +311,7 @@ public class GroupService
             where gf.GroupId == groupId
             orderby gf.JoinedAt
             select new { gf.FamilyId, f.Name, gf.Role, gf.JoinedAt }
-        ).ToListAsync();
+        ).ToListAsync(ct);
 
         var familyIds = groupFamilyRows.Select(r => r.FamilyId).ToList();
 
@@ -319,7 +319,7 @@ public class GroupService
         var memberRows = await _db.FamilyMembers
             .Where(m => familyIds.Contains(m.FamilyId) && m.IsActive)
             .OrderBy(m => m.DisplayName)
-            .ToListAsync();
+            .ToListAsync(ct);
 
         var membersByFamily = memberRows
             .GroupBy(m => m.FamilyId)

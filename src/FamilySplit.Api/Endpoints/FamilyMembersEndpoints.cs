@@ -14,10 +14,10 @@ public static class FamilyMembersEndpoints
             .WithTags("Profile");
 
         // GET /users/me/profile — caller's own FamilyMember profile
-        grp.MapGet("/profile", async (FamilyService svc, HttpContext ctx) =>
+        grp.MapGet("/profile", async (FamilyService svc, HttpContext ctx, CancellationToken ct) =>
         {
             var callerId = ctx.User.GetUserId();
-            var profile = await svc.GetMyProfileAsync(callerId);
+            var profile = await svc.GetMyProfileAsync(callerId, ct);
             return profile is null ? Results.NotFound() : Results.Ok(profile);
         });
 

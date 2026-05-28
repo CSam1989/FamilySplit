@@ -39,17 +39,17 @@ public class ActivityService
     // ── List activities in a group ────────────────────────────────────────────
 
     /// <summary>Returns all top-level activities (no parent) for the group.</summary>
-    public async Task<List<ActivitySummaryDto>> ListAsync(Guid groupId, Guid callerId)
+    public async Task<List<ActivitySummaryDto>> ListAsync(Guid groupId, Guid callerId, CancellationToken ct = default)
     {
         _logger.LogDebug("ListAsync called for {GroupId} by {UserId}", groupId, callerId);
-        await RequireGroupMemberAsync(groupId, callerId);
+        await RequireGroupMemberAsync(groupId, callerId, ct);
 
         var activities = await _db.Activities
             .AsNoTracking()
             .Where(a => a.GroupId == groupId && a.ParentActivityId == null)
             .Select(a => new { a.Id, a.GroupId, a.Name, a.Description, a.Status, a.ParentActivityId, a.CreatedAt, a.ClosedAt })
             .OrderByDescending(a => a.CreatedAt)
-            .ToListAsync();
+            .ToListAsync(ct);
 
         if (activities.Count == 0) return [];
 
@@ -62,14 +62,14 @@ public class ActivityService
             .Where(ap => activityIds.Contains(ap.ActivityId))
             .GroupBy(ap => ap.ActivityId)
             .Select(g => new { ActivityId = g.Key, Count = g.Count() })
-            .ToDictionaryAsync(x => x.ActivityId, x => x.Count);
+            .ToDictionaryAsync(x => x.ActivityId, x => x.Count, ct);
 
         var subActivityCounts = await _db.Activities
             .AsNoTracking()
             .Where(a => a.ParentActivityId != null && activityIds.Contains(a.ParentActivityId.Value))
             .GroupBy(a => a.ParentActivityId!.Value)
             .Select(g => new { ParentId = g.Key, Count = g.Count() })
-            .ToDictionaryAsync(x => x.ParentId, x => x.Count);
+            .ToDictionaryAsync(x => x.ParentId, x => x.Count, ct);
 
         // Sum + count per activity in one query; currency picked via a min() so the
         // database doesn't have to ship per-row data. In practice all expenses on
@@ -85,7 +85,7 @@ public class ActivityService
                 Total      = g.Sum(e => e.TotalAmount),
                 Currency   = g.Min(e => e.Currency)!,
             })
-            .ToDictionaryAsync(x => x.ActivityId);
+            .ToDictionaryAsync(x => x.ActivityId, ct);
 
         return activities.Select(a =>
         {
@@ -109,29 +109,29 @@ public class ActivityService
 
     // ── Get activity detail ───────────────────────────────────────────────────
 
-    public async Task<ActivityDetailDto> GetDetailAsync(Guid activityId, Guid callerId)
+    public async Task<ActivityDetailDto> GetDetailAsync(Guid activityId, Guid callerId, CancellationToken ct = default)
     {
         _logger.LogDebug("GetDetailAsync called for {ActivityId} by {UserId}", activityId, callerId);
         var activity = await _db.Activities
             .Where(a => a.Id == activityId)
             .Select(a => new { a.Id, a.GroupId, a.Name, a.Description, a.Status, a.ParentActivityId, a.CreatedAt, a.ClosedAt })
-            .FirstOrDefaultAsync()
+            .FirstOrDefaultAsync(ct)
             ?? throw NotFound();
 
-        await RequireGroupMemberAsync(activity.GroupId, callerId);
+        await RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 
         return await BuildDetailDtoAsync(activity.Id, activity.GroupId, activity.Name,
             activity.Description, activity.Status, activity.ParentActivityId,
-            activity.CreatedAt, activity.ClosedAt);
+            activity.CreatedAt, activity.ClosedAt, ct);
     }
 
     // ── Create top-level activity ─────────────────────────────────────────────
 
-    public async Task<ActivityDetailDto> CreateAsync(Guid groupId, CreateActivityRequest req, Guid callerId)
+    public async Task<ActivityDetailDto> CreateAsync(Guid groupId, CreateActivityRequest req, Guid callerId, CancellationToken ct = default)
     {
         _logger.LogDebug("CreateAsync called for {GroupId} by {UserId}", groupId, callerId);
-        await _createValidator.ValidateAndThrowAsync(req);
-        await RequireGroupMemberAsync(groupId, callerId);
+        await _createValidator.ValidateAndThrowAsync(req, ct);
+        await RequireGroupMemberAsync(groupId, callerId, ct);
 
         var activity = new Activity
         {
@@ -147,26 +147,26 @@ public class ActivityService
 
         _db.Activities.Add(activity);
         await _seeder.SeedForActivityAsync(activity);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("Activity {ActivityId} created in group {GroupId} by {UserId}", activity.Id, groupId, callerId);
 
         return await BuildDetailDtoAsync(activity.Id, activity.GroupId, activity.Name,
             activity.Description, activity.Status, activity.ParentActivityId,
-            activity.CreatedAt, activity.ClosedAt);
+            activity.CreatedAt, activity.ClosedAt, ct);
     }
 
     // ── Create sub-activity (depth-1 guard) ───────────────────────────────────
 
-    public async Task<ActivityDetailDto> CreateSubActivityAsync(Guid parentActivityId, CreateActivityRequest req, Guid callerId)
+    public async Task<ActivityDetailDto> CreateSubActivityAsync(Guid parentActivityId, CreateActivityRequest req, Guid callerId, CancellationToken ct = default)
     {
         _logger.LogDebug("CreateSubActivityAsync called for parent {ActivityId} by {UserId}", parentActivityId, callerId);
-        await _createValidator.ValidateAndThrowAsync(req);
+        await _createValidator.ValidateAndThrowAsync(req, ct);
 
         var parent = await _db.Activities
             .Where(a => a.Id == parentActivityId)
             .Select(a => new { a.Id, a.GroupId, a.ParentActivityId, a.Status })
-            .FirstOrDefaultAsync()
+            .FirstOrDefaultAsync(ct)
             ?? throw NotFound();
 
         // Depth-1 guard: sub-activities may not themselves have a parent.
@@ -176,7 +176,7 @@ public class ActivityService
         if (parent.Status != ActivityStatus.Open)
             throw Throw422("Status", "Cannot add a sub-activity to a closed or settled activity.");
 
-        await RequireGroupMemberAsync(parent.GroupId, callerId);
+        await RequireGroupMemberAsync(parent.GroupId, callerId, ct);
 
         var sub = new Activity
         {
@@ -193,26 +193,26 @@ public class ActivityService
 
         _db.Activities.Add(sub);
         await _seeder.SeedForSubActivityAsync(sub, parentActivityId);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("Sub-activity {ActivityId} created under parent {ParentActivityId} by {UserId}", sub.Id, parentActivityId, callerId);
 
         return await BuildDetailDtoAsync(sub.Id, sub.GroupId, sub.Name,
             sub.Description, sub.Status, sub.ParentActivityId,
-            sub.CreatedAt, sub.ClosedAt);
+            sub.CreatedAt, sub.ClosedAt, ct);
     }
 
     // ── Update activity ───────────────────────────────────────────────────────
 
-    public async Task<ActivityDetailDto> UpdateAsync(Guid activityId, UpdateActivityRequest req, Guid callerId)
+    public async Task<ActivityDetailDto> UpdateAsync(Guid activityId, UpdateActivityRequest req, Guid callerId, CancellationToken ct = default)
     {
         _logger.LogDebug("UpdateAsync called for {ActivityId} by {UserId}", activityId, callerId);
-        await _updateValidator.ValidateAndThrowAsync(req);
+        await _updateValidator.ValidateAndThrowAsync(req, ct);
 
-        var activity = await _db.Activities.FindAsync(activityId)
+        var activity = await _db.Activities.FindAsync([activityId], ct)
             ?? throw NotFound();
 
-        await RequireGroupMemberAsync(activity.GroupId, callerId);
+        await RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 
         if (activity.Status != ActivityStatus.Open)
             throw Throw422("Status", "Only open activities can be edited.");
@@ -221,13 +221,13 @@ public class ActivityService
         activity.Description = req.Description?.Trim();
         activity.UpdatedAt   = DateTimeOffset.UtcNow;
 
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("Activity {ActivityId} updated by {UserId}", activityId, callerId);
 
         return await BuildDetailDtoAsync(activity.Id, activity.GroupId, activity.Name,
             activity.Description, activity.Status, activity.ParentActivityId,
-            activity.CreatedAt, activity.ClosedAt);
+            activity.CreatedAt, activity.ClosedAt, ct);
     }
 
     // ── Close activity ────────────────────────────────────────────────────────
@@ -236,13 +236,13 @@ public class ActivityService
     /// Closes the activity. Any Open sub-activities are transitioned to
     /// AbsorbedByParent so their costs roll up into the parent.
     /// </summary>
-    public async Task<ActivityDetailDto> CloseAsync(Guid activityId, Guid callerId)
+    public async Task<ActivityDetailDto> CloseAsync(Guid activityId, Guid callerId, CancellationToken ct = default)
     {
         _logger.LogDebug("CloseAsync called for {ActivityId} by {UserId}", activityId, callerId);
-        var activity = await _db.Activities.FindAsync(activityId)
+        var activity = await _db.Activities.FindAsync([activityId], ct)
             ?? throw NotFound();
 
-        await RequireGroupMemberAsync(activity.GroupId, callerId);
+        await RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 
         if (activity.Status != ActivityStatus.Open)
             throw Throw422("Status", "Activity is already closed or settled.");
@@ -256,7 +256,7 @@ public class ActivityService
         // Absorb any open sub-activities.
         var openSubs = await _db.Activities
             .Where(a => a.ParentActivityId == activityId && a.Status == ActivityStatus.Open)
-            .ToListAsync();
+            .ToListAsync(ct);
 
         foreach (var sub in openSubs)
         {
@@ -271,27 +271,27 @@ public class ActivityService
         activity.ClosedByUserId = callerId;
         activity.UpdatedAt     = now;
 
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("Activity {ActivityId} closed by {UserId}; {Count} sub-activities absorbed", activityId, callerId, openSubs.Count);
 
         return await BuildDetailDtoAsync(activity.Id, activity.GroupId, activity.Name,
             activity.Description, activity.Status, activity.ParentActivityId,
-            activity.CreatedAt, activity.ClosedAt);
+            activity.CreatedAt, activity.ClosedAt, ct);
     }
 
     // ── Add participant ───────────────────────────────────────────────────────
 
-    public async Task<ActivityDetailDto> AddParticipantAsync(Guid activityId, AddParticipantRequest req, Guid callerId)
+    public async Task<ActivityDetailDto> AddParticipantAsync(Guid activityId, AddParticipantRequest req, Guid callerId, CancellationToken ct = default)
     {
         _logger.LogDebug("AddParticipantAsync called for {ActivityId} by {UserId}", activityId, callerId);
         var activity = await _db.Activities
             .Where(a => a.Id == activityId)
             .Select(a => new { a.Id, a.GroupId, a.Name, a.Description, a.Status, a.ParentActivityId, a.CreatedAt, a.ClosedAt })
-            .FirstOrDefaultAsync()
+            .FirstOrDefaultAsync(ct)
             ?? throw NotFound();
 
-        await RequireGroupMemberAsync(activity.GroupId, callerId);
+        await RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 
         if (activity.Status != ActivityStatus.Open)
             throw Throw422("Status", "Cannot add participants to a closed activity.");
@@ -302,13 +302,13 @@ public class ActivityService
             join gf in _db.GroupFamilies on fm.FamilyId equals gf.FamilyId
             where fm.Id == req.FamilyMemberId && fm.IsActive && gf.GroupId == activity.GroupId
             select fm.Id
-        ).AnyAsync();
+        ).AnyAsync(ct);
 
         if (!memberInGroup)
             throw Throw422("FamilyMemberId", "Member is not part of any family in this group.");
 
         var alreadyParticipant = await _db.ActivityParticipants
-            .AnyAsync(ap => ap.ActivityId == activityId && ap.FamilyMemberId == req.FamilyMemberId);
+            .AnyAsync(ap => ap.ActivityId == activityId && ap.FamilyMemberId == req.FamilyMemberId, ct);
 
         if (alreadyParticipant)
             throw Throw422("FamilyMemberId", "Member is already a participant in this activity.");
@@ -320,57 +320,57 @@ public class ActivityService
             FamilyMemberId = req.FamilyMemberId,
         });
 
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("FamilyMember {FamilyMemberId} added as participant to activity {ActivityId} by {UserId}", req.FamilyMemberId, activityId, callerId);
 
         return await BuildDetailDtoAsync(activity.Id, activity.GroupId, activity.Name,
             activity.Description, activity.Status, activity.ParentActivityId,
-            activity.CreatedAt, activity.ClosedAt);
+            activity.CreatedAt, activity.ClosedAt, ct);
     }
 
     // ── Remove participant ────────────────────────────────────────────────────
 
-    public async Task<ActivityDetailDto> RemoveParticipantAsync(Guid activityId, Guid familyMemberId, Guid callerId)
+    public async Task<ActivityDetailDto> RemoveParticipantAsync(Guid activityId, Guid familyMemberId, Guid callerId, CancellationToken ct = default)
     {
         _logger.LogDebug("RemoveParticipantAsync called for {ActivityId}, member {FamilyMemberId} by {UserId}", activityId, familyMemberId, callerId);
         var activity = await _db.Activities
             .Where(a => a.Id == activityId)
             .Select(a => new { a.Id, a.GroupId, a.Name, a.Description, a.Status, a.ParentActivityId, a.CreatedAt, a.ClosedAt })
-            .FirstOrDefaultAsync()
+            .FirstOrDefaultAsync(ct)
             ?? throw NotFound();
 
-        await RequireGroupMemberAsync(activity.GroupId, callerId);
+        await RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 
         if (activity.Status != ActivityStatus.Open)
             throw Throw422("Status", "Cannot remove participants from a closed activity.");
 
         var participant = await _db.ActivityParticipants
-            .FirstOrDefaultAsync(ap => ap.ActivityId == activityId && ap.FamilyMemberId == familyMemberId)
+            .FirstOrDefaultAsync(ap => ap.ActivityId == activityId && ap.FamilyMemberId == familyMemberId, ct)
             ?? throw Throw422("FamilyMemberId", "Member is not a participant in this activity.");
 
         _db.ActivityParticipants.Remove(participant);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("FamilyMember {FamilyMemberId} removed as participant from activity {ActivityId} by {UserId}", familyMemberId, activityId, callerId);
 
         return await BuildDetailDtoAsync(activity.Id, activity.GroupId, activity.Name,
             activity.Description, activity.Status, activity.ParentActivityId,
-            activity.CreatedAt, activity.ClosedAt);
+            activity.CreatedAt, activity.ClosedAt, ct);
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private async Task RequireGroupMemberAsync(Guid groupId, Guid callerId)
+    private async Task RequireGroupMemberAsync(Guid groupId, Guid callerId, CancellationToken ct)
     {
         var callerFamilyId = await _db.FamilyMembers
             .Where(m => m.UserId == callerId && m.IsActive)
             .Select(m => (Guid?)m.FamilyId)
-            .FirstOrDefaultAsync()
+            .FirstOrDefaultAsync(ct)
             ?? throw new ForbiddenException();
 
         var isMember = await _db.GroupFamilies
-            .AnyAsync(gf => gf.GroupId == groupId && gf.FamilyId == callerFamilyId);
+            .AnyAsync(gf => gf.GroupId == groupId && gf.FamilyId == callerFamilyId, ct);
 
         if (!isMember)
             throw new ForbiddenException();
@@ -379,7 +379,8 @@ public class ActivityService
     private async Task<ActivityDetailDto> BuildDetailDtoAsync(
         Guid id, Guid groupId, string name, string? description,
         ActivityStatus status, Guid? parentActivityId,
-        DateTimeOffset createdAt, DateTimeOffset? closedAt)
+        DateTimeOffset createdAt, DateTimeOffset? closedAt,
+        CancellationToken ct)
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
 
@@ -400,7 +401,7 @@ public class ActivityService
                 fm.DateOfBirth,
                 fm.WeightOverride,
             }
-        ).ToListAsync();
+        ).ToListAsync(ct);
 
         var participantDtos = participants.Select(p =>
         {
@@ -432,7 +433,7 @@ public class ActivityService
                 .Where(a => a.ParentActivityId == id)
                 .Select(a => new { a.Id, a.GroupId, a.Name, a.Description, a.Status, a.ParentActivityId, a.CreatedAt, a.ClosedAt })
                 .OrderByDescending(a => a.CreatedAt)
-                .ToListAsync();
+                .ToListAsync(ct);
 
             var subIds = rawSubs.Select(a => a.Id).ToList();
             var subParticipantCounts = subIds.Count > 0
@@ -441,7 +442,7 @@ public class ActivityService
                     .Where(ap => subIds.Contains(ap.ActivityId))
                     .GroupBy(ap => ap.ActivityId)
                     .Select(g => new { ActivityId = g.Key, Count = g.Count() })
-                    .ToDictionaryAsync(x => x.ActivityId, x => x.Count)
+                    .ToDictionaryAsync(x => x.ActivityId, x => x.Count, ct)
                 : new Dictionary<Guid, int>();
 
             // Expense aggregates per sub-activity, computed in the database.
@@ -460,7 +461,8 @@ public class ActivityService
                     })
                     .ToDictionaryAsync(
                         x => x.ActivityId,
-                        x => (Count: x.Count, Total: x.Total, Currency: (string?)x.Currency))
+                        x => (Count: x.Count, Total: x.Total, Currency: (string?)x.Currency),
+                        ct)
                 : new Dictionary<Guid, (int Count, decimal Total, string? Currency)>();
 
             subDtos = rawSubs.Select(a =>

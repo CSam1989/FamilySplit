@@ -38,51 +38,51 @@ public class FamilyService
 
     // ── Get my family ─────────────────────────────────────────────────────────
 
-    public async Task<FamilyDto?> GetMyFamilyAsync(Guid callerId)
+    public async Task<FamilyDto?> GetMyFamilyAsync(Guid callerId, CancellationToken ct = default)
     {
         _logger.LogDebug("GetMyFamilyAsync called by {UserId}", callerId);
-        var member = await GetCallerMemberAsync(callerId);
+        var member = await GetCallerMemberAsync(callerId, ct);
         if (member is null) return null;
-        return await BuildFamilyDtoAsync(member.FamilyId);
+        return await BuildFamilyDtoAsync(member.FamilyId, ct);
     }
 
     // ── Get my profile ────────────────────────────────────────────────────────
 
-    public async Task<FamilyMemberDto?> GetMyProfileAsync(Guid callerId)
+    public async Task<FamilyMemberDto?> GetMyProfileAsync(Guid callerId, CancellationToken ct = default)
     {
         _logger.LogDebug("GetMyProfileAsync called by {UserId}", callerId);
-        var member = await GetCallerMemberAsync(callerId);
+        var member = await GetCallerMemberAsync(callerId, ct);
         if (member is null) return null;
         return ToDto(member, DateOnly.FromDateTime(DateTime.UtcNow));
     }
 
     // ── Rename family (admin only) ────────────────────────────────────────────
 
-    public async Task<FamilyDto> UpdateFamilyNameAsync(UpdateFamilyNameRequest req, Guid callerId)
+    public async Task<FamilyDto> UpdateFamilyNameAsync(UpdateFamilyNameRequest req, Guid callerId, CancellationToken ct = default)
     {
         await _nameValidator.ValidateAndThrowAsync(req);
-        var member = await GetCallerMemberOrThrowAsync(callerId);
+        var member = await GetCallerMemberOrThrowAsync(callerId, ct);
         if (!member.IsAdmin) throw Forbidden();
 
-        var family = await _db.Families.FindAsync(member.FamilyId)
+        var family = await _db.Families.FindAsync([member.FamilyId], ct)
             ?? throw Forbidden();
 
         family.Name      = req.Name.Trim();
         family.UpdatedAt = DateTimeOffset.UtcNow;
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("Family {FamilyId} renamed by admin {UserId}", family.Id, callerId);
 
-        return await BuildFamilyDtoAsync(family.Id)
+        return await BuildFamilyDtoAsync(family.Id, ct)
             ?? throw Forbidden();
     }
 
     // ── Add member (admin only) ───────────────────────────────────────────────
 
-    public async Task<FamilyMemberDto> AddMemberAsync(AddFamilyMemberRequest req, Guid callerId)
+    public async Task<FamilyMemberDto> AddMemberAsync(AddFamilyMemberRequest req, Guid callerId, CancellationToken ct = default)
     {
         await _addValidator.ValidateAndThrowAsync(req);
-        var caller = await GetCallerMemberOrThrowAsync(callerId);
+        var caller = await GetCallerMemberOrThrowAsync(callerId, ct);
         if (!caller.IsAdmin) throw Forbidden();
 
         var emailNorm = req.Email?.Trim().ToLowerInvariant();
@@ -92,7 +92,7 @@ public class FamilyService
             // Email column stores the canonical lowercase form, so a direct
             // equality predicate hits the unique index.
             var conflict = await _db.FamilyMembers
-                .AnyAsync(m => m.IsActive && m.Email == emailNorm);
+                .AnyAsync(m => m.IsActive && m.Email == emailNorm, ct);
             if (conflict)
                 throw Throw422("Email", "A family member with this email already exists.");
         }
@@ -118,13 +118,13 @@ public class FamilyService
             var existingUser = await _db.Users
                 .Where(u => u.Email == emailNorm)
                 .Select(u => new { u.Id })
-                .FirstOrDefaultAsync();
+                .FirstOrDefaultAsync(ct);
 
             member.UserId = existingUser?.Id;
         }
 
         _db.FamilyMembers.Add(member);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation(
             "FamilyMember {MemberId} added to family {FamilyId} by {UserId} (linked: {IsLinked})",
@@ -138,10 +138,11 @@ public class FamilyService
     public async Task<FamilyMemberDto> UpdateMemberAsync(
         Guid memberId,
         UpdateFamilyMemberRequest req,
-        Guid callerId)
+        Guid callerId,
+        CancellationToken ct = default)
     {
         await _updateValidator.ValidateAndThrowAsync(req);
-        var caller = await GetCallerMemberOrThrowAsync(callerId);
+        var caller = await GetCallerMemberOrThrowAsync(callerId, ct);
 
         // Allow if editing own profile; otherwise require admin.
         if (caller.Id != memberId && !caller.IsAdmin)
@@ -150,7 +151,7 @@ public class FamilyService
         // Target member must be in the same family.
         var member = await _db.FamilyMembers
             .Where(m => m.Id == memberId && m.FamilyId == caller.FamilyId && m.IsActive)
-            .FirstOrDefaultAsync()
+            .FirstOrDefaultAsync(ct)
             ?? throw Throw422("MemberId", "Family member not found.");
 
         var emailNorm = req.Email?.Trim().ToLowerInvariant();
@@ -158,7 +159,7 @@ public class FamilyService
         if (emailNorm is not null && emailNorm != member.Email)
         {
             var conflict = await _db.FamilyMembers
-                .AnyAsync(m => m.IsActive && m.Id != memberId && m.Email == emailNorm);
+                .AnyAsync(m => m.IsActive && m.Id != memberId && m.Email == emailNorm, ct);
             if (conflict)
                 throw Throw422("Email", "A family member with this email already exists.");
         }
@@ -172,7 +173,7 @@ public class FamilyService
         if (caller.IsAdmin)
             member.IsAdmin = req.IsAdmin;
 
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("FamilyMember {MemberId} updated by {UserId}", memberId, callerId);
 
@@ -181,40 +182,40 @@ public class FamilyService
 
     // ── Remove member (admin only, cannot remove self) ────────────────────────
 
-    public async Task RemoveMemberAsync(Guid memberId, Guid callerId)
+    public async Task RemoveMemberAsync(Guid memberId, Guid callerId, CancellationToken ct = default)
     {
-        var caller = await GetCallerMemberOrThrowAsync(callerId);
+        var caller = await GetCallerMemberOrThrowAsync(callerId, ct);
         if (!caller.IsAdmin) throw Forbidden();
         if (caller.Id == memberId)
             throw Throw422("MemberId", "You cannot remove yourself from the family.");
 
         var member = await _db.FamilyMembers
             .Where(m => m.Id == memberId && m.FamilyId == caller.FamilyId && m.IsActive)
-            .FirstOrDefaultAsync()
+            .FirstOrDefaultAsync(ct)
             ?? throw Throw422("MemberId", "Family member not found.");
 
         member.IsActive = false;
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("FamilyMember {MemberId} deactivated by {UserId}", memberId, callerId);
     }
 
     // ── Internal helpers ──────────────────────────────────────────────────────
 
-    private async Task<FamilyMember?> GetCallerMemberAsync(Guid userId) =>
+    private async Task<FamilyMember?> GetCallerMemberAsync(Guid userId, CancellationToken ct) =>
         await _db.FamilyMembers
             .Where(m => m.UserId == userId && m.IsActive)
-            .FirstOrDefaultAsync();
+            .FirstOrDefaultAsync(ct);
 
-    private async Task<FamilyMember> GetCallerMemberOrThrowAsync(Guid userId) =>
-        await GetCallerMemberAsync(userId) ?? throw Forbidden();
+    private async Task<FamilyMember> GetCallerMemberOrThrowAsync(Guid userId, CancellationToken ct) =>
+        await GetCallerMemberAsync(userId, ct) ?? throw Forbidden();
 
-    private async Task<FamilyDto?> BuildFamilyDtoAsync(Guid familyId)
+    private async Task<FamilyDto?> BuildFamilyDtoAsync(Guid familyId, CancellationToken ct)
     {
         var family = await _db.Families
             .Where(f => f.Id == familyId)
             .Select(f => new { f.Id, f.Name, f.CreatedAt, f.UpdatedAt })
-            .FirstOrDefaultAsync();
+            .FirstOrDefaultAsync(ct);
 
         if (family is null) return null;
 
@@ -223,7 +224,7 @@ public class FamilyService
         var members = await _db.FamilyMembers
             .Where(m => m.FamilyId == familyId && m.IsActive)
             .OrderBy(m => m.DisplayName)
-            .ToListAsync();
+            .ToListAsync(ct);
 
         return new FamilyDto(
             family.Id,

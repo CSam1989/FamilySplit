@@ -16,44 +16,44 @@ public static class FamilyEndpoints
             .WithTags("Family");
 
         // GET /families/mine — full family with all members
-        grp.MapGet("/", async (FamilyService svc, HttpContext ctx) =>
+        grp.MapGet("/", async (FamilyService svc, HttpContext ctx, CancellationToken ct) =>
         {
             var callerId = ctx.User.GetUserId();
-            var family = await svc.GetMyFamilyAsync(callerId);
+            var family = await svc.GetMyFamilyAsync(callerId, ct);
             return family is null ? Results.NotFound() : Results.Ok(family);
         });
 
         // PUT /families/mine — rename the family (admin only)
-        grp.MapPut("/", async (UpdateFamilyNameRequest req, FamilyService svc, HttpContext ctx) =>
+        grp.MapPut("/", async (UpdateFamilyNameRequest req, FamilyService svc, HttpContext ctx, CancellationToken ct) =>
         {
             var callerId = ctx.User.GetUserId();
-            var family = await svc.UpdateFamilyNameAsync(req, callerId);
+            var family = await svc.UpdateFamilyNameAsync(req, callerId, ct);
             return Results.Ok(family);
         });
 
         // POST /families/mine/members — add a member (admin only)
-        grp.MapPost("/members", async (AddFamilyMemberRequest req, FamilyService svc, HttpContext ctx) =>
+        grp.MapPost("/members", async (AddFamilyMemberRequest req, FamilyService svc, HttpContext ctx, CancellationToken ct) =>
         {
             var callerId = ctx.User.GetUserId();
-            var member = await svc.AddMemberAsync(req, callerId);
+            var member = await svc.AddMemberAsync(req, callerId, ct);
             return Results.Created($"/families/mine/members/{member.Id}", member);
         });
 
         // PUT /families/mine/members/{memberId} — update a member (admin or self)
         grp.MapPut("/members/{memberId:guid}",
-            async (Guid memberId, UpdateFamilyMemberRequest req, FamilyService svc, HttpContext ctx) =>
+            async (Guid memberId, UpdateFamilyMemberRequest req, FamilyService svc, HttpContext ctx, CancellationToken ct) =>
             {
                 var callerId = ctx.User.GetUserId();
-                var member = await svc.UpdateMemberAsync(memberId, req, callerId);
+                var member = await svc.UpdateMemberAsync(memberId, req, callerId, ct);
                 return Results.Ok(member);
             });
 
         // DELETE /families/mine/members/{memberId} — soft-delete a member (admin only)
         grp.MapDelete("/members/{memberId:guid}",
-            async (Guid memberId, FamilyService svc, HttpContext ctx) =>
+            async (Guid memberId, FamilyService svc, HttpContext ctx, CancellationToken ct) =>
             {
                 var callerId = ctx.User.GetUserId();
-                await svc.RemoveMemberAsync(memberId, callerId);
+                await svc.RemoveMemberAsync(memberId, callerId, ct);
                 return Results.NoContent();
             });
 

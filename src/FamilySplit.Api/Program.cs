@@ -35,12 +35,16 @@ builder.WebHost.ConfigureKestrel(o => o.AddServerHeader = false);
 // environment: structured JSON in production (parseable by Railway log drains /
 // external log services) and human-readable text in development.
 var isProduction = builder.Environment.IsProduction();
-builder.Host.UseSerilog((ctx, lc) => lc
-    .ReadFrom.Configuration(ctx.Configuration)
-    .Enrich.FromLogContext()
-    .WriteTo.Console(isProduction
-        ? new Serilog.Formatting.Json.JsonFormatter()
-        : null));
+builder.Host.UseSerilog((ctx, lc) =>
+{
+    lc.ReadFrom.Configuration(ctx.Configuration)
+      .Enrich.FromLogContext();
+
+    if (isProduction)
+        lc.WriteTo.Console(new Serilog.Formatting.Json.JsonFormatter());
+    else
+        lc.WriteTo.Console();
+});
 
 // Cache allowed origins once at startup — used by both CORS and the OAuth
 // returnUrl allow-list (open-redirect guard in AuthEndpoints).

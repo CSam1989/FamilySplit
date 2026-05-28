@@ -1,22 +1,15 @@
-logging targets (files? to where?) for debug & prod
-
-Cancellation support?
-
 Make api/client more sturdy (retries, rate limiting) with good defaults
-
-Validation (FluentValidation) every request where necessary (both frontend as on backend)
 
 PWA SUPPORT (for now only online features)
 In future, offline still be able to add expenses (need to see how to link them to groups/activities)
+
+Validation (FluentValidation) every request where necessary (both frontend as on backend)
 
 Structuring a method
 • Happy Path always at the bottom of the method
 • Don’t want to scan for “what happens when all goes well” and find it in the 
 middle of a method
 • Use return’s instead of nested if => else
-
-Refactor client, extract and reuse components as much as possible
-this will make the different pages look more similar
 
 Automated Tests (good code coverage) (xUnit)
 * unit tests
@@ -35,6 +28,9 @@ All run in CI
 *try to not duplicate code - library?
 *enforce cross-feature consistency
 *corresponding test projects
+
+Refactor client, extract and reuse components as much as possible
+this will make the different pages look more similar
 
  More features
  UserProfile

@@ -13,10 +13,11 @@ public static class DashboardEndpoints
         // Returns per-group statistics for the authenticated caller's dashboard.
         group.MapGet("/stats", async (
             DashboardService svc,
-            ClaimsPrincipal user) =>
+            ClaimsPrincipal user,
+            CancellationToken ct) =>
         {
             var callerId = user.GetUserId();
-            var stats = await svc.GetStatsAsync(callerId);
+            var stats = await svc.GetStatsAsync(callerId, ct);
             return Results.Ok(stats);
         });
     }

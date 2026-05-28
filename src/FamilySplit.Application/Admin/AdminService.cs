@@ -39,15 +39,15 @@ public class AdminService
 
     // ── List all families ─────────────────────────────────────────────────────
 
-    public async Task<List<FamilyDto>> ListFamiliesAsync(Guid callerId)
+    public async Task<List<FamilyDto>> ListFamiliesAsync(Guid callerId, CancellationToken ct = default)
     {
         _logger.LogDebug("ListFamiliesAsync called by {UserId}", callerId);
-        await RequireGlobalAdminAsync(callerId);
+        await RequireGlobalAdminAsync(callerId, ct);
 
         var families = await _db.Families
             .Select(f => new { f.Id, f.Name, f.CreatedAt, f.UpdatedAt })
             .OrderBy(f => f.Name)
-            .ToListAsync();
+            .ToListAsync(ct);
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
 
@@ -56,7 +56,7 @@ public class AdminService
         var allMembers = await _db.FamilyMembers
             .Where(m => familyIds.Contains(m.FamilyId) && m.IsActive)
             .OrderBy(m => m.DisplayName)
-            .ToListAsync();
+            .ToListAsync(ct);
 
         var membersByFamily = allMembers
             .GroupBy(m => m.FamilyId)
@@ -74,20 +74,20 @@ public class AdminService
 
     // ── Get one family ────────────────────────────────────────────────────────
 
-    public async Task<FamilyDto> GetFamilyAsync(Guid familyId, Guid callerId)
+    public async Task<FamilyDto> GetFamilyAsync(Guid familyId, Guid callerId, CancellationToken ct = default)
     {
         _logger.LogDebug("GetFamilyAsync called for {FamilyId} by {UserId}", familyId, callerId);
-        await RequireGlobalAdminAsync(callerId);
-        return await BuildFamilyDtoAsync(familyId)
+        await RequireGlobalAdminAsync(callerId, ct);
+        return await BuildFamilyDtoAsync(familyId, ct)
             ?? throw Throw422("FamilyId", "Family not found.");
     }
 
     // ── Create family ─────────────────────────────────────────────────────────
 
-    public async Task<FamilyDto> CreateFamilyAsync(CreateFamilyRequest req, Guid callerId)
+    public async Task<FamilyDto> CreateFamilyAsync(CreateFamilyRequest req, Guid callerId, CancellationToken ct = default)
     {
-        await _createFamilyValidator.ValidateAndThrowAsync(req);
-        await RequireGlobalAdminAsync(callerId);
+        await _createFamilyValidator.ValidateAndThrowAsync(req, ct);
+        await RequireGlobalAdminAsync(callerId, ct);
 
         var family = new Family
         {
@@ -99,11 +99,11 @@ public class AdminService
         };
 
         _db.Families.Add(family);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("Family {FamilyId} created by global admin {UserId}", family.Id, callerId);
 
-        return await BuildFamilyDtoAsync(family.Id)
+        return await BuildFamilyDtoAsync(family.Id, ct)
             ?? throw new InvalidOperationException("Family not found after create.");
     }
 
@@ -112,12 +112,13 @@ public class AdminService
     public async Task<FamilyMemberDto> AddFamilyMemberAsync(
         Guid familyId,
         AddFamilyMemberRequest req,
-        Guid callerId)
+        Guid callerId,
+        CancellationToken ct = default)
     {
-        await _addMemberValidator.ValidateAndThrowAsync(req);
-        await RequireGlobalAdminAsync(callerId);
+        await _addMemberValidator.ValidateAndThrowAsync(req, ct);
+        await RequireGlobalAdminAsync(callerId, ct);
 
-        var familyExists = await _db.Families.AnyAsync(f => f.Id == familyId);
+        var familyExists = await _db.Families.AnyAsync(f => f.Id == familyId, ct);
         if (!familyExists)
             throw Throw422("FamilyId", "Family not found.");
 
@@ -127,7 +128,7 @@ public class AdminService
         {
             // Direct equality — email column stores canonical lowercase form.
             var conflict = await _db.FamilyMembers
-                .AnyAsync(m => m.IsActive && m.Email == emailNorm);
+                .AnyAsync(m => m.IsActive && m.Email == emailNorm, ct);
             if (conflict)
                 throw Throw422("Email", "A family member with this email already exists.");
         }
@@ -153,13 +154,13 @@ public class AdminService
             var existingUser = await _db.Users
                 .Where(u => u.Email == emailNorm)
                 .Select(u => new { u.Id })
-                .FirstOrDefaultAsync();
+                .FirstOrDefaultAsync(ct);
 
             member.UserId = existingUser?.Id;
         }
 
         _db.FamilyMembers.Add(member);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation(
             "FamilyMember {MemberId} added to family {FamilyId} by global admin {UserId} (linked: {IsLinked})",
@@ -173,14 +174,15 @@ public class AdminService
     public async Task<FamilyMemberDto> UpdateFamilyMemberAsync(
         Guid memberId,
         UpdateFamilyMemberRequest req,
-        Guid callerId)
+        Guid callerId,
+        CancellationToken ct = default)
     {
-        await _updateMemberValidator.ValidateAndThrowAsync(req);
-        await RequireGlobalAdminAsync(callerId);
+        await _updateMemberValidator.ValidateAndThrowAsync(req, ct);
+        await RequireGlobalAdminAsync(callerId, ct);
 
         var member = await _db.FamilyMembers
             .Where(m => m.Id == memberId && m.IsActive)
-            .FirstOrDefaultAsync()
+            .FirstOrDefaultAsync(ct)
             ?? throw Throw422("MemberId", "Family member not found.");
 
         var emailNorm = req.Email?.Trim().ToLowerInvariant();
@@ -188,7 +190,7 @@ public class AdminService
         if (emailNorm is not null && emailNorm != member.Email)
         {
             var conflict = await _db.FamilyMembers
-                .AnyAsync(m => m.IsActive && m.Id != memberId && m.Email == emailNorm);
+                .AnyAsync(m => m.IsActive && m.Id != memberId && m.Email == emailNorm, ct);
             if (conflict)
                 throw Throw422("Email", "A family member with this email already exists.");
         }
@@ -199,7 +201,7 @@ public class AdminService
         member.WeightOverride = req.WeightOverride;
         member.IsAdmin        = req.IsAdmin;
 
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("FamilyMember {MemberId} updated by global admin {UserId}", memberId, callerId);
 
@@ -208,37 +210,37 @@ public class AdminService
 
     // ── Remove any member ─────────────────────────────────────────────────────
 
-    public async Task RemoveFamilyMemberAsync(Guid memberId, Guid callerId)
+    public async Task RemoveFamilyMemberAsync(Guid memberId, Guid callerId, CancellationToken ct = default)
     {
-        await RequireGlobalAdminAsync(callerId);
+        await RequireGlobalAdminAsync(callerId, ct);
 
         var member = await _db.FamilyMembers
             .Where(m => m.Id == memberId && m.IsActive)
-            .FirstOrDefaultAsync()
+            .FirstOrDefaultAsync(ct)
             ?? throw Throw422("MemberId", "Family member not found.");
 
         member.IsActive = false;
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("FamilyMember {MemberId} deactivated by global admin {UserId}", memberId, callerId);
     }
 
     // ── Add a family to a group ───────────────────────────────────────────────
 
-    public async Task AddFamilyToGroupAsync(Guid groupId, Guid familyId, Guid callerId)
+    public async Task AddFamilyToGroupAsync(Guid groupId, Guid familyId, Guid callerId, CancellationToken ct = default)
     {
-        await RequireGlobalAdminAsync(callerId);
+        await RequireGlobalAdminAsync(callerId, ct);
 
-        var groupExists = await _db.Groups.AnyAsync(g => g.Id == groupId);
+        var groupExists = await _db.Groups.AnyAsync(g => g.Id == groupId, ct);
         if (!groupExists)
             throw Throw422("GroupId", "Group not found.");
 
-        var familyExists = await _db.Families.AnyAsync(f => f.Id == familyId);
+        var familyExists = await _db.Families.AnyAsync(f => f.Id == familyId, ct);
         if (!familyExists)
             throw Throw422("FamilyId", "Family not found.");
 
         var alreadyMember = await _db.GroupFamilies
-            .AnyAsync(gf => gf.GroupId == groupId && gf.FamilyId == familyId);
+            .AnyAsync(gf => gf.GroupId == groupId && gf.FamilyId == familyId, ct);
         if (alreadyMember)
             throw Throw422("FamilyId", "This family is already in the group.");
 
@@ -250,37 +252,37 @@ public class AdminService
             Role     = MemberRole.Member,
             JoinedAt = DateTimeOffset.UtcNow,
         });
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("Family {FamilyId} added to group {GroupId} by global admin {UserId}", familyId, groupId, callerId);
     }
 
     // ── Remove a family from a group ──────────────────────────────────────────
 
-    public async Task RemoveFamilyFromGroupAsync(Guid groupId, Guid familyId, Guid callerId)
+    public async Task RemoveFamilyFromGroupAsync(Guid groupId, Guid familyId, Guid callerId, CancellationToken ct = default)
     {
-        await RequireGlobalAdminAsync(callerId);
+        await RequireGlobalAdminAsync(callerId, ct);
 
         var groupFamily = await _db.GroupFamilies
             .Where(gf => gf.GroupId == groupId && gf.FamilyId == familyId)
-            .FirstOrDefaultAsync()
+            .FirstOrDefaultAsync(ct)
             ?? throw Throw422("FamilyId", "This family is not in the group.");
 
         _db.GroupFamilies.Remove(groupFamily);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         _logger.LogWarning("Family {FamilyId} removed from group {GroupId} by global admin {UserId}", familyId, groupId, callerId);
     }
 
     // ── Delete a group ────────────────────────────────────────────────────────
 
-    public async Task DeleteGroupAsync(Guid groupId, Guid callerId)
+    public async Task DeleteGroupAsync(Guid groupId, Guid callerId, CancellationToken ct = default)
     {
-        await RequireGlobalAdminAsync(callerId);
+        await RequireGlobalAdminAsync(callerId, ct);
 
         var deleted = await _db.Groups
             .Where(g => g.Id == groupId)
-            .ExecuteDeleteAsync();
+            .ExecuteDeleteAsync(ct);
 
         if (deleted == 0)
             throw Throw422("GroupId", "Group not found.");
@@ -290,22 +292,22 @@ public class AdminService
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private async Task RequireGlobalAdminAsync(Guid userId)
+    private async Task RequireGlobalAdminAsync(Guid userId, CancellationToken ct)
     {
         var isAdmin = await _db.Users
             .Where(u => u.Id == userId)
             .Select(u => u.IsGlobalAdmin)
-            .FirstOrDefaultAsync();
+            .FirstOrDefaultAsync(ct);
 
         if (!isAdmin) throw Forbidden();
     }
 
-    private async Task<FamilyDto?> BuildFamilyDtoAsync(Guid familyId)
+    private async Task<FamilyDto?> BuildFamilyDtoAsync(Guid familyId, CancellationToken ct)
     {
         var family = await _db.Families
             .Where(f => f.Id == familyId)
             .Select(f => new { f.Id, f.Name, f.CreatedAt, f.UpdatedAt })
-            .FirstOrDefaultAsync();
+            .FirstOrDefaultAsync(ct);
 
         if (family is null) return null;
 
@@ -313,7 +315,7 @@ public class AdminService
         var members = await _db.FamilyMembers
             .Where(m => m.FamilyId == familyId && m.IsActive)
             .OrderBy(m => m.DisplayName)
-            .ToListAsync();
+            .ToListAsync(ct);
 
         return new FamilyDto(
             family.Id,

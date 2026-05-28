@@ -40,7 +40,7 @@ public class ExpenseService
 
     // ── List expenses for an activity ─────────────────────────────────────────
 
-    public async Task<List<ExpenseSummaryDto>> ListAsync(Guid activityId, Guid callerId)
+    public async Task<List<ExpenseSummaryDto>> ListAsync(Guid activityId, Guid callerId, CancellationToken ct = default)
     {
         _logger.LogDebug("Listing expenses for activity {ActivityId} requested by user {UserId}",
             activityId, callerId);
@@ -48,17 +48,17 @@ public class ExpenseService
         var activity = await _db.Activities
             .Where(a => a.Id == activityId)
             .Select(a => new { a.GroupId })
-            .FirstOrDefaultAsync()
+            .FirstOrDefaultAsync(ct)
             ?? throw NotFound("Activity not found.");
 
-        await RequireGroupMemberAsync(activity.GroupId, callerId);
+        await RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 
         var expenses = await _db.Expenses
             .Where(e => e.ActivityId == activityId)
             .OrderByDescending(e => e.ExpenseDate)
             .ThenByDescending(e => e.CreatedAt)
             .Select(e => new { e.Id, e.ActivityId, e.Title, e.Description, e.TotalAmount, e.Currency, e.ExpenseDate, e.PaidByUserId, e.Status, e.CreatedAt })
-            .ToListAsync();
+            .ToListAsync(ct);
 
         _logger.LogDebug("Found {ExpenseCount} expenses for activity {ActivityId}", expenses.Count, activityId);
 
@@ -71,7 +71,7 @@ public class ExpenseService
             .Where(ep => expenseIds.Contains(ep.ExpenseId) && !ep.IsExcluded)
             .GroupBy(ep => ep.ExpenseId)
             .Select(g => new { ExpenseId = g.Key, Count = g.Count() })
-            .ToDictionaryAsync(x => x.ExpenseId, x => x.Count);
+            .ToDictionaryAsync(x => x.ExpenseId, x => x.Count, ct);
 
         // Payer info (User → FamilyMember → Family) for each unique payer.
         var payerUserIds = expenses.Select(e => e.PaidByUserId).Distinct().ToList();
@@ -80,7 +80,7 @@ public class ExpenseService
             join f in _db.Families on fm.FamilyId equals f.Id
             where fm.UserId != null && payerUserIds.Contains(fm.UserId.Value) && fm.IsActive
             select new { UserId = fm.UserId!.Value, fm.DisplayName, fm.FamilyId, FamilyName = f.Name }
-        ).ToDictionaryAsync(x => x.UserId);
+        ).ToDictionaryAsync(x => x.UserId, ct);
 
         return expenses.Select(e =>
         {
@@ -104,46 +104,46 @@ public class ExpenseService
 
     // ── Get expense detail ────────────────────────────────────────────────────
 
-    public async Task<ExpenseDetailDto> GetDetailAsync(Guid expenseId, Guid callerId)
+    public async Task<ExpenseDetailDto> GetDetailAsync(Guid expenseId, Guid callerId, CancellationToken ct = default)
     {
         _logger.LogDebug("Getting expense detail {ExpenseId} for user {UserId}", expenseId, callerId);
 
         var expense = await _db.Expenses
             .Where(e => e.Id == expenseId)
             .Select(e => new { e.Id, e.ActivityId, e.Title, e.Description, e.TotalAmount, e.Currency, e.ExpenseDate, e.PaidByUserId, e.Status, e.CreatedAt, e.UpdatedAt })
-            .FirstOrDefaultAsync()
+            .FirstOrDefaultAsync(ct)
             ?? throw NotFound("Expense not found.");
 
         var activity = await _db.Activities
             .Where(a => a.Id == expense.ActivityId)
             .Select(a => new { a.GroupId })
-            .FirstOrDefaultAsync()
+            .FirstOrDefaultAsync(ct)
             ?? throw NotFound("Activity not found.");
 
-        await RequireGroupMemberAsync(activity.GroupId, callerId);
+        await RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 
         return await BuildDetailDtoAsync(expense.Id, expense.ActivityId, expense.Title, expense.Description,
             expense.TotalAmount, expense.Currency, expense.ExpenseDate, expense.PaidByUserId,
-            expense.Status, expense.CreatedAt, expense.UpdatedAt);
+            expense.Status, expense.CreatedAt, expense.UpdatedAt, ct);
     }
 
     // ── Create expense ────────────────────────────────────────────────────────
 
-    public async Task<ExpenseDetailDto> CreateAsync(Guid activityId, CreateExpenseRequest req, Guid callerId)
+    public async Task<ExpenseDetailDto> CreateAsync(Guid activityId, CreateExpenseRequest req, Guid callerId, CancellationToken ct = default)
     {
         _logger.LogDebug(
             "Creating expense on activity {ActivityId} by user {UserId} — title: {ExpenseTitle}, amount: {Amount}",
             activityId, callerId, req.Title, req.TotalAmount);
 
-        await _createValidator.ValidateAndThrowAsync(req);
+        await _createValidator.ValidateAndThrowAsync(req, ct);
 
         var activity = await _db.Activities
             .Where(a => a.Id == activityId)
             .Select(a => new { a.GroupId, a.Status })
-            .FirstOrDefaultAsync()
+            .FirstOrDefaultAsync(ct)
             ?? throw NotFound("Activity not found.");
 
-        await RequireGroupMemberAsync(activity.GroupId, callerId);
+        await RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 
         if (activity.Status == ActivityStatus.Settled)
             throw Throw422("Status", "Cannot add expenses to a settled activity.");
@@ -157,7 +157,7 @@ public class ExpenseService
             join fm in _db.FamilyMembers on ap.FamilyMemberId equals fm.Id
             where ap.ActivityId == activityId
             select new { fm.Id, fm.DateOfBirth, fm.WeightOverride }
-        ).ToListAsync();
+        ).ToListAsync(ct);
 
         _logger.LogDebug("Seeding {ParticipantCount} participants for new expense on activity {ActivityId}",
             participants.Count, activityId);
@@ -215,7 +215,7 @@ public class ExpenseService
             participants = expenseParticipants.Count,
         });
 
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation(
             "Expense {ExpenseId} created on activity {ActivityId} by user {UserId} — '{Title}' {Amount} {Currency}",
@@ -223,27 +223,27 @@ public class ExpenseService
 
         return await BuildDetailDtoAsync(expense.Id, expense.ActivityId, expense.Title, expense.Description,
             expense.TotalAmount, expense.Currency, expense.ExpenseDate, expense.PaidByUserId,
-            expense.Status, expense.CreatedAt, expense.UpdatedAt);
+            expense.Status, expense.CreatedAt, expense.UpdatedAt, ct);
     }
 
     // ── Update expense ────────────────────────────────────────────────────────
 
-    public async Task<ExpenseDetailDto> UpdateAsync(Guid expenseId, UpdateExpenseRequest req, Guid callerId)
+    public async Task<ExpenseDetailDto> UpdateAsync(Guid expenseId, UpdateExpenseRequest req, Guid callerId, CancellationToken ct = default)
     {
         _logger.LogDebug("Updating expense {ExpenseId} by user {UserId}", expenseId, callerId);
 
-        await _updateValidator.ValidateAndThrowAsync(req);
+        await _updateValidator.ValidateAndThrowAsync(req, ct);
 
-        var expense = await _db.Expenses.FindAsync(expenseId)
+        var expense = await _db.Expenses.FindAsync([expenseId], ct)
             ?? throw NotFound("Expense not found.");
 
         var activity = await _db.Activities
             .Where(a => a.Id == expense.ActivityId)
             .Select(a => new { a.GroupId, a.Status })
-            .FirstOrDefaultAsync()
+            .FirstOrDefaultAsync(ct)
             ?? throw NotFound("Activity not found.");
 
-        await RequireGroupMemberAsync(activity.GroupId, callerId);
+        await RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 
         if (activity.Status == ActivityStatus.Settled)
             throw Throw422("Status", "Cannot edit expenses on a settled activity.");
@@ -279,7 +279,7 @@ public class ExpenseService
 
             var existingParticipants = await _db.ExpenseParticipants
                 .Where(ep => ep.ExpenseId == expenseId)
-                .ToListAsync();
+                .ToListAsync(ct);
 
             if (existingParticipants.Count > 0)
             {
@@ -287,7 +287,7 @@ public class ExpenseService
                 var memberData = await _db.FamilyMembers
                     .Where(fm => memberIds.Contains(fm.Id))
                     .Select(fm => new { fm.Id, fm.DateOfBirth, fm.WeightOverride })
-                    .ToDictionaryAsync(m => m.Id);
+                    .ToDictionaryAsync(m => m.Id, ct);
 
                 foreach (var ep in existingParticipants)
                 {
@@ -321,7 +321,7 @@ public class ExpenseService
             recalculated = amountOrDateChanged,
         });
 
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation(
             "Expense {ExpenseId} updated by user {UserId} — '{Title}' {Amount} {Currency}",
@@ -329,25 +329,25 @@ public class ExpenseService
 
         return await BuildDetailDtoAsync(expense.Id, expense.ActivityId, expense.Title, expense.Description,
             expense.TotalAmount, expense.Currency, expense.ExpenseDate, expense.PaidByUserId,
-            expense.Status, expense.CreatedAt, expense.UpdatedAt);
+            expense.Status, expense.CreatedAt, expense.UpdatedAt, ct);
     }
 
     // ── Delete expense ────────────────────────────────────────────────────────
 
-    public async Task DeleteAsync(Guid expenseId, Guid callerId)
+    public async Task DeleteAsync(Guid expenseId, Guid callerId, CancellationToken ct = default)
     {
         _logger.LogDebug("Deleting expense {ExpenseId} requested by user {UserId}", expenseId, callerId);
 
-        var expense = await _db.Expenses.FindAsync(expenseId)
+        var expense = await _db.Expenses.FindAsync([expenseId], ct)
             ?? throw NotFound("Expense not found.");
 
         var activity = await _db.Activities
             .Where(a => a.Id == expense.ActivityId)
             .Select(a => new { a.GroupId, a.Status })
-            .FirstOrDefaultAsync()
+            .FirstOrDefaultAsync(ct)
             ?? throw NotFound("Activity not found.");
 
-        await RequireGroupMemberAsync(activity.GroupId, callerId);
+        await RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 
         if (activity.Status == ActivityStatus.Settled)
             throw Throw422("Status", "Cannot delete expenses from a settled activity.");
@@ -366,7 +366,7 @@ public class ExpenseService
         });
 
         _db.Expenses.Remove(expense);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation(
             "Expense {ExpenseId} deleted by user {UserId} — was '{Title}' {Amount} {Currency} on activity {ActivityId}",
@@ -375,16 +375,16 @@ public class ExpenseService
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private async Task RequireGroupMemberAsync(Guid groupId, Guid callerId)
+    private async Task RequireGroupMemberAsync(Guid groupId, Guid callerId, CancellationToken ct)
     {
         var callerFamilyId = await _db.FamilyMembers
             .Where(m => m.UserId == callerId && m.IsActive)
             .Select(m => (Guid?)m.FamilyId)
-            .FirstOrDefaultAsync()
+            .FirstOrDefaultAsync(ct)
             ?? throw new ForbiddenException();
 
         var isMember = await _db.GroupFamilies
-            .AnyAsync(gf => gf.GroupId == groupId && gf.FamilyId == callerFamilyId);
+            .AnyAsync(gf => gf.GroupId == groupId && gf.FamilyId == callerFamilyId, ct);
 
         if (!isMember)
             throw new ForbiddenException();
@@ -394,7 +394,8 @@ public class ExpenseService
         Guid id, Guid activityId, string title, string? description,
         decimal totalAmount, string currency, DateOnly expenseDate,
         Guid paidByUserId, ExpenseStatus status,
-        DateTimeOffset createdAt, DateTimeOffset updatedAt)
+        DateTimeOffset createdAt, DateTimeOffset updatedAt,
+        CancellationToken ct)
     {
         // Payer info.
         var payer = await (
@@ -402,7 +403,7 @@ public class ExpenseService
             join f in _db.Families on fm.FamilyId equals f.Id
             where fm.UserId == paidByUserId && fm.IsActive
             select new { fm.DisplayName, fm.FamilyId, FamilyName = f.Name }
-        ).FirstOrDefaultAsync();
+        ).FirstOrDefaultAsync(ct);
 
         // Participants with family info.
         var participants = await (
@@ -422,7 +423,7 @@ public class ExpenseService
                 ep.CalculatedAmount,
                 ep.IsExcluded,
             }
-        ).ToListAsync();
+        ).ToListAsync(ct);
 
         var participantDtos = participants.Select(p => new ExpenseParticipantDto(
             p.Id,

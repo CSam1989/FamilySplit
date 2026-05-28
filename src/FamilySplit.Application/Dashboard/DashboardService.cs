@@ -17,13 +17,13 @@ public class DashboardService
 
     public DashboardService(AppDbContext db) => _db = db;
 
-    public async Task<List<DashboardGroupStatDto>> GetStatsAsync(Guid callerId)
+    public async Task<List<DashboardGroupStatDto>> GetStatsAsync(Guid callerId, CancellationToken ct = default)
     {
         // ── 1. Resolve caller's family ────────────────────────────────────────
         var callerFamilyId = await _db.FamilyMembers
             .Where(m => m.UserId == callerId && m.IsActive)
             .Select(m => (Guid?)m.FamilyId)
-            .FirstOrDefaultAsync()
+            .FirstOrDefaultAsync(ct)
             ?? throw new ForbiddenException("Caller has no active family membership.");
 
         // ── 2. Groups the caller's family belongs to ──────────────────────────
@@ -33,7 +33,7 @@ public class DashboardService
             where gf.FamilyId == callerFamilyId
             orderby g.Name
             select new { g.Id, g.Name }
-        ).ToListAsync();
+        ).ToListAsync(ct);
 
         if (groupInfos.Count == 0) return [];
 
@@ -43,7 +43,7 @@ public class DashboardService
         var activityRows = await _db.Activities
             .Where(a => groupIds.Contains(a.GroupId) && a.ParentActivityId == null)
             .Select(a => new { a.GroupId, a.Id, a.Name, a.Status, a.CreatedAt })
-            .ToListAsync();
+            .ToListAsync(ct);
 
         var activityIds = activityRows.Select(a => a.Id).ToList();
 
@@ -57,7 +57,7 @@ public class DashboardService
                 join a in _db.Activities on e.ActivityId equals a.Id
                 where activityIds.Contains(e.ActivityId)
                 select new { a.GroupId, e.TotalAmount, e.Currency }
-            ).ToListAsync();
+            ).ToListAsync(ct);
 
             expensesByGroup = rawExpenses
                 .GroupBy(r => r.GroupId)
@@ -85,7 +85,7 @@ public class DashboardService
                    && fm.FamilyId == callerFamilyId
                    && !ep.IsExcluded
                 select new { a.GroupId, ep.CalculatedAmount }
-            ).ToListAsync();
+            ).ToListAsync(ct);
 
             shareByGroup = rawShare
                 .GroupBy(r => r.GroupId)
@@ -108,7 +108,7 @@ public class DashboardService
                 join a in _db.Activities on e.ActivityId equals a.Id
                 where balanceActivityIds.Contains(e.ActivityId)
                 select new { a.GroupId, e.TotalAmount }
-            ).ToListAsync();
+            ).ToListAsync(ct);
 
             activeExpensesByGroup = rawActiveExpenses
                 .GroupBy(r => r.GroupId)
@@ -123,7 +123,7 @@ public class DashboardService
                    && fm.FamilyId == callerFamilyId
                    && !ep.IsExcluded
                 select new { a.GroupId, ep.CalculatedAmount }
-            ).ToListAsync();
+            ).ToListAsync(ct);
 
             activeShareByGroup = rawActiveShare
                 .GroupBy(r => r.GroupId)
@@ -151,7 +151,7 @@ public class DashboardService
                    && fm.FamilyId == callerFamilyId
                    && fm.IsActive
                 select new { a.GroupId, e.TotalAmount }
-            ).ToListAsync();
+            ).ToListAsync(ct);
 
             paidByGroup = rawPaid
                 .GroupBy(r => r.GroupId)
@@ -167,7 +167,7 @@ public class DashboardService
                    && fm.FamilyId == callerFamilyId
                    && !ep.IsExcluded
                 select new { a.GroupId, ep.CalculatedAmount }
-            ).ToListAsync();
+            ).ToListAsync(ct);
 
             owedByGroup = rawOwed
                 .GroupBy(r => r.GroupId)
@@ -190,7 +190,7 @@ public class DashboardService
                     || (s.ReceiverFamilyId == callerFamilyId && s.Status == SettlementStatus.PayerSent)
                    )
                 select a.GroupId
-            ).ToListAsync();
+            ).ToListAsync(ct);
 
             pendingCountByGroup = rawPending
                 .GroupBy(id => id)
