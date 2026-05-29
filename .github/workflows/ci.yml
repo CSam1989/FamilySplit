@@ -64,6 +64,13 @@ jobs:
         with:
           name: build-output
  
+      - name: Restore executable permissions
+        run: |
+          find . -path "*/bin/Release/net10.0/*" -type f \
+            ! -name "*.dll" ! -name "*.pdb" ! -name "*.json" ! -name "*.xml" \
+            ! -name "*.config" ! -name "*.runtimeconfig.*" ! -name "*.deps.*" \
+            -exec chmod +x {} \;
+
       - name: Run unit tests
         run: |
           dotnet test tests/FamilySplit.UnitTests/FamilySplit.UnitTests.csproj \
