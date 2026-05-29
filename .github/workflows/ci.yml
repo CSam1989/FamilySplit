@@ -71,16 +71,20 @@ jobs:
             ! -name "*.config" ! -name "*.runtimeconfig.*" ! -name "*.deps.*" \
             -exec chmod +x {} \;
 
-      - name: Run unit tests
+      - name: Install dotnet-coverage
+        run: dotnet tool install --global dotnet-coverage
+
+      - name: Run unit tests with coverage
         run: |
-          dotnet test tests/FamilySplit.UnitTests/FamilySplit.UnitTests.csproj \
-            --no-build \
-            -c Release \
-            --logger "trx;LogFileName=unit-results.trx" \
-            --logger "console;verbosity=normal" \
-            --collect:"XPlat Code Coverage" \
-            --results-directory ./coverage \
-            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+          dotnet-coverage collect \
+            "dotnet test tests/FamilySplit.UnitTests/FamilySplit.UnitTests.csproj \
+              --no-build \
+              -c Release \
+              --logger trx;LogFileName=unit-results.trx \
+              --logger console;verbosity=normal \
+              --results-directory ./coverage" \
+            -f cobertura \
+            -o ./coverage/coverage.cobertura.xml
  
       - name: Publish test results
         uses: dorny/test-reporter@v1
