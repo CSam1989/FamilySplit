@@ -12,6 +12,7 @@ using FamilySplit.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
@@ -263,6 +264,12 @@ app.UseSerilogRequestLogging();
 app.UseMiddleware<ValidationExceptionMiddleware>();
 app.UseCors("ClientApp");
 app.UseRateLimiter();
+
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+});
+
 app.UseAuthentication();
 app.UseAuthorization();
 // Enriches Serilog log entries with the authenticated caller's UserId and
