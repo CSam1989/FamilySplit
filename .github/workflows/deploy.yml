@@ -158,7 +158,7 @@ jobs:
           name: sbom
           path: sbom.spdx.json
 
-  # ─────────────────────────────────────────────────────────────────────────────
+    # ─────────────────────────────────────────────────────────────────────────────
   # 3. DEPLOY API → Railway
   # ─────────────────────────────────────────────────────────────────────────────
   deploy-api:
@@ -169,19 +169,11 @@ jobs:
       name: production
       url: ${{ vars.API_BASE_URL }}
     steps:
-      - name: Trigger Railway redeploy
+      - name: Redeploy via Railway CLI
         run: |
-          CODE=$(curl -s -o response.json -w "%{http_code}" \
-            -X POST "${{ secrets.RAILWAY_WEBHOOK_URL }}" \
-            -H "Content-Type: application/json" \
-            -d '{"image":"${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"}')
-
-          if [[ "$CODE" -lt 200 || "$CODE" -ge 300 ]]; then
-            echo "::error::Railway webhook returned HTTP $CODE"
-            cat response.json
-            exit 1
-          fi
-          echo "Railway deploy triggered (HTTP $CODE)"
+          npx @railway/cli@latest redeploy             --service ${{ secrets.RAILWAY_SERVICE_ID }}             --yes
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
       - name: Wait for Railway to stabilise (60 s)
         run: sleep 60
