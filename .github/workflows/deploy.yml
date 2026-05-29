@@ -56,13 +56,19 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
+      - name: Inject production appsettings
+        run: |
+          echo '{
+            "Api": {
+              "BaseUrl": "${{ vars.API_BASE_URL }}"
+            }
+          }' > src/FamilySplit.Client/wwwroot/appsettings.Production.json
+
       - name: Publish Blazor WASM
         run: |
           dotnet publish src/FamilySplit.Client/FamilySplit.Client.csproj \
             -c Release \
             -o publish/client
-        env:
-          ApiBaseUrl: ${{ vars.API_BASE_URL }}
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/pages-action@v1
