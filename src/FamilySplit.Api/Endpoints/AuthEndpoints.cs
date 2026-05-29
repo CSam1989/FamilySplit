@@ -244,7 +244,7 @@ public static class AuthEndpoints
         {
             HttpOnly = true,
             Secure = true,
-            SameSite = SameSiteMode.Strict,
+            SameSite = SameSiteMode.None, // client (pages.dev) and API (railway.app) are cross-site
             Path = RefreshCookiePath,
             Expires = expiresAt,
             IsEssential = true,
@@ -258,7 +258,7 @@ public static class AuthEndpoints
             Path = RefreshCookiePath,
             Secure = true,
             HttpOnly = true,
-            SameSite = SameSiteMode.Strict,
+            SameSite = SameSiteMode.None,
         });
     }
 
