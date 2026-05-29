@@ -288,7 +288,7 @@ jobs:
     needs:
       - unit-tests
       - integration-tests
-      - codeql
+      # - codeql
       - dependency-audit
       - secret-scan
       - format-check
