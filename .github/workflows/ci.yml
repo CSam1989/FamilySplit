@@ -65,7 +65,11 @@ jobs:
           name: build-output
 
       - name: Restore executable permissions
-        run: find . -path "*/bin/Release/net10.0/*" -type f ! -name "*.*" -exec chmod +x {} \;
+        run: |
+          find . -path "*/bin/Release/net10.0/*" -type f \
+            ! -name "*.dll" ! -name "*.pdb" ! -name "*.json" ! -name "*.xml" \
+            ! -name "*.config" ! -name "*.runtimeconfig.*" ! -name "*.deps.*" \
+            -exec chmod +x {} \;
 
       - name: Run unit tests
         run: |
@@ -124,7 +128,11 @@ jobs:
           name: build-output
 
       - name: Restore executable permissions
-        run: find . -path "*/bin/Release/net10.0/*" -type f ! -name "*.*" -exec chmod +x {} \;
+        run: |
+          find . -path "*/bin/Release/net10.0/*" -type f \
+            ! -name "*.dll" ! -name "*.pdb" ! -name "*.json" ! -name "*.xml" \
+            ! -name "*.config" ! -name "*.runtimeconfig.*" ! -name "*.deps.*" \
+            -exec chmod +x {} \;
 
       - name: Apply EF Core migrations
         env:
