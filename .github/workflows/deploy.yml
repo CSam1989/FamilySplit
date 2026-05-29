@@ -184,7 +184,7 @@ jobs:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Restore
-        run: dotnet restore FamilySplit.sln
+        run: dotnet restore FamilySplit.slnx
 
       - name: Install EF Core tools
         run: dotnet tool restore
