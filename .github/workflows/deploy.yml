@@ -78,6 +78,7 @@ jobs:
           projectName: familysplit
           directory: publish/client/wwwroot
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          branch: main
 
   # ─────────────────────────────────────────────────────────────────────────────
   # 2. BUILD & PUSH DOCKER IMAGE → GHCR
@@ -191,7 +192,7 @@ jobs:
 
       - name: Apply migrations
         run: |
-          dotnet ef database update             --project src/FamilySplit.Infrastructure             --startup-project src/FamilySplit.Api             --no-build
+          dotnet ef database update --project src/FamilySplit.Infrastructure --startup-project src/FamilySplit.Api
         env:
           ConnectionStrings__DefaultConnection: ${{ secrets.NEON_DATABASE_URL }}
 
