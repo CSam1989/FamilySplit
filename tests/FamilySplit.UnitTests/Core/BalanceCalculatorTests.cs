@@ -1,4 +1,4 @@
-﻿using FamilySplit.Application.Core;
+using FamilySplit.Application.Core;
 using FluentAssertions;
 using ExpenseData = FamilySplit.Application.Core.BalanceCalculator.ExpenseData;
 using ParticipantData = FamilySplit.Application.Core.BalanceCalculator.ParticipantData;

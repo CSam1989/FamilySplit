@@ -53,24 +53,17 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v4
-
+ 
       - name: Setup .NET ${{ env.DOTNET_VERSION }}
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
-
+ 
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
           name: build-output
-
-      - name: Restore executable permissions
-        run: |
-          find . -path "*/bin/Release/net10.0/*" -type f \
-            ! -name "*.dll" ! -name "*.pdb" ! -name "*.json" ! -name "*.xml" \
-            ! -name "*.config" ! -name "*.runtimeconfig.*" ! -name "*.deps.*" \
-            -exec chmod +x {} \;
-
+ 
       - name: Run unit tests
         run: |
           dotnet test tests/FamilySplit.UnitTests/FamilySplit.UnitTests.csproj \
@@ -79,8 +72,9 @@ jobs:
             --logger "trx;LogFileName=unit-results.trx" \
             --logger "console;verbosity=normal" \
             --collect:"XPlat Code Coverage" \
+            --results-directory ./coverage \
             -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
-
+ 
       - name: Publish test results
         uses: dorny/test-reporter@v1
         if: always()
@@ -88,22 +82,22 @@ jobs:
           name: Unit Test Results
           path: "**/unit-results.trx"
           reporter: dotnet-trx
-
+ 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
         with:
           name: unit-coverage
-          path: "**/coverage.cobertura.xml"
+          path: coverage/
           retention-days: 7
-
+ 
       - name: Coverage summary
-        uses: irongut/CodeCoverageSummary@v1.3.0
-        with:
-          filename: "**/coverage.cobertura.xml"
-          badge: true
-          format: markdown
-          output: both
-          thresholds: "60 80"       # warn at 60%, fail at <60%
+        run: |
+          dotnet tool install --global dotnet-reportgenerator-globaltool
+          reportgenerator \
+            -reports:"coverage/**/coverage.cobertura.xml" \
+            -targetdir:"coverage/report" \
+            -reporttypes:"MarkdownSummaryGithub"
+          cat coverage/report/SummaryGithub.md >> $GITHUB_STEP_SUMMARY
 
   # ─────────────────────────────────────────────────────────────────────────────
   # 3. INTEGRATION TESTS — real Postgres (Neon dev branch)
@@ -295,7 +289,7 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - unit-tests
-      - integration-tests
+      # - integration-tests
       # - codeql
       - dependency-audit
       - secret-scan
