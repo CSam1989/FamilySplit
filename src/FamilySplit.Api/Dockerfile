@@ -25,4 +25,4 @@ RUN dotnet publish "src/FamilySplit.Api/FamilySplit.Api.csproj" -c Release -o /a
 FROM base AS final
 WORKDIR /app
 COPY --from=build /app/publish .
-ENTRYPOINT ["dotne
+ENTRYPOINT ["dotnet", "FamilySplit.Api.dll"]

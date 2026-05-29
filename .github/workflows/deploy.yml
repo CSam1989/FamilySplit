@@ -232,4 +232,5 @@ jobs:
           echo "| Frontend (Cloudflare Pages) | ${{ needs.deploy-frontend.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| API Docker image | ${{ needs.build-api-image.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| API (Railway) | ${{ needs.deploy-api.result }} |" >> $GITHUB_STEP_SUMMARY
-          ec
+          echo "| Smoke tests | ${{ needs.smoke-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.event.workflow_run.head_sha || github.sha }}\`" >> $GITHUB_STEP_SUMMARY
