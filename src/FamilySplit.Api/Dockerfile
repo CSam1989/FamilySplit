@@ -12,6 +12,7 @@ WORKDIR /src
 
 # Copy csproj files first for layer caching.
 COPY ["Directory.Build.props", "./"]
+COPY ["Directory.Packages.props", "./"]
 COPY ["src/FamilySplit.Domain/FamilySplit.Domain.csproj", "src/FamilySplit.Domain/"]
 COPY ["src/FamilySplit.Application/FamilySplit.Application.csproj", "src/FamilySplit.Application/"]
 COPY ["src/FamilySplit.Infrastructure/FamilySplit.Infrastructure.csproj", "src/FamilySplit.Infrastructure/"]
@@ -19,8 +20,7 @@ COPY ["src/FamilySplit.Api/FamilySplit.Api.csproj", "src/FamilySplit.Api/"]
 RUN dotnet restore "src/FamilySplit.Api/FamilySplit.Api.csproj"
 
 COPY . .
-WORKDIR /src/src/FamilySplit.Api
-RUN dotnet publish "FamilySplit.Api.csproj" -c Release -o /app/publish /p:UseAppHost=false
+RUN dotnet publish "src/FamilySplit.Api/FamilySplit.Api.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
 FROM base AS final
 WORKDIR /app
