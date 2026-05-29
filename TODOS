@@ -1,11 +1,3 @@
-Validation (FluentValidation) every request where necessary (both frontend as on backend)
-
-Structuring a method
-• Happy Path always at the bottom of the method
-• Don’t want to scan for “what happens when all goes well” and find it in the 
-middle of a method
-• Use return’s instead of nested if => else
-
 Automated Tests (good code coverage) (xUnit)
 * unit tests
 * bunit to test blazor components

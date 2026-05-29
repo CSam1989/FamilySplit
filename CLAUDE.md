@@ -263,6 +263,59 @@ select new { gf.FamilyId, f.Name, gf.Role, gf.JoinedAt }
 
 ---
 
+## Validation Standards
+
+### Backend (FluentValidation)
+
+Every request type that reaches a service method **must** have a corresponding `AbstractValidator<T>` in the same namespace as the service. Rules:
+
+- Validators live alongside their service (e.g., `ActivityValidator.cs` next to `ActivityService.cs`).
+- All validators are registered automatically via `AddValidatorsFromAssembly` in `DependencyInjection.cs`.
+- Every public service method that accepts a request object **must** call `await _validator.ValidateAndThrowAsync(req, ct)` as the first statement, before any DB or auth checks.
+- Validator coverage by file:
+
+| File | Validators |
+|---|---|
+| `ActivityValidator.cs` | `CreateActivityValidator`, `UpdateActivityValidator`, `AddParticipantValidator` |
+| `AdminValidator.cs` | `CreateFamilyValidator` (admin member ops reuse `AddFamilyMemberValidator` / `UpdateFamilyMemberValidator` from Families) |
+| `ExpenseValidator.cs` | `CreateExpenseValidator`, `UpdateExpenseValidator` |
+| `FamilyValidator.cs` | `UpdateFamilyNameValidator`, `AddFamilyMemberValidator`, `UpdateFamilyMemberValidator` |
+| `GroupValidator.cs` | `CreateGroupValidator`, `UpdateGroupValidator`, `JoinGroupValidator` |
+
+### Frontend (MudBlazor MudForm)
+
+Every dialog that submits user input **must** use `MudForm` with `@ref` and `@bind-IsValid`. Rules:
+
+- Wrap all inputs in `<MudForm @ref="_form" @bind-IsValid="_isValid">`.
+- Use `Required="true"` and `RequiredError="..."` on required `MudTextField`/`MudNumericField` fields. Error messages must match backend validator messages exactly.
+- Use `MaxLength` and `Counter` on text fields that have a length limit.
+- Use `Validation="@(new Func<T, IEnumerable<string>>(ValidateX))"` for complex rules (email format, range checks). Place static validator helpers in `@code`.
+- The submit button must be `Disabled="@(!_isValid)"`.
+- The `Submit` method must call `await _form.ValidateAsync()` and guard on `if (!_isValid) return;` before closing the dialog.
+
+**Email validation helper (reuse across dialogs):**
+```csharp
+private static IEnumerable<string> ValidateEmail(string? email)
+{
+    if (string.IsNullOrEmpty(email)) yield break;
+    if (email.Length > 255) yield return "Email cannot exceed 255 characters.";
+    var attr = new System.ComponentModel.DataAnnotations.EmailAddressAttribute();
+    if (!attr.IsValid(email)) yield return "Email must be a valid email address.";
+}
+```
+
+**Weight override validation helper:**
+```csharp
+private static IEnumerable<string> ValidateWeightOverride(decimal? weight)
+{
+    if (weight is null) yield break;
+    if (weight.Value <= 0m || weight.Value > 10m)
+        yield return "Weight override must be between 0.01 and 10.";
+}
+```
+
+---
+
 ## Infrastructure Layer (FamilySplit.Infrastructure)
 
 - Single `AppDbContext` with entity configurations in `Configurations/`.
@@ -507,6 +560,41 @@ Client-side controls must mirror every server-side permission check — if a use
 - The IsAdmin checkbox in `FamilyMemberDialog` is only shown when `ShowAdminToggle = true` (pass `callerIsAdmin`).
 - Admin pages (`/admin/*`) dispatch `LoadMyProfileAction` on init if `ProfileState.Value.MyProfile is null`, since they need the caller's identity for UI guards.
 - Use **computed C# properties** in `@code` (not `@{ }` template variables) for values that depend on async state — template variables are captured at first render and won't update when Fluxor state changes.
+
+---
+
+## Method Structure Conventions
+
+- **Happy path goes at the bottom.** Guards, validation, and early returns come first. The successful outcome is always the last thing in the method — never buried in the middle.
+- **Prefer early returns over nested if/else.** Invert conditions to exit early; do not wrap the happy path in an `else` block.
+
+```csharp
+// WRONG — happy path buried inside else
+public async Task<Foo> CreateAsync(...)
+{
+    if (user == null)
+    {
+        throw new ForbiddenException();
+    }
+    else
+    {
+        var foo = new Foo(...);
+        await _db.SaveChangesAsync();
+        return foo;
+    }
+}
+
+// CORRECT — early return for guard, happy path at bottom
+public async Task<Foo> CreateAsync(...)
+{
+    if (user == null)
+        throw new ForbiddenException();
+
+    var foo = new Foo(...);
+    await _db.SaveChangesAsync();
+    return foo;
+}
+```
 
 ---
 

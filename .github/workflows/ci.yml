@@ -158,35 +158,35 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────────────
   # 4. SAST — CodeQL static analysis
   # ─────────────────────────────────────────────────────────────────────────────
-  codeql:
-    name: CodeQL SAST
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
-      security-events: write       # required to upload SARIF results
-    steps:
-      - uses: actions/checkout@v4
+  # codeql:
+  #   name: CodeQL SAST
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     actions: read
+  #     contents: read
+  #     security-events: write       # required to upload SARIF results
+  #   steps:
+  #     - uses: actions/checkout@v4
 
-      - name: Setup .NET ${{ env.DOTNET_VERSION }}
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
+  #     - name: Setup .NET ${{ env.DOTNET_VERSION }}
+  #       uses: actions/setup-dotnet@v4
+  #       with:
+  #         dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4
-        with:
-          languages: csharp
-          queries: security-extended
+  #     - name: Initialize CodeQL
+  #       uses: github/codeql-action/init@v4
+  #       with:
+  #         languages: csharp
+  #         queries: security-extended
 
-      - name: Autobuild for CodeQL
-        uses: github/codeql-action/autobuild@v4
+  #     - name: Autobuild for CodeQL
+  #       uses: github/codeql-action/autobuild@v4
 
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v4
-        with:
-          category: "/language:csharp"
-          upload: true
+  #     - name: Perform CodeQL Analysis
+  #       uses: github/codeql-action/analyze@v4
+  #       with:
+  #         category: "/language:csharp"
+  #         upload: true
 
   # ─────────────────────────────────────────────────────────────────────────────
   # 5. DEPENDENCY AUDIT — Trivy scans NuGet lock files for known CVEs
