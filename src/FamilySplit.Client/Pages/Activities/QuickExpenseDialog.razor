@@ -178,7 +178,7 @@
                               MaxLength="200" Immediate="true" Class="mb-3"
                               Variant="Variant.Outlined" AutoFocus="true" />
 
-                <MudNumericField T="decimal" Label="Amount (EUR)" @bind-Value="_expense.TotalAmount"
+                <MudNumericField T="decimal?" Label="Amount (EUR)" @bind-Value="_expense.TotalAmount"
                                  Required="true" RequiredError="Amount is required."
                                  Min="0.01m" Immediate="true"
                                  Variant="Variant.Outlined" Class="mb-3" />
@@ -395,7 +395,7 @@
             var request = new CreateExpenseRequest(
                 _expense.Title,
                 _expense.Description,
-                _expense.TotalAmount,
+                _expense.TotalAmount!.Value,
                 _expense.Currency,
                 DateOnly.FromDateTime(_expenseDate ?? DateTime.Today),
                 null);

@@ -825,7 +825,7 @@ else
         var result = await dialog.Result;
         if (result is { Canceled: false, Data: ExpenseFormModel form })
             Dispatcher.Dispatch(new CreateExpenseAction(GroupId, ActivityId,
-                new CreateExpenseRequest(form.Title, form.Description, form.TotalAmount,
+                new CreateExpenseRequest(form.Title, form.Description, form.TotalAmount!.Value,
                     form.Currency, DateOnly.FromDateTime(form.ExpenseDate), null)));
     }
 
@@ -843,7 +843,7 @@ else
         var result = await dialog.Result;
         if (result is { Canceled: false, Data: ExpenseFormModel form })
             Dispatcher.Dispatch(new UpdateExpenseAction(GroupId, ActivityId, expense.Id,
-                new UpdateExpenseRequest(form.Title, form.Description, form.TotalAmount,
+                new UpdateExpenseRequest(form.Title, form.Description, form.TotalAmount!.Value,
                     form.Currency, DateOnly.FromDateTime(form.ExpenseDate), null)));
     }
 
