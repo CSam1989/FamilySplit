@@ -62,6 +62,24 @@
             <span class="fs-nav-label">Family</span>
         </a>
 
+        <!-- Admin (global admins only) -->
+        @if (AuthState.Value.IsGlobalAdmin)
+        {
+            <a href="/admin" class="fs-nav-item @IsActive("admin")" aria-label="Admin">
+                <span class="fs-nav-icon">
+                    @if (IsActive("admin") == "active")
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.AdminPanelSettings" Style="font-size:22px" />
+                    }
+                    else
+                    {
+                        <MudIcon Icon="@Icons.Material.Outlined.AdminPanelSettings" Style="font-size:22px" />
+                    }
+                </span>
+                <span class="fs-nav-label">Admin</span>
+            </a>
+        }
+
         <!-- Me / profile -->
         <a href="/" class="fs-nav-item @IsActive("profile")" aria-label="Profile">
             @if (AuthState.Value.CurrentUser?.AvatarUrl is { } avatar)
