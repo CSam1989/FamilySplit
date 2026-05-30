@@ -17,6 +17,7 @@
 @inject NavigationManager Nav
 @inject IConfiguration Config
 @inject IDialogService DialogService
+@inject I18nText I18nText
 
 <PageTitle>FamilySplit · Home</PageTitle>
 
@@ -46,17 +47,17 @@ else if (!AuthState.Value.IsAuthenticated)
                 </svg>
             </div>
             <MudText Typo="Typo.h3" Style="font-weight:800;letter-spacing:-0.03em;margin-bottom:8px">
-                FamilySplit
+                @_t.AppName
             </MudText>
             <MudText Typo="Typo.body1" Style="color:var(--fs-text-secondary);max-width:280px;margin:0 auto;line-height:1.6">
-                Split expenses fairly between families — weighted by age, settled simply.
+                @_t.AppTagline
             </MudText>
         </div>
 
         <div class="fs-signin-card" style="width:100%;max-width:360px">
-            <MudText Typo="Typo.h5" Style="margin-bottom:6px">Welcome back</MudText>
+            <MudText Typo="Typo.h5" Style="margin-bottom:6px">@_t.WelcomeBack</MudText>
             <MudText Typo="Typo.body2" Style="color:var(--fs-text-secondary);margin-bottom:24px">
-                Sign in to see your groups and expenses
+                @_t.SignInSubtitle
             </MudText>
 
             <MudButton Variant="Variant.Filled"
@@ -72,7 +73,7 @@ else if (!AuthState.Value.IsAuthenticated)
                         <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#fff" opacity=".7"/>
                         <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#fff" opacity=".7"/>
                     </svg>
-                    Continue with Google
+                    @_t.ContinueWithGoogle
                 </div>
             </MudButton>
         </div>
@@ -91,15 +92,15 @@ else
     <div class="fs-hero fs-fade-in" style="margin-bottom:24px">
         <div style="position:relative;z-index:1">
             <MudText Style="font-size:0.8125rem;font-weight:500;color:rgba(255,255,255,0.7);margin-bottom:4px;letter-spacing:0.01em">
-                Good @GetTimeOfDay(), @firstName 👋
+                @GetGreeting(), @firstName 👋
             </MudText>
             <MudText Style="font-size:1.5rem;font-weight:700;color:white;letter-spacing:-0.02em;margin-bottom:16px">
-                Your expense hub
+                @_t.YourExpenseHub
             </MudText>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
                 <span class="fs-stat-pill">
                     <MudIcon Icon="@Icons.Material.Rounded.Groups" Style="font-size:14px" />
-                    @groups.Count @(groups.Count == 1 ? "group" : "groups")
+                    @groups.Count @(groups.Count == 1 ? _t.GroupSingular : _t.GroupsPlural)
                 </span>
                 @if (family is not null)
                 {
@@ -112,7 +113,7 @@ else
                 {
                     <span class="fs-stat-pill" style="background:rgba(239,68,68,0.25)">
                         <MudIcon Icon="@Icons.Material.Rounded.AdminPanelSettings" Style="font-size:14px" />
-                        Admin
+                        @_t.NavAdmin
                     </span>
                 }
             </div>
@@ -122,13 +123,13 @@ else
     <!-- Groups section -->
     <div class="fs-fade-in fs-fade-in-delay-1">
         <div class="fs-section-header">
-            <span class="fs-section-title">Your Groups</span>
+            <span class="fs-section-title">@_t.MyGroups</span>
             <MudButton Variant="Variant.Text"
                        Color="Color.Primary"
                        Size="Size.Small"
                        Href="/groups"
                        Style="font-size:0.8125rem;font-weight:600;min-width:0;padding:0 4px">
-                See all
+                @_t.ViewAll
             </MudButton>
         </div>
 
@@ -148,16 +149,16 @@ else
                     <MudIcon Icon="@Icons.Material.Outlined.Groups"
                              Style="font-size:48px;color:var(--fs-text-tertiary);margin-bottom:8px" />
                     <MudText Typo="Typo.subtitle2" Style="color:var(--fs-text-primary);margin-bottom:4px">
-                        No groups yet
+                        @_t.NoGroups
                     </MudText>
                     <MudText Typo="Typo.body2" Style="color:var(--fs-text-secondary);margin-bottom:16px">
-                        Create a group or ask a friend for an invite code
+                        @_t.CreateGroupToStart
                     </MudText>
                     <MudButton Variant="Variant.Filled"
                                Color="Color.Primary"
                                Size="Size.Small"
                                Href="/groups">
-                        Get started
+                        @_t.CreateFirstGroup
                     </MudButton>
                 </div>
             </div>
@@ -181,7 +182,7 @@ else
                                     @group.Name
                                 </div>
                                 <div style="font-size:0.8125rem;color:var(--fs-text-secondary);margin-top:1px">
-                                    @group.FamilyCount @(group.FamilyCount == 1 ? "family" : "families")
+                                    @group.FamilyCount @(group.FamilyCount == 1 ? _t.FamilySingular : _t.FamiliesPlural)
                                     @if (group.Description is { Length: > 0 } desc)
                                     {
                                         <span style="color:var(--fs-border)"> · </span>
@@ -201,10 +202,10 @@ else
                                 <!-- Activity count -->
                                 <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;color:var(--fs-text-secondary);background:var(--fs-surface-2);border-radius:6px;padding:3px 8px">
                                     <MudIcon Icon="@Icons.Material.Rounded.EventNote" Style="font-size:12px" />
-                                    @stat.TotalActivities @(stat.TotalActivities == 1 ? "activity" : "activities")
+                                    @stat.TotalActivities @(stat.TotalActivities == 1 ? _t.ActivitySingular : _t.ActivitiesPlural)
                                     @if (stat.OpenActivities > 0)
                                     {
-                                        <span style="color:var(--fs-primary);font-weight:600">(@stat.OpenActivities open)</span>
+                                        <span style="color:var(--fs-primary);font-weight:600">(@stat.OpenActivities @_t.OpenLabel)</span>
                                     }
                                 </span>
 
@@ -215,16 +216,16 @@ else
                                         <MudIcon Icon="@Icons.Material.Rounded.Receipt" Style="font-size:12px" />
                                         @FormatAmount(stat.TotalGroupSpend, stat.Currency)
                                         <span style="color:var(--fs-border)">·</span>
-                                        your share @FormatAmount(stat.MyFamilyShare, stat.Currency)
+                                        @_t.YourShare @FormatAmount(stat.MyFamilyShare, stat.Currency)
                                     </span>
                                 }
                                 @if (stat.ActiveGroupSpend > 0)
                                 {
                                     <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;color:var(--fs-text-secondary);background:var(--fs-surface-2);border-radius:6px;padding:3px 8px">
                                         <MudIcon Icon="@Icons.Material.Rounded.ReceiptLong" Style="font-size:12px" />
-                                        active @FormatAmount(stat.ActiveGroupSpend, stat.Currency)
+                                        @_t.ActiveLabel @FormatAmount(stat.ActiveGroupSpend, stat.Currency)
                                         <span style="color:var(--fs-border)">·</span>
-                                        your share @FormatAmount(stat.ActiveFamilyShare, stat.Currency)
+                                        @_t.YourShare @FormatAmount(stat.ActiveFamilyShare, stat.Currency)
                                     </span>
                                 }
 
@@ -235,21 +236,21 @@ else
                                     {
                                         <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;font-weight:600;color:#059669;background:rgba(5,150,105,0.1);border-radius:6px;padding:3px 8px">
                                             <MudIcon Icon="@Icons.Material.Rounded.TrendingUp" Style="font-size:12px" />
-                                            @FormatAmount(stat.NetBalance, stat.Currency) to receive
+                                            @FormatAmount(stat.NetBalance, stat.Currency) @_t.ToReceive
                                         </span>
                                     }
                                     else if (stat.NetBalance < 0)
                                     {
                                         <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;font-weight:600;color:#DC2626;background:rgba(220,38,38,0.1);border-radius:6px;padding:3px 8px">
                                             <MudIcon Icon="@Icons.Material.Rounded.TrendingDown" Style="font-size:12px" />
-                                            @FormatAmount(Math.Abs(stat.NetBalance), stat.Currency) to pay
+                                            @FormatAmount(Math.Abs(stat.NetBalance), stat.Currency) @_t.ToPay
                                         </span>
                                     }
                                     else if (stat.SettledActivities == stat.TotalActivities && stat.TotalActivities > 0)
                                     {
                                         <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;font-weight:600;color:#059669;background:rgba(5,150,105,0.1);border-radius:6px;padding:3px 8px">
                                             <MudIcon Icon="@Icons.Material.Rounded.CheckCircle" Style="font-size:12px" />
-                                            All settled
+                                            @_t.AllSettled
                                         </span>
                                     }
                                 }
@@ -259,7 +260,7 @@ else
                                 {
                                     <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;font-weight:600;color:#D97706;background:rgba(217,119,6,0.12);border-radius:6px;padding:3px 8px">
                                         <MudIcon Icon="@Icons.Material.Rounded.Pending" Style="font-size:12px" />
-                                        @stat.PendingSettlements @(stat.PendingSettlements == 1 ? "payment" : "payments") pending
+                                        @stat.PendingSettlements @(stat.PendingSettlements == 1 ? _t.PaymentSingular : _t.PaymentsPlural) @_t.PendingChip
                                     </span>
                                 }
 
@@ -281,7 +282,7 @@ else
                                Color="Color.Primary"
                                Href="/groups"
                                Style="font-size:0.875rem;font-weight:500">
-                        View @(groups.Count - 5) more groups
+                        @_t.ViewAll @(groups.Count - 5) @_t.MoreGroups
                     </MudButton>
                 }
             </div>
@@ -293,12 +294,12 @@ else
     {
         <div class="fs-fade-in fs-fade-in-delay-2" style="margin-top:24px">
             <div class="fs-section-header">
-                <span class="fs-section-title">Settlements</span>
+                <span class="fs-section-title">@_t.PendingSettlements</span>
                 @if (SettlementState.Value.MyPendingSettlements.Count > 0)
                 {
                     <span class="fs-stat-pill" style="background:rgba(217,119,6,0.25)">
                         <MudIcon Icon="@Icons.Material.Rounded.Pending" Style="font-size:12px" />
-                        @SettlementState.Value.MyPendingSettlements.Count pending
+                        @SettlementState.Value.MyPendingSettlements.Count @_t.PendingChip
                     </span>
                 }
             </div>
@@ -319,7 +320,7 @@ else
                         <MudIcon Icon="@Icons.Material.Rounded.CheckCircle"
                                  Style="font-size:22px;color:#059669" />
                         <MudText Typo="Typo.body2" Style="color:var(--fs-text-secondary)">
-                            No pending settlements — you're all square!
+                            @_t.NoPendingSettlements
                         </MudText>
                     </div>
                 </div>
@@ -373,7 +374,7 @@ else
                                 </span>
 
                                 <MudChip T="string" Color="@chipColor" Size="Size.Small" Icon="@chipIcon" Style="flex-shrink:0">
-                                    @(s.Status == SettlementStatus.PayerSent ? "Sent" : "Proposed")
+                                    @(s.Status == SettlementStatus.PayerSent ? _t.StatusSent : _t.StatusProposed)
                                 </MudChip>
                             </div>
 
@@ -386,7 +387,7 @@ else
                                                Size="Size.Small"
                                                StartIcon="@Icons.Material.Rounded.Send"
                                                OnClick="@(() => DashboardConfirmSent(s))">
-                                        Mark sent
+                                        @_t.MarkSent
                                     </MudButton>
                                 </div>
                             }
@@ -398,7 +399,7 @@ else
                                                Size="Size.Small"
                                                StartIcon="@Icons.Material.Rounded.CheckCircle"
                                                OnClick="@(() => DashboardConfirmReceived(s))">
-                                        Mark received
+                                        @_t.MarkReceived
                                     </MudButton>
                                 </div>
                             }
@@ -414,7 +415,7 @@ else
     <MudHidden Breakpoint="Breakpoint.MdAndUp" Invert="true">
         <div class="fs-fade-in fs-fade-in-delay-2" style="margin-top:24px">
             <div class="fs-section-header">
-                <span class="fs-section-title">Quick actions</span>
+                <span class="fs-section-title">@_t.QuickActions</span>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
                 <MudButton Variant="Variant.Filled"
@@ -423,7 +424,7 @@ else
                            FullWidth="true"
                            OnClick="OpenQuickAddExpenseAsync"
                            Style="height:48px;font-weight:500">
-                    Add expense
+                    @_t.AddExpense
                 </MudButton>
                 <MudButton Variant="Variant.Outlined"
                            Color="Color.Primary"
@@ -431,7 +432,7 @@ else
                            FullWidth="true"
                            Href="/groups"
                            Style="height:48px;font-weight:500">
-                    New group
+                    @_t.NewGroup
                 </MudButton>
                 <MudButton Variant="Variant.Outlined"
                            Color="Color.Default"
@@ -439,7 +440,7 @@ else
                            FullWidth="true"
                            Href="/groups"
                            Style="height:48px;font-weight:500">
-                    Join group
+                    @_t.JoinGroup
                 </MudButton>
             </div>
         </div>
@@ -447,9 +448,12 @@ else
 }
 
 @code {
-    protected override void OnInitialized()
+    private AppText _t = new();
+
+    protected override async Task OnInitializedAsync()
     {
-        base.OnInitialized();
+        _t = await I18nText.GetTextTableAsync<AppText>(this);
+        await base.OnInitializedAsync();
     }
 
     // Tracks whether we've already fired the initial data load so we don't
@@ -481,10 +485,10 @@ else
     private async Task DashboardConfirmSent(GroupSettlementSummaryDto settlement)
     {
         bool? confirmed = await DialogService.ShowMessageBoxAsync(
-            "Confirm payment sent",
-            $"Confirm that {settlement.PayerFamilyName} has sent {FormatAmount(settlement.Amount, settlement.Currency)} to {settlement.ReceiverFamilyName}?",
-            yesText: "Confirm sent",
-            cancelText: "Cancel");
+            _t.MarkAsSent,
+            string.Format(_t.ConfirmSentBody, settlement.PayerFamilyName, FormatAmount(settlement.Amount, settlement.Currency), settlement.ReceiverFamilyName),
+            yesText: _t.MarkSent,
+            cancelText: _t.Cancel);
 
         if (confirmed == true)
             Dispatcher.Dispatch(new ConfirmSentAction(settlement.GroupId, settlement.ActivityId, settlement.Id));
@@ -493,10 +497,10 @@ else
     private async Task DashboardConfirmReceived(GroupSettlementSummaryDto settlement)
     {
         bool? confirmed = await DialogService.ShowMessageBoxAsync(
-            "Confirm payment received",
-            $"Confirm that {settlement.ReceiverFamilyName} has received {FormatAmount(settlement.Amount, settlement.Currency)} from {settlement.PayerFamilyName}?",
-            yesText: "Confirm received",
-            cancelText: "Cancel");
+            _t.MarkAsReceived,
+            string.Format(_t.ConfirmReceivedBody, settlement.ReceiverFamilyName, FormatAmount(settlement.Amount, settlement.Currency), settlement.PayerFamilyName),
+            yesText: _t.MarkReceived,
+            cancelText: _t.Cancel);
 
         if (confirmed == true)
             Dispatcher.Dispatch(new ConfirmReceivedAction(settlement.GroupId, settlement.ActivityId, settlement.Id));
@@ -525,10 +529,10 @@ else
         Nav.NavigateTo($"{apiBaseUrl}/auth/login/Google?returnUrl={Uri.EscapeDataString(returnUrl)}", forceLoad: true);
     }
 
-    private static string GetTimeOfDay()
+    private string GetGreeting()
     {
-        var h = DateTime.Now.Hour;
-        return h < 12 ? "morning" : h < 18 ? "afternoon" : "evening";
+        var hour = DateTime.Now.Hour;
+        return hour < 12 ? _t.GreetingMorning : hour < 18 ? _t.GreetingAfternoon : _t.GreetingEvening;
     }
 
     // Deterministic colour from group name

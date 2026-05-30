@@ -6,6 +6,7 @@
 @inject IActivityClient ActivityClient
 @inject IExpenseClient ExpenseClient
 @inject ILogger<QuickExpenseDialog> Logger
+@inject I18nText I18nText
 
 <MudDialog Style="max-width:480px;width:100%">
     <TitleContent>
@@ -18,9 +19,9 @@
             }
             <MudText Typo="Typo.h6" Style="font-weight:600;letter-spacing:-0.01em">
                 @(_step switch {
-                    Step.ActivityPicker => "Pick activity",
-                    Step.ExpenseForm    => "Add expense",
-                    _                   => "Add expense"
+                    Step.ActivityPicker => _t.Activities,
+                    Step.ExpenseForm    => _t.AddExpenseTitle,
+                    _                   => _t.AddExpenseTitle
                 })
             </MudText>
         </div>
@@ -30,7 +31,7 @@
 
         @if (_step == Step.ActivityPicker)
         {
-            @* ── Activity picker ──────────────────────────────────────────── *@
+            @* ── Activity picker ──────────────────────────────────────────────────────── *@
 
             @if (_loadingActivities)
             {
@@ -48,7 +49,7 @@
             else
             {
                 @* Group selector *@
-                <MudSelect T="Guid?" Label="Group"
+                <MudSelect T="Guid?" Label="@_t.NavGroups"
                            Value="_selectedGroupId"
                            ValueChanged="OnGroupChanged"
                            Variant="Variant.Outlined"
@@ -65,7 +66,7 @@
                 {
                     <div style="padding:16px 0;text-align:center">
                         <MudText Typo="Typo.body2" Style="color:var(--fs-text-secondary)">
-                            No open activities in this group
+                            @_t.NoOpenActivities
                         </MudText>
                     </div>
                 }
@@ -88,7 +89,7 @@
                                         @a.Name
                                     </div>
                                     <div style="font-size:0.775rem;color:var(--fs-text-secondary);margin-top:1px">
-                                        @a.ParticipantCount participants
+                                        @a.ParticipantCount @_t.ParticipantsCount
                                         @if (a.Description is { Length: > 0 } d)
                                         {
                                             <span> · @d</span>
@@ -110,7 +111,7 @@
                 {
                     <div style="background:var(--fs-border-subtle);border-radius:var(--fs-radius-md);
                                 padding:12px 14px;margin-top:4px">
-                        <MudTextField Label="Activity name"
+                        <MudTextField Label="@_t.ActivityName"
                                       @bind-Value="_newActivityName"
                                       Variant="Variant.Outlined"
                                       Immediate="true"
@@ -118,7 +119,7 @@
                                       Class="mb-2" />
                         <div style="display:flex;gap:8px;justify-content:flex-end">
                             <MudButton Size="Size.Small" OnClick="() => _showNewActivityForm = false">
-                                Cancel
+                                @_t.Cancel
                             </MudButton>
                             <MudButton Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled"
                                        Disabled="@(string.IsNullOrWhiteSpace(_newActivityName) || _creatingActivity)"
@@ -129,7 +130,7 @@
                                 }
                                 else
                                 {
-                                    <span>Create</span>
+                                    <span>@_t.Create</span>
                                 }
                             </MudButton>
                         </div>
@@ -143,7 +144,7 @@
                                Size="Size.Small"
                                OnClick="() => _showNewActivityForm = true"
                                Style="margin-top:2px">
-                        New activity
+                        @_t.NewActivity
                     </MudButton>
                 }
             }
@@ -151,7 +152,7 @@
 
         @if (_step == Step.ExpenseForm)
         {
-            @* ── Expense form ─────────────────────────────────────────────── *@
+            @* ── Expense form ──────────────────────────────────────────────────────── *@
 
             @* Activity context chip *@
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:16px;
@@ -173,22 +174,22 @@
             }
 
             <MudForm @ref="_expenseForm" Model="_expense">
-                <MudTextField Label="What was it?" @bind-Value="_expense.Title"
-                              Required="true" RequiredError="Title is required."
+                <MudTextField Label="@_t.WhatWasIt" @bind-Value="_expense.Title"
+                              Required="true" RequiredError="@_t.ExpenseTitleRequired"
                               MaxLength="200" Immediate="true" Class="mb-3"
                               Variant="Variant.Outlined" AutoFocus="true" />
 
-                <MudNumericField T="decimal?" Label="Amount (EUR)" @bind-Value="_expense.TotalAmount"
-                                 Required="true" RequiredError="Amount is required."
+                <MudNumericField T="decimal?" Label="@_t.ExpenseAmount" @bind-Value="_expense.TotalAmount"
+                                 Required="true" RequiredError="@_t.ExpenseAmountRequired"
                                  Min="0.01m" Immediate="true"
                                  Variant="Variant.Outlined" Class="mb-3" />
 
-                <MudDatePicker Label="Date" @bind-Date="_expenseDate"
-                               Required="true" RequiredError="Date is required."
+                <MudDatePicker Label="@_t.ExpenseDate" @bind-Date="_expenseDate"
+                               Required="true" RequiredError="@_t.ExpenseDateRequired"
                                DateFormat="dd/MM/yyyy" Variant="Variant.Outlined"
                                Class="mb-3" />
 
-                <MudTextField Label="Notes (optional)" @bind-Value="_expense.Description"
+                <MudTextField Label="@_t.NotesOptional" @bind-Value="_expense.Description"
                               Lines="2" MaxLength="500" Variant="Variant.Outlined" />
             </MudForm>
         }
@@ -196,14 +197,14 @@
     </DialogContent>
 
     <DialogActions>
-        <MudButton OnClick="Cancel" Disabled="_submitting">Cancel</MudButton>
+        <MudButton OnClick="Cancel" Disabled="_submitting">@_t.Cancel</MudButton>
 
         @if (_step == Step.ActivityPicker)
         {
             <MudButton Color="Color.Primary" Variant="Variant.Filled"
                        Disabled="@(!_selectedActivityId.HasValue)"
                        OnClick="ConfirmActivity">
-                Next
+                @_t.Next
             </MudButton>
         }
         else
@@ -214,11 +215,11 @@
                 @if (_submitting)
                 {
                     <MudProgressCircular Size="Size.Small" Indeterminate="true" Style="margin-right:6px" />
-                    <span>Saving…</span>
+                    <span>@_t.Saving</span>
                 }
                 else
                 {
-                    <span>Add expense</span>
+                    <span>@_t.AddExpenseTitle</span>
                 }
             </MudButton>
         }
@@ -227,6 +228,9 @@
 
 @code {
     [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    // ── i18n ───────────────────────────────────────────────────────────────────
+    private AppText _t = new();
 
     // ── State machine ──────────────────────────────────────────────────────────
     private enum Step { ActivityPicker, ExpenseForm }
@@ -256,6 +260,8 @@
     // ── Init ───────────────────────────────────────────────────────────────────
     protected override async Task OnInitializedAsync()
     {
+        _t = await I18nText.GetTextTableAsync<AppText>(this);
+
         var appState = AppState.Value;
 
         if (appState.LastUsedActivityId.HasValue && appState.LastUsedGroupId.HasValue)

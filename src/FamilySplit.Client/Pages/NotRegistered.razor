@@ -1,4 +1,5 @@
 @page "/not-registered"
+@inject I18nText I18nText
 
 <PageTitle>Account not registered — FamilySplit</PageTitle>
 
@@ -8,17 +9,25 @@
              Style="font-size:5rem;"
              Class="mb-4" />
 
-    <MudText Typo="Typo.h5" Class="mb-2">Account not registered</MudText>
+    <MudText Typo="Typo.h5" Class="mb-2">@_t.AccountNotRegistered</MudText>
 
     <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mb-6">
-        Your Google account is not linked to a FamilySplit family member.
-        Ask a group admin to add you by email, then try signing in again.
+        @_t.NotRegisteredMessage
     </MudText>
 
     <MudButton Variant="Variant.Filled"
                Color="Color.Primary"
                Href="/"
                StartIcon="@Icons.Material.Filled.Home">
-        Back to home
+        @_t.BackToDashboard
     </MudButton>
 </MudContainer>
+
+@code {
+    private AppText _t = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _t = await I18nText.GetTextTableAsync<AppText>(this);
+    }
+}

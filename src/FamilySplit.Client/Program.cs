@@ -1,5 +1,6 @@
 using FamilySplit.Client;
 using FamilySplit.Client.Services;
+using Toolbelt.Blazor.Extensions.DependencyInjection;
 using FamilySplit.Client.Store.Activities;
 using FamilySplit.Client.Store.Admin;
 using FamilySplit.Client.Store.Auth;
@@ -19,6 +20,12 @@ using Refit;
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
+
+// --- I18n (Toolbelt.Blazor.I18nText) -----------------------------------------------
+// PersistanceLevel.BrowserLocal: language choice survives tab close & app restart.
+// Falls back to browser Accept-Language, then "en" if nothing matches.
+builder.Services.AddI18nText(options =>
+    options.PersistenceLevel = Toolbelt.Blazor.I18nText.PersistanceLevel.SessionAndLocal);
 
 // --- MudBlazor ---------------------------------------------------------------------
 builder.Services.AddMudServices();

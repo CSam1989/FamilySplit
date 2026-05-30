@@ -1,4 +1,5 @@
 @using FamilySplit.Client.Services
+@inject I18nText I18nText
 
 <MudDialog>
     <TitleContent>
@@ -12,7 +13,7 @@
             }
             <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
                 <MudIcon Icon="@Icons.Material.Filled.Person" Size="Size.Small" Color="Color.Secondary" />
-                <MudText Typo="Typo.body2">Paid by <strong>@Expense.PaidByName</strong> (@Expense.PaidByFamilyName)</MudText>
+                <MudText Typo="Typo.body2">@_t.PaidBy <strong>@Expense.PaidByName</strong> (@Expense.PaidByFamilyName)</MudText>
             </MudStack>
             <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
                 <MudIcon Icon="@Icons.Material.Filled.CalendarToday" Size="Size.Small" Color="Color.Secondary" />
@@ -22,7 +23,7 @@
 
         <MudDivider Class="mb-4" />
 
-        <MudText Typo="Typo.subtitle2" Class="mb-2">Split breakdown</MudText>
+        <MudText Typo="Typo.subtitle2" Class="mb-2">@_t.SplitBreakdown</MudText>
 
         @{
             var activeParticipants = Expense.Participants.Where(p => !p.IsExcluded).ToList();
@@ -31,11 +32,11 @@
 
         <MudTable Items="activeParticipants" Dense="true" Elevation="0" Hover="true">
             <HeaderContent>
-                <MudTh>Participant</MudTh>
-                <MudTh>Family</MudTh>
-                <MudTh Style="text-align:right">Weight</MudTh>
-                <MudTh Style="text-align:right">Share</MudTh>
-                <MudTh Style="text-align:right">Amount</MudTh>
+                <MudTh>@_t.ColParticipant</MudTh>
+                <MudTh>@_t.ColFamily</MudTh>
+                <MudTh Style="text-align:right">@_t.ColWeight</MudTh>
+                <MudTh Style="text-align:right">@_t.ColShare</MudTh>
+                <MudTh Style="text-align:right">@_t.ColAmount</MudTh>
             </HeaderContent>
             <RowTemplate Context="p">
                 <MudTd DataLabel="Participant">
@@ -88,4 +89,11 @@
 @code {
     [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
     [Parameter] public ExpenseDetailDto Expense { get; set; } = default!;
+
+    private AppText _t = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _t = await I18nText.GetTextTableAsync<AppText>(this);
+    }
 }

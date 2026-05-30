@@ -14,6 +14,7 @@
 @inject IState<FamilyState> FamilyState
 @inject IDialogService DialogService
 @inject NavigationManager Nav
+@inject I18nText I18nText
 
 <PageTitle>Activity — FamilySplit</PageTitle>
 
@@ -30,7 +31,7 @@
     <MudAlert Severity="Severity.Error" Class="mb-4">@State.Value.ErrorMessage</MudAlert>
     <MudButton StartIcon="@Icons.Material.Filled.ArrowBack"
                OnClick="@(() => Nav.NavigateTo($"/groups/{GroupId}"))">
-        Back to group
+        @_t.BackToGroup
     </MudButton>
     return;
 }
@@ -76,26 +77,26 @@
         @if (!IsTopLevel)
         {
             <MudChip T="string" Color="Color.Secondary" Size="Size.Small"
-                     Icon="@Icons.Material.Filled.AccountTree">Sub-activity</MudChip>
+                     Icon="@Icons.Material.Filled.AccountTree">@_t.SubActivity</MudChip>
         }
     </MudStack>
 
     @if (isOpen)
     {
         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
-            <MudTooltip Text="Edit activity">
+            <MudTooltip Text="@_t.EditActivity">
                 <MudIconButton Icon="@Icons.Material.Filled.Edit"
                                Size="Size.Medium" Color="Color.Default"
                                OnClick="OpenEditDialog" />
             </MudTooltip>
             @if (IsTopLevel)
             {
-                <MudTooltip Text="Add sub-activity">
+                <MudTooltip Text="@_t.AddSubActivity">
                     <MudIconButton Icon="@Icons.Material.Filled.CallSplit"
                                    Size="Size.Medium" Color="Color.Default"
                                    OnClick="OpenAddSubActivityDialog" />
                 </MudTooltip>
-                <MudTooltip Text="Close activity">
+                <MudTooltip Text="@_t.CloseActivity">
                     <MudIconButton Icon="@Icons.Material.Filled.Lock"
                                    Size="Size.Medium" Color="Color.Error"
                                    OnClick="ConfirmClose" />
@@ -113,7 +114,7 @@
 @if (activity.ClosedAt.HasValue)
 {
     <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-4">
-        Closed @activity.ClosedAt.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm")
+        @_t.ClosedAt @activity.ClosedAt.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm")
     </MudText>
 }
 
@@ -124,7 +125,7 @@
             <MudIcon Icon="@Icons.Material.Filled.ReceiptLong" Color="Color.Primary" Class="mb-1" />
             <MudText Typo="Typo.h5"><strong>@ExpenseCount</strong></MudText>
             <MudText Typo="Typo.caption" Color="Color.Secondary">
-                @(IsTopLevel && activity.SubActivities.Count > 0 ? "Expenses (incl. subs)" : "Expenses")
+                @(IsTopLevel && activity.SubActivities.Count > 0 ? _t.ExpensesInclSubs : _t.Expenses)
             </MudText>
         </MudPaper>
     </MudItem>
@@ -133,7 +134,7 @@
             <MudIcon Icon="@Icons.Material.Filled.Payments" Color="Color.Success" Class="mb-1" />
             <MudText Typo="Typo.h5"><strong>@TotalFormatted</strong></MudText>
             <MudText Typo="Typo.caption" Color="Color.Secondary">
-                @(IsTopLevel && activity.SubActivities.Count > 0 ? "Total spend (incl. subs)" : "Total spend")
+                @(IsTopLevel && activity.SubActivities.Count > 0 ? _t.TotalSpendInclSubs : _t.TotalSpend)
             </MudText>
         </MudPaper>
     </MudItem>
@@ -143,7 +144,7 @@
             <MudPaper Elevation="1" Class="pa-4 d-flex flex-column align-center" Style="text-align:center">
                 <MudIcon Icon="@Icons.Material.Filled.AccountTree" Color="Color.Secondary" Class="mb-1" />
                 <MudText Typo="Typo.h5"><strong>@activity.SubActivities.Count</strong></MudText>
-                <MudText Typo="Typo.caption" Color="Color.Secondary">Sub-activities</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">@_t.SubActivities</MudText>
             </MudPaper>
         </MudItem>
     }
@@ -151,21 +152,21 @@
         <MudPaper Elevation="1" Class="pa-4 d-flex flex-column align-center" Style="text-align:center">
             <MudIcon Icon="@Icons.Material.Filled.People" Color="Color.Info" Class="mb-1" />
             <MudText Typo="Typo.h5"><strong>@activity.Participants.Count</strong></MudText>
-            <MudText Typo="Typo.caption" Color="Color.Secondary">Participants</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">@_t.Participants</MudText>
         </MudPaper>
     </MudItem>
 </MudGrid>
 
 <!-- ── Expenses ───────────────────────────────────────────────────────────── -->
 <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3" Spacing="2">
-    <MudText Typo="Typo.h6">Expenses</MudText>
+    <MudText Typo="Typo.h6">@_t.Expenses</MudText>
     <MudSpacer />
     @if (isOpen)
     {
         <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Medium"
                    StartIcon="@Icons.Material.Filled.Add"
                    OnClick="OpenAddExpenseDialog">
-            Add expense
+            @_t.AddExpense
         </MudButton>
     }
 </MudStack>
@@ -189,7 +190,7 @@ else if (ExpenseState.Value.Expenses.Count == 0)
         <MudIcon Icon="@Icons.Material.Outlined.ReceiptLong" Size="Size.Large"
                  Color="Color.Secondary" Class="mb-2" />
         <MudText Typo="Typo.body2" Color="Color.Secondary">
-            @(isOpen ? "No expenses yet. Add the first one to start tracking costs." : "No expenses recorded for this activity.")
+            @(isOpen ? _t.NoExpensesOpen : _t.NoExpensesClosed)
         </MudText>
     </MudPaper>
 }
@@ -228,7 +229,7 @@ else
                                     <MudIcon Icon="@Icons.Material.Filled.People"
                                              Size="Size.Small" Color="Color.Secondary" />
                                     <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                        @e.ParticipantCount participants
+                                        @e.ParticipantCount @_t.ParticipantsCount
                                     </MudText>
                                 </MudStack>
                             </MudStack>
@@ -237,19 +238,19 @@ else
                             @FormatAmount(e.TotalAmount, e.Currency)
                         </MudText>
                         <MudStack Row="true" Spacing="0">
-                            <MudTooltip Text="View breakdown">
+                            <MudTooltip Text="@_t.ViewBreakdown">
                                 <MudIconButton Icon="@Icons.Material.Filled.BarChart"
                                                Size="Size.Medium"
                                                OnClick="@(() => OpenExpenseDetail(e.Id))" />
                             </MudTooltip>
                             @if (isOpen)
                             {
-                                <MudTooltip Text="Edit">
+                                <MudTooltip Text="@_t.Edit">
                                     <MudIconButton Icon="@Icons.Material.Filled.Edit"
                                                    Size="Size.Medium"
                                                    OnClick="@(() => OpenEditExpenseDialog(e))" />
                                 </MudTooltip>
-                                <MudTooltip Text="Delete">
+                                <MudTooltip Text="@_t.Delete">
                                     <MudIconButton Icon="@Icons.Material.Filled.Delete"
                                                    Size="Size.Medium" Color="Color.Error"
                                                    OnClick="@(() => ConfirmDeleteExpense(e))" />
@@ -263,12 +264,7 @@ else
     }
 }
 
-<!-- ═══════════════════════════════════════════════════════════════════════════
-     Balance Summary
-     Open  → running balance (who owes what right now).
-     Closed/Settled → balance + optimised transfer list.
-     For top-level activities the balance always includes all sub-activity expenses.
-     ═══════════════════════════════════════════════════════════════════════════ -->
+<!-- Balance Summary -->
 @if (SettlementState.Value.Balances.Count > 0
      || SettlementState.Value.IsLoading
      || SettlementState.Value.IsGenerating)
@@ -278,19 +274,19 @@ else
     <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3" Spacing="2">
         <MudIcon Icon="@Icons.Material.Filled.AccountBalance"
                  Color="Color.Warning" Size="Size.Small" />
-        <MudText Typo="Typo.h6">Balance</MudText>
+        <MudText Typo="Typo.h6">@_t.Balance</MudText>
         @if (IsTopLevel && activity.SubActivities.Count > 0)
         {
             <MudChip T="string" Size="Size.Small" Color="Color.Default"
                      Icon="@Icons.Material.Filled.AccountTree">
-                incl. sub-activities
+                @_t.InclSubActivities
             </MudChip>
         }
         @if (isSettled)
         {
             <MudChip T="string" Size="Size.Small" Color="Color.Info"
                      Icon="@Icons.Material.Filled.CheckCircle">
-                Settled
+                @_t.Settled
             </MudChip>
         }
     </MudStack>
@@ -309,14 +305,13 @@ else
     }
     else
     {
-        <!-- Per-family balance cards -->
         @foreach (var b in SettlementState.Value.Balances)
         {
             var balColor      = b.Balance > 0 ? Color.Success : b.Balance < 0 ? Color.Error : Color.Default;
             var balIcon       = b.Balance > 0 ? Icons.Material.Filled.TrendingUp
                               : b.Balance < 0 ? Icons.Material.Filled.TrendingDown
                               : Icons.Material.Filled.HorizontalRule;
-            var balLabel      = b.Balance > 0 ? "to receive" : b.Balance < 0 ? "to pay" : "even";
+            var balLabel      = b.Balance > 0 ? _t.ToReceive : b.Balance < 0 ? _t.ToPay : _t.BalancedLabel;
             var isCallerFamily  = callerFamilyId == b.FamilyId;
         var balTextStyle    = isCallerFamily ? "flex:1;font-weight:600" : "flex:1;font-weight:400";
 
@@ -338,7 +333,6 @@ else
             </MudPaper>
         }
 
-        <!-- Settlement transfers (closed / settled top-level activities only) -->
         @if (IsTopLevel && (isClosed || isSettled))
         {
             @if (SettlementState.Value.Settlements.Count == 0 && isSettled)
@@ -347,7 +341,7 @@ else
                           Style="border:1px dashed var(--mud-palette-divider);gap:12px">
                     <MudIcon Icon="@Icons.Material.Outlined.CheckCircle" Color="Color.Success" />
                     <MudText Typo="Typo.body2" Color="Color.Secondary">
-                        All balances were already even — no transfers needed.
+                        @_t.AllBalancesEven
                     </MudText>
                 </MudPaper>
             }
@@ -356,7 +350,7 @@ else
                 <MudText Typo="Typo.subtitle2" Color="Color.Secondary" Class="mt-3 mb-2">
                     <MudIcon Icon="@Icons.Material.Filled.SwapHoriz" Size="Size.Small"
                              Style="vertical-align:middle;margin-right:4px" />
-                    Transfers
+                    @_t.Transfers
                 </MudText>
 
                 @foreach (var s in SettlementState.Value.Settlements)
@@ -399,7 +393,7 @@ else
                                 @FormatAmount(s.Amount, s.Currency)
                             </MudText>
                             <MudChip T="string" Color="@chipColor" Size="Size.Small" Icon="@chipIcon">
-                                @(s.Status == SettlementStatus.PayerSent ? "Sent" : s.Status.ToString())
+                                @(s.Status == SettlementStatus.PayerSent ? _t.StatusSent : s.Status.ToString())
                             </MudChip>
                             @if (s.Status == SettlementStatus.Proposed && isCallerPayer)
                             {
@@ -407,7 +401,7 @@ else
                                            Size="Size.Small"
                                            StartIcon="@Icons.Material.Filled.Send"
                                            OnClick="@(() => ConfirmSent(s))">
-                                    Mark sent
+                                    @_t.MarkSent
                                 </MudButton>
                             }
                             @if (s.Status == SettlementStatus.PayerSent && isCallerReceiver)
@@ -416,10 +410,10 @@ else
                                            Size="Size.Small"
                                            StartIcon="@Icons.Material.Filled.CheckCircle"
                                            OnClick="@(() => ConfirmReceived(s))">
-                                    Mark received
+                                    @_t.MarkReceived
                                 </MudButton>
                             }
-                            <MudTooltip Text="View detail">
+                            <MudTooltip Text="@_t.ViewDetail">
                                 <MudIconButton Icon="@Icons.Material.Filled.OpenInNew"
                                                Size="Size.Medium" Color="Color.Default"
                                                OnClick="@(() => OpenSettlementDetail(s.Id))" />
@@ -438,14 +432,14 @@ else
     <MudDivider Class="mt-4 mb-4" />
 
     <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3" Spacing="2">
-        <MudText Typo="Typo.h6">Sub-activities</MudText>
+        <MudText Typo="Typo.h6">@_t.SubActivities</MudText>
         <MudSpacer />
         @if (isOpen)
         {
             <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Medium"
                        StartIcon="@Icons.Material.Filled.Add"
                        OnClick="OpenAddSubActivityDialog">
-                Add sub-activity
+                @_t.AddSubActivity
             </MudButton>
         }
     </MudStack>
@@ -457,7 +451,7 @@ else
             <MudIcon Icon="@Icons.Material.Outlined.AccountTree" Size="Size.Large"
                      Color="Color.Secondary" Class="mb-2" />
             <MudText Typo="Typo.body2" Color="Color.Secondary">
-                No sub-activities yet.
+                @_t.NoSubActivitiesYet
             </MudText>
         </MudPaper>
     }
@@ -500,7 +494,7 @@ else
                                 <MudIcon Icon="@Icons.Material.Filled.ReceiptLong"
                                          Size="Size.Small" Color="Color.Secondary" />
                                 <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                    @sub.ExpenseCount @(sub.ExpenseCount == 1 ? "expense" : "expenses")
+                                    @sub.ExpenseCount @(sub.ExpenseCount == 1 ? _t.ExpenseCount : _t.ExpensesCount)
                                     @if (sub.TotalExpenseAmount > 0)
                                     {
                                         <span> · @FormatAmount(sub.TotalExpenseAmount, sub.ExpenseCurrency)</span>
@@ -511,7 +505,7 @@ else
                                 <MudIcon Icon="@Icons.Material.Filled.People"
                                          Size="Size.Small" Color="Color.Secondary" />
                                 <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                    @sub.ParticipantCount participants
+                                    @sub.ParticipantCount @_t.ParticipantsCount
                                 </MudText>
                             </MudStack>
                             <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
@@ -527,7 +521,7 @@ else
                                     <MudIcon Icon="@Icons.Material.Filled.EventAvailable"
                                              Size="Size.Small" Color="Color.Secondary" />
                                     <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                        closed @sub.ClosedAt.Value.ToLocalTime().ToString("dd MMM yyyy")
+                                        @_t.ClosedAt @sub.ClosedAt.Value.ToLocalTime().ToString("dd MMM yyyy")
                                     </MudText>
                                 </MudStack>
                             }
@@ -548,7 +542,7 @@ else
             <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
                 <MudIcon Icon="@Icons.Material.Filled.People"
                          Color="Color.Secondary" Size="Size.Small" />
-                <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Participants</MudText>
+                <MudText Typo="Typo.subtitle2" Color="Color.Secondary">@_t.Participants</MudText>
                 <MudChip T="string" Size="Size.Small" Color="Color.Default">
                     @activity.Participants.Count
                 </MudChip>
@@ -559,7 +553,7 @@ else
                                    Color="Color.Primary"
                                    StartIcon="@Icons.Material.Filled.PersonAdd"
                                    OnClick="OpenAddParticipantDialog">
-                            Add
+                            @_t.AddParticipant
                         </MudButton>
                     </span>
                 }
@@ -569,7 +563,7 @@ else
             @if (activity.Participants.Count == 0)
             {
                 <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2">
-                    No participants yet.
+                    @_t.NoParticipantsYet
                 </MudText>
             }
             else
@@ -590,7 +584,7 @@ else
                         {
                             @if (isOpen)
                             {
-                                <MudTooltip Text="@($"{p.CurrentWeight:0.##}× · {p.CurrentTier} — click × to remove")">
+                                <MudTooltip Text="@($"{p.CurrentWeight:0.##}\u00d7 \u00b7 {p.CurrentTier} \u2014 click \u00d7 to remove")">
                                     <MudChip T="string" Size="Size.Small" Color="Color.Default"
                                              OnClose="@(async _ => await ConfirmRemoveParticipant(p))">
                                         @p.DisplayName
@@ -617,10 +611,9 @@ else
     [Parameter] public Guid GroupId   { get; set; }
     [Parameter] public Guid ActivityId { get; set; }
 
+    private AppText _t = new();
     private bool _settlementActionDispatched;
     private bool _balancesLoaded;
-
-    // ── Computed properties ───────────────────────────────────────────────────
 
     private List<BreadcrumbItem> Crumbs
     {
@@ -630,24 +623,22 @@ else
             var activity  = State.Value.SelectedActivity;
             var items = new List<BreadcrumbItem>
             {
-                new("Groups", href: "/groups"),
+                new(_t.GroupBreadcrumb, href: "/groups"),
                 new(groupName, href: $"/groups/{GroupId}"),
             };
             if (activity?.ParentActivityId is { } parentId)
             {
-                items.Add(new("Activity", href: $"/groups/{GroupId}/activities/{parentId}"));
-                items.Add(new("Sub-activity", href: null, disabled: true));
+                items.Add(new(_t.ActivityBreadcrumb, href: $"/groups/{GroupId}/activities/{parentId}"));
+                items.Add(new(_t.SubActivityBreadcrumb, href: null, disabled: true));
             }
             else
             {
-                items.Add(new("Activity", href: null, disabled: true));
+                items.Add(new(_t.ActivityBreadcrumb, href: null, disabled: true));
             }
             return items;
         }
     }
 
-    // Own expenses (always live from ExpenseState) + sub-activity totals
-    // (from the ActivityDetailDto snapshot — refreshed on every LoadActivityDetail).
     private bool    IsTopLevel      => State.Value.SelectedActivity?.ParentActivityId is null;
     private int     OwnExpenseCount => ExpenseState.Value.Expenses.Count;
     private decimal OwnTotalAmount  => ExpenseState.Value.Expenses.Sum(e => e.TotalAmount);
@@ -674,11 +665,10 @@ else
 
     private string TotalFormatted => FormatAmount(TotalAmount, PrimaryCurrency);
 
-    // ── Lifecycle ─────────────────────────────────────────────────────────────
-
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        base.OnInitialized();
+        await base.OnInitializedAsync();
+        _t = await I18nText.GetTextTableAsync<AppText>(this);
         Dispatcher.Dispatch(new LoadActivityDetailAction(GroupId, ActivityId));
         Dispatcher.Dispatch(new LoadExpensesAction(GroupId, ActivityId));
         if (FamilyState.Value.MyFamily is null)
@@ -704,15 +694,12 @@ else
         var activity = State.Value.SelectedActivity;
         if (activity is null) return;
 
-        // Load live balance for any activity (open / closed / settled).
-        // For top-level activities the API includes all sub-activity expenses.
         if (!_balancesLoaded)
         {
             _balancesLoaded = true;
             Dispatcher.Dispatch(new LoadBalancesAction(GroupId, ActivityId));
         }
 
-        // Settlement generation — top-level non-open activities only.
         if (_settlementActionDispatched) return;
         if (activity.ParentActivityId is not null) return;
 
@@ -727,8 +714,6 @@ else
             Dispatcher.Dispatch(new LoadSettlementsAction(GroupId, ActivityId));
         }
     }
-
-    // ── Edit ──────────────────────────────────────────────────────────────────
 
     private async Task OpenEditDialog()
     {
@@ -745,8 +730,6 @@ else
                 new UpdateActivityRequest(form.Name, form.Description)));
     }
 
-    // ── Add sub-activity ──────────────────────────────────────────────────────
-
     private async Task OpenAddSubActivityDialog()
     {
         var dialog = await DialogService.ShowAsync<CreateActivityDialog>("New sub-activity",
@@ -757,8 +740,6 @@ else
                 new CreateActivityRequest(form.Name, form.Description)));
     }
 
-    // ── Close ─────────────────────────────────────────────────────────────────
-
     private async Task ConfirmClose()
     {
         var activity    = State.Value.SelectedActivity!;
@@ -768,13 +749,11 @@ else
             : $"Close \"{activity.Name}\"? This cannot be undone.";
 
         bool? confirmed = await DialogService.ShowMessageBoxAsync(
-            "Close activity", message, yesText: "Close", cancelText: "Cancel");
+            _t.CloseActivity, message, yesText: _t.CloseActivityYes, cancelText: _t.Cancel);
 
         if (confirmed == true)
             Dispatcher.Dispatch(new CloseActivityAction(GroupId, ActivityId));
     }
-
-    // ── Add participant ───────────────────────────────────────────────────────
 
     private async Task OpenAddParticipantDialog()
     {
@@ -790,12 +769,12 @@ else
 
         if (available.Count == 0)
         {
-            await DialogService.ShowMessageBoxAsync("Add participant",
-                "All group members are already participating.", yesText: "OK");
+            await DialogService.ShowMessageBoxAsync(_t.AddParticipant,
+                _t.AllMembersParticipating, yesText: "OK");
             return;
         }
 
-        var dialog = await DialogService.ShowAsync<AddParticipantDialog>("Add participant",
+        var dialog = await DialogService.ShowAsync<AddParticipantDialog>(_t.AddParticipant,
             new DialogParameters<AddParticipantDialog> { { x => x.Available, available } });
         var result = await dialog.Result;
         if (result is { Canceled: false, Data: Guid memberId })
@@ -803,24 +782,20 @@ else
                 new AddParticipantRequest(memberId)));
     }
 
-    // ── Remove participant ────────────────────────────────────────────────────
-
     private async Task ConfirmRemoveParticipant(ActivityParticipantDto p)
     {
         bool? confirmed = await DialogService.ShowMessageBoxAsync(
-            "Remove participant",
+            _t.RemoveParticipant,
             $"Remove {p.DisplayName} from this activity?",
-            yesText: "Remove", cancelText: "Cancel");
+            yesText: _t.Remove, cancelText: _t.Cancel);
 
         if (confirmed == true)
             Dispatcher.Dispatch(new RemoveParticipantAction(GroupId, ActivityId, p.FamilyMemberId));
     }
 
-    // ── Expenses ──────────────────────────────────────────────────────────────
-
     private async Task OpenAddExpenseDialog()
     {
-        var dialog = await DialogService.ShowAsync<ExpenseDialog>("Add expense",
+        var dialog = await DialogService.ShowAsync<ExpenseDialog>(_t.AddExpenseTitle,
             new DialogParameters<ExpenseDialog> { { x => x.IsEdit, false } });
         var result = await dialog.Result;
         if (result is { Canceled: false, Data: ExpenseFormModel form })
@@ -831,7 +806,7 @@ else
 
     private async Task OpenEditExpenseDialog(ExpenseSummaryDto expense)
     {
-        var dialog = await DialogService.ShowAsync<ExpenseDialog>("Edit expense",
+        var dialog = await DialogService.ShowAsync<ExpenseDialog>(_t.EditExpenseTitle,
             new DialogParameters<ExpenseDialog>
             {
                 { x => x.IsEdit,             true },
@@ -858,29 +833,27 @@ else
         var expense = ExpenseState.Value.SelectedExpense;
         if (expense is null) return;
 
-        await DialogService.ShowAsync<ExpenseDetailDialog>("Expense breakdown",
+        await DialogService.ShowAsync<ExpenseDetailDialog>(_t.ExpenseBreakdownTitle,
             new DialogParameters<ExpenseDetailDialog> { { x => x.Expense, expense } });
     }
 
     private async Task ConfirmDeleteExpense(ExpenseSummaryDto expense)
     {
         bool? confirmed = await DialogService.ShowMessageBoxAsync(
-            "Delete expense",
+            _t.DeleteExpense,
             $"Delete \"{expense.Title}\" ({expense.TotalAmount:F2} {expense.Currency})? This cannot be undone.",
-            yesText: "Delete", cancelText: "Cancel");
+            yesText: _t.DeleteExpenseYes, cancelText: _t.Cancel);
 
         if (confirmed == true)
             Dispatcher.Dispatch(new DeleteExpenseAction(GroupId, ActivityId, expense.Id));
     }
 
-    // ── Transfers ────────────────────────────────────────────────────────────
-
     private async Task ConfirmSent(SettlementSummaryDto settlement)
     {
         bool? confirmed = await DialogService.ShowMessageBoxAsync(
-            "Mark as sent",
+            _t.MarkAsSent,
             $"Confirm that {settlement.PayerFamilyName} has sent {FormatAmount(settlement.Amount, settlement.Currency)} to {settlement.ReceiverFamilyName}?",
-            yesText: "Mark sent", cancelText: "Cancel");
+            yesText: _t.MarkSent, cancelText: _t.Cancel);
 
         if (confirmed == true)
             Dispatcher.Dispatch(new ConfirmSentAction(GroupId, ActivityId, settlement.Id));
@@ -889,9 +862,9 @@ else
     private async Task ConfirmReceived(SettlementSummaryDto settlement)
     {
         bool? confirmed = await DialogService.ShowMessageBoxAsync(
-            "Mark as received",
+            _t.MarkAsReceived,
             $"Confirm that {settlement.ReceiverFamilyName} has received {FormatAmount(settlement.Amount, settlement.Currency)} from {settlement.PayerFamilyName}?",
-            yesText: "Mark received", cancelText: "Cancel");
+            yesText: _t.MarkReceived, cancelText: _t.Cancel);
 
         if (confirmed == true)
             Dispatcher.Dispatch(new ConfirmReceivedAction(GroupId, ActivityId, settlement.Id));

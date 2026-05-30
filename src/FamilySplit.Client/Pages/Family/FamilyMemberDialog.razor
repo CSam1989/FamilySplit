@@ -1,4 +1,5 @@
 @using FamilySplit.Client.Pages.Family
+@inject I18nText I18nText
 
 <MudDialog>
     <TitleContent>
@@ -9,9 +10,9 @@
 
             <MudTextField T="string"
                           @bind-Value="_model.DisplayName"
-                          Label="Name"
+                          Label="@_t.MemberName"
                           Required="true"
-                          RequiredError="Name is required."
+                          RequiredError="@_t.MemberNameRequired"
                           MaxLength="100"
                           Counter="100"
                           Immediate="true"
@@ -19,30 +20,30 @@
 
             <MudTextField T="string"
                           @bind-Value="_model.Email"
-                          Label="Email (optional)"
+                          Label="@_t.Email"
                           InputType="InputType.Email"
                           MaxLength="255"
-                          HelperText="Set for adults who will log in; leave blank for children."
+                          HelperText="@_t.EmailHelper"
                           Immediate="true"
                           Class="mb-4"
                           Validation="@(new Func<string?, IEnumerable<string>>(ValidateEmail))" />
 
             <MudDatePicker @bind-Date="_dobDate"
-                           Label="Date of birth (optional)"
+                           Label="@_t.DateOfBirth"
                            MaxDate="DateTime.Today"
-                           Placeholder="Leave blank if unknown"
+                           Placeholder="@_t.DateOfBirthPlaceholder"
                            Class="mb-4" />
 
             <MudCheckBox T="bool"
                          @bind-Value="_model.UseOverride"
-                         Label="Set a custom weight (overrides age tier)"
+                         Label="@_t.CustomWeightToggle"
                          Class="mb-2" />
 
             @if (_model.UseOverride)
             {
                 <MudNumericField T="decimal?"
                                  @bind-Value="_model.WeightOverride"
-                                 Label="Custom weight"
+                                 Label="@_t.CustomWeightLabel"
                                  Min="0.01m"
                                  Max="10m"
                                  Step="0.05m"
@@ -56,19 +57,19 @@
             {
                 <MudCheckBox T="bool"
                              @bind-Value="_model.IsAdmin"
-                             Label="Family admin (can manage members)"
+                             Label="@_t.FamilyAdminToggle"
                              Class="mb-2" />
             }
 
         </MudForm>
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton OnClick="Cancel">@_t.Cancel</MudButton>
         <MudButton Color="Color.Primary"
                    Variant="Variant.Filled"
                    OnClick="Submit"
                    Disabled="@(!_isValid)">
-            Save
+            @_t.Save
         </MudButton>
     </DialogActions>
 </MudDialog>
@@ -86,7 +87,14 @@
     private bool                  _isValid;
     private FamilyMemberFormModel _model   = new();
     private DateTime?             _dobDate;
-    private string                _title   = "Family member";
+    private string                _title   = "";
+    private AppText               _t       = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _t = await I18nText.GetTextTableAsync<AppText>(this);
+        _title = InitialValues is not null ? _t.EditMemberTitle : _t.FamilyMemberTitle;
+    }
 
     protected override void OnParametersSet()
     {
@@ -103,11 +111,11 @@
             _dobDate = InitialValues.DateOfBirth.HasValue
                 ? InitialValues.DateOfBirth.Value.ToDateTime(TimeOnly.MinValue)
                 : null;
-            _title = "Edit member";
         }
         else
         {
-            _title = "Add member";
+            _model   = new();
+            _dobDate = null;
         }
     }
 
@@ -130,10 +138,9 @@
     {
         await _form.ValidateAsync();
         if (!_isValid) return;
-
-        _model.DateOfBirth = _dobDate.HasValue ? DateOnly.FromDateTime(_dobDate.Value) : null;
-        if (!_model.UseOverride) _model.WeightOverride = null;
-
+        _model.DateOfBirth = _dobDate.HasValue
+            ? DateOnly.FromDateTime(_dobDate.Value)
+            : null;
         MudDialog.Close(DialogResult.Ok(_model));
     }
 

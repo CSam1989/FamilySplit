@@ -43,6 +43,7 @@
     <PackageVersion Include="Scalar.AspNetCore" Version="2.14.14" />
     <PackageVersion Include="Serilog.AspNetCore" Version="10.0.0" />
     <PackageVersion Include="Lib.Net.Http.WebPush" Version="3.3.1" />
+    <PackageVersion Include="Toolbelt.Blazor.I18nText" Version="14.1.1" />
   </ItemGroup>
   <!-- =========================================================
        Testing

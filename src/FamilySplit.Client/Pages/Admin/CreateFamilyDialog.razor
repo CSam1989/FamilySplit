@@ -1,14 +1,16 @@
+@inject I18nText I18nText
+
 <MudDialog>
     <TitleContent>
-        <MudText Typo="Typo.h6">Create family</MudText>
+        <MudText Typo="Typo.h6">@_t.CreateFamilyTitle</MudText>
     </TitleContent>
     <DialogContent>
         <MudForm @ref="_form" @bind-IsValid="_isValid">
             <MudTextField T="string"
                           @bind-Value="_name"
-                          Label="Family name"
+                          Label="@_t.FamilyName"
                           Required="true"
-                          RequiredError="Family name is required."
+                          RequiredError="@_t.FamilyNameRequired"
                           MaxLength="100"
                           Counter="100"
                           Immediate="true"
@@ -16,10 +18,10 @@
         </MudForm>
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton OnClick="Cancel">@_t.Cancel</MudButton>
         <MudButton Color="Color.Primary" Variant="Variant.Filled"
                    OnClick="Submit" Disabled="@(!_isValid)">
-            Create
+            @_t.Add
         </MudButton>
     </DialogActions>
 </MudDialog>
@@ -30,12 +32,18 @@
     private MudForm _form    = default!;
     private bool    _isValid;
     private string  _name    = "";
+    private AppText _t       = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _t = await I18nText.GetTextTableAsync<AppText>(this);
+    }
 
     private async Task Submit()
     {
         await _form.ValidateAsync();
         if (!_isValid) return;
-        MudDialog.Close(DialogResult.Ok(_name.Trim()));
+        MudDialog.Close(DialogResult.Ok(_name));
     }
 
     private void Cancel() => MudDialog.Cancel();

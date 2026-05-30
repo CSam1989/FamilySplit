@@ -1,5 +1,4 @@
 @page "/families/mine"
-@page "/profile"
 @using FamilySplit.Client.Store.Family
 @using FamilySplit.Client.Store.FamilyMembers
 @using FamilySplit.Client.Services
@@ -8,6 +7,7 @@
 @inject IState<FamilyState> State
 @inject IState<FamilyMemberState> ProfileState
 @inject IDialogService DialogService
+@inject I18nText I18nText
 
 <PageTitle>My Family — FamilySplit</PageTitle>
 
@@ -52,8 +52,8 @@
     <MudText Typo="Typo.h5">@family.Name</MudText>
     @if (isAdmin)
     {
-        <MudChip T="string" Color="Color.Warning" Size="Size.Small">Admin</MudChip>
-        <MudTooltip Text="Rename family">
+        <MudChip T="string" Color="Color.Warning" Size="Size.Small">@_t.FamilyAdminChip</MudChip>
+        <MudTooltip Text="@_t.RenameFamilyTooltip">
             <MudIconButton Icon="@Icons.Material.Filled.Edit"
                            Size="Size.Small"
                            OnClick="OpenRenameDialog" />
@@ -66,14 +66,14 @@
 
 <!-- Members -->
 <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2">
-    <MudText Typo="Typo.h6">Members</MudText>
+    <MudText Typo="Typo.h6">@_t.Members</MudText>
     @if (isAdmin)
     {
         <MudButton Variant="Variant.Outlined"
                    Size="Size.Small"
                    StartIcon="@Icons.Material.Filled.PersonAdd"
                    OnClick="OpenAddMemberDialog">
-            Add member
+            @_t.AddMember
         </MudButton>
     }
 </MudStack>
@@ -84,9 +84,9 @@
           Elevation="1"
           Class="mb-6">
     <HeaderContent>
-        <MudTh>Name</MudTh>
-        <MudTh>Weight</MudTh>
-        <MudTh>Tier</MudTh>
+        <MudTh>@_t.ColName</MudTh>
+        <MudTh>@_t.ColWeight</MudTh>
+        <MudTh>@_t.WeightTierLabel</MudTh>
         <MudTh>Role</MudTh>
         <MudTh>Status</MudTh>
         @if (isAdmin)
@@ -95,7 +95,7 @@
         }
     </HeaderContent>
     <RowTemplate Context="member">
-        <MudTd DataLabel="Name">
+        <MudTd DataLabel="@_t.ColName">
             <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
                 <MudAvatar Size="Size.Small" Color="Color.Primary">@member.DisplayName[0]</MudAvatar>
                 <div>
@@ -107,14 +107,14 @@
                 </div>
             </MudStack>
         </MudTd>
-        <MudTd DataLabel="Weight">@member.CurrentWeight.ToString("0.##")×</MudTd>
-        <MudTd DataLabel="Tier">
+        <MudTd DataLabel="@_t.ColWeight">@member.CurrentWeight.ToString("0.##")×</MudTd>
+        <MudTd DataLabel="@_t.WeightTierLabel">
             <WeightBadge Tier="member.CurrentTier" Weight="member.CurrentWeight" />
         </MudTd>
         <MudTd DataLabel="Role">
             @if (member.IsAdmin)
             {
-                <MudChip T="string" Color="Color.Warning" Size="Size.Small">Admin</MudChip>
+                <MudChip T="string" Color="Color.Warning" Size="Size.Small">@_t.FamilyAdminLabel</MudChip>
             }
             else
             {
@@ -139,14 +139,14 @@
                 <MudStack Row="true" Spacing="0">
                     <MudIconButton Icon="@Icons.Material.Filled.Edit"
                                    Size="Size.Small"
-                                   title="Edit member"
+                                   title="@_t.Edit"
                                    OnClick="@(() => OpenEditMemberDialog(member))" />
                     @if (member.Id != ProfileState.Value.MyProfile?.Id)
                     {
                         <MudIconButton Icon="@Icons.Material.Filled.PersonRemove"
                                        Size="Size.Small"
                                        Color="Color.Error"
-                                       title="Remove member"
+                                       title="@_t.RemoveMember"
                                        OnClick="@(() => ConfirmRemoveMember(member))" />
                     }
                 </MudStack>
@@ -156,10 +156,15 @@
 </MudTable>
 
 @code {
-    protected override void OnInitialized()
+    private AppText _t = new();
+
+    protected override async Task OnInitializedAsync()
     {
-        base.OnInitialized();
+        await base.OnInitializedAsync();
+        _t = await I18nText.GetTextTableAsync<AppText>(this);
         Dispatcher.Dispatch(new LoadMyFamilyAction());
+        if (ProfileState.Value.MyProfile is null)
+            Dispatcher.Dispatch(new LoadMyProfileAction());
     }
 
     // ── Rename ────────────────────────────────────────────────────────────────
@@ -171,7 +176,7 @@
             { x => x.InitialName, State.Value.MyFamily!.Name }
         };
 
-        var dialog = await DialogService.ShowAsync<RenameFamilyDialog>("Rename family", parameters);
+        var dialog = await DialogService.ShowAsync<RenameFamilyDialog>(_t.RenameFamilyTitle, parameters);
         var result = await dialog.Result;
 
         if (result is { Canceled: false, Data: string newName })
@@ -188,7 +193,7 @@
         {
             { x => x.ShowAdminToggle, true }
         };
-        var dialog = await DialogService.ShowAsync<FamilyMemberDialog>("Add member", parameters);
+        var dialog = await DialogService.ShowAsync<FamilyMemberDialog>(_t.AddMemberTitle, parameters);
         var result = await dialog.Result;
 
         if (result is { Canceled: false, Data: FamilyMemberFormModel form })
@@ -225,7 +230,7 @@
             { x => x.ShowAdminToggle,  callerIsAdmin }
         };
 
-        var dialog = await DialogService.ShowAsync<FamilyMemberDialog>("Edit member", parameters);
+        var dialog = await DialogService.ShowAsync<FamilyMemberDialog>(_t.EditMemberTitle, parameters);
         var result = await dialog.Result;
 
         if (result is { Canceled: false, Data: FamilyMemberFormModel form })
@@ -244,10 +249,10 @@
     private async Task ConfirmRemoveMember(FamilyMemberDto member)
     {
         bool? confirmed = await DialogService.ShowMessageBoxAsync(
-            "Remove member",
+            _t.RemoveMember,
             $"Remove {member.DisplayName} from the family? This cannot be undone.",
-            yesText: "Remove",
-            cancelText: "Cancel");
+            yesText: _t.Remove,
+            cancelText: _t.Cancel);
 
         if (confirmed == true)
             Dispatcher.Dispatch(new RemoveFamilyMemberAction(member.Id));

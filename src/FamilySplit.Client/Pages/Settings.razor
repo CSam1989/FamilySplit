@@ -1,0 +1,130 @@
+@page "/settings"
+@page "/profile"
+@using FamilySplit.Client.Store.Auth
+@using FamilySplit.Client.Store.FamilyMembers
+@inherits Fluxor.Blazor.Web.Components.FluxorComponent
+@inject IDispatcher Dispatcher
+@inject IState<AuthState> AuthState
+@inject IState<FamilyMemberState> ProfileState
+@inject NavigationManager Nav
+@inject I18nText I18nText
+
+<PageTitle>@_t.NavSettings — FamilySplit</PageTitle>
+
+<RequireAuth />
+
+@{
+    var user   = AuthState.Value.CurrentUser;
+    var member = ProfileState.Value.MyProfile;
+}
+
+<!-- ── User card ──────────────────────────────────────────────────────────── -->
+@if (user is not null)
+{
+    <MudPaper Elevation="2" Class="pa-4 mb-5" Style="border-radius:var(--fs-radius-xl)">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+            @if (user.AvatarUrl is not null)
+            {
+                <MudAvatar Style="width:56px;height:56px">
+                    <MudImage Src="@user.AvatarUrl" Alt="avatar" />
+                </MudAvatar>
+            }
+            else
+            {
+                <MudAvatar Color="Color.Primary" Style="width:56px;height:56px;font-size:1.5rem">
+                    @user.DisplayName[0]
+                </MudAvatar>
+            }
+            <div style="flex:1;min-width:0">
+                <MudText Typo="Typo.h6" Style="font-weight:700;margin-bottom:2px">@user.DisplayName</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">@user.Email</MudText>
+                @if (member is not null)
+                {
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="mt-1">
+                        <WeightBadge Tier="member.CurrentTier" Weight="member.CurrentWeight" />
+                        @if (member.IsAdmin)
+                        {
+                            <MudChip T="string" Color="Color.Warning" Size="Size.Small">@_t.FamilyAdminChip</MudChip>
+                        }
+                        @if (AuthState.Value.IsGlobalAdmin)
+                        {
+                            <MudChip T="string" Color="Color.Error" Size="Size.Small">@_t.GlobalAdminChip</MudChip>
+                        }
+                    </MudStack>
+                }
+            </div>
+        </MudStack>
+    </MudPaper>
+}
+
+<!-- ── Language ───────────────────────────────────────────────────────────── -->
+<MudPaper Elevation="1" Class="pa-4 mb-4" Style="border-radius:var(--fs-radius-lg)">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3" Spacing="2">
+        <MudIcon Icon="@Icons.Material.Filled.Language" Color="Color.Primary" Size="Size.Small" />
+        <MudText Typo="Typo.h6">@_t.Language</MudText>
+    </MudStack>
+
+    <MudSelect T="string"
+               Label="@_t.LanguageLabel"
+               Value="_currentLanguage"
+               ValueChanged="OnLanguageChanged"
+               Variant="Variant.Outlined"
+               Style="max-width:280px"
+               AnchorOrigin="Origin.BottomCenter">
+        <MudSelectItem Value="@("en")">@_t.LangEnglish</MudSelectItem>
+        <MudSelectItem Value="@("nl")">@_t.LangDutch</MudSelectItem>
+        <MudSelectItem Value="@("fr")">@_t.LangFrench</MudSelectItem>
+        <MudSelectItem Value="@("de")">@_t.LangGerman</MudSelectItem>
+    </MudSelect>
+</MudPaper>
+
+<!-- ── Global admin ───────────────────────────────────────────────────────── -->
+@if (AuthState.Value.IsGlobalAdmin)
+{
+    <MudPaper Elevation="1" Class="pa-0 mb-4 overflow-hidden" Style="border-radius:var(--fs-radius-lg)">
+        <MudList T="string" Dense="true">
+            <MudListItem Icon="@Icons.Material.Filled.AdminPanelSettings"
+                         IconColor="Color.Error"
+                         Href="/admin">
+                @_t.NavAdmin
+            </MudListItem>
+        </MudList>
+    </MudPaper>
+}
+
+<!-- ── Sign out ───────────────────────────────────────────────────────────── -->
+<MudButton Variant="Variant.Outlined"
+           Color="Color.Error"
+           StartIcon="@Icons.Material.Filled.Logout"
+           FullWidth="true"
+           Style="max-width:280px"
+           OnClick="@(() => SignOut())">
+    @_t.SignOut
+</MudButton>
+
+@code {
+    private AppText _t = new();
+    private string _currentLanguage = "en";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        _t = await I18nText.GetTextTableAsync<AppText>(this);
+        _currentLanguage = await I18nText.GetCurrentLanguageAsync();
+        if (ProfileState.Value.MyProfile is null)
+            Dispatcher.Dispatch(new LoadMyProfileAction());
+    }
+
+    private async Task OnLanguageChanged(string lang)
+    {
+        _currentLanguage = lang;
+        await I18nText.SetCurrentLanguageAsync(lang);
+        _t = await I18nText.GetTextTableAsync<AppText>(this);
+        StateHasChanged();
+    }
+
+    private void SignOut()
+    {
+        Dispatcher.Dispatch(new SignOutAction());
+    }
+}

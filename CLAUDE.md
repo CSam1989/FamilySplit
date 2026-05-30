@@ -470,6 +470,37 @@ dotnet ef database update --startup-project ../FamilySplit.Api
 
 ---
 
+## Internationalisation (i18n) — Client Layer
+
+**All visible text in `FamilySplit.Client` must be translated. Hardcoded strings are never allowed.**
+
+The app uses **Toolbelt.Blazor.I18nText** with JSON source files in `src/FamilySplit.Client/i18ntext/`. The source generator produces `FamilySplit.Client.I18nText.AppText` at build time.
+
+### Rules
+
+- Every `.razor` file that shows text to the user **must** inject `I18nText` and load `_t` in `OnInitializedAsync`:
+  ```razor
+  @inject I18nText I18nText
+  ...
+  private AppText _t = new();
+
+  protected override async Task OnInitializedAsync()
+  {
+      await base.OnInitializedAsync(); // required for FluxorComponent subclasses
+      _t = await I18nText.GetTextTableAsync<AppText>(this);
+  }
+  ```
+- All user-visible strings must reference `@_t.KeyName` — never a raw string literal in markup or a C# `string` constant passed to UI components.
+- Every new key added to any `.razor` file **must** be added to all four JSON files: `AppText.en.json`, `AppText.nl.json`, `AppText.fr.json`, `AppText.de.json`. Keys missing from any file will fall back silently to the key name — always provide all four translations.
+- Confirmation dialogs (`ShowMessageBox`), alert messages, tooltips, chip labels, and placeholder text are all subject to this rule.
+- The four JSON files live at `src/FamilySplit.Client/i18ntext/`. Add new keys at a logical grouping point with a blank line separator between sections.
+
+### Language persistence
+
+Language choice is stored in both sessionStorage and localStorage via `PersistanceLevel.SessionAndLocal` (configured in `Program.cs`). The language picker lives on `/profile` (`MyProfile.razor`).
+
+---
+
 ## UI Naming Conventions
 
 Consistent terminology must be used across all pages, dialogs, buttons, and tooltips. Never mix these terms.

@@ -17,6 +17,7 @@
 @inject IState<SettlementState> SettlementState
 @inject IDialogService DialogService
 @inject NavigationManager Nav
+@inject I18nText I18nText
 
 <PageTitle>Group — FamilySplit</PageTitle>
 
@@ -31,7 +32,7 @@
 @if (State.Value.ErrorMessage is not null && State.Value.SelectedGroup is null)
 {
     <MudAlert Severity="Severity.Error" Class="mb-4">@State.Value.ErrorMessage</MudAlert>
-    <MudButton StartIcon="@Icons.Material.Filled.ArrowBack" OnClick="@(() => Nav.NavigateTo("/groups"))">Back to groups</MudButton>
+    <MudButton StartIcon="@Icons.Material.Filled.ArrowBack" OnClick="@(() => Nav.NavigateTo("/groups"))">@_t.BackToGroups</MudButton>
     return;
 }
 
@@ -58,7 +59,7 @@
         <MudText Typo="Typo.h5">@group.Name</MudText>
         @if (isAdmin)
         {
-            <MudChip T="string" Color="Color.Warning" Size="Size.Small">Admin</MudChip>
+            <MudChip T="string" Color="Color.Warning" Size="Size.Small">@_t.FamilyAdminChip</MudChip>
         }
     </MudStack>
 
@@ -66,7 +67,7 @@
     <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
         @if (isAdmin)
         {
-            <MudTooltip Text="Edit group">
+            <MudTooltip Text="@_t.EditGroup">
                 <MudIconButton Icon="@Icons.Material.Filled.Edit"
                                Size="Size.Medium"
                                Color="Color.Default"
@@ -75,7 +76,7 @@
         }
         @if (IsCallerFamilyAdmin)
         {
-            <MudTooltip Text="Leave group">
+            <MudTooltip Text="@_t.LeaveGroup">
                 <MudIconButton Icon="@Icons.Material.Filled.ExitToApp"
                                Size="Size.Medium"
                                Color="Color.Error"
@@ -84,7 +85,7 @@
         }
         @if (AuthState.Value.IsGlobalAdmin)
         {
-            <MudTooltip Text="Delete group">
+            <MudTooltip Text="@_t.DeleteGroup">
                 <MudIconButton Icon="@Icons.Material.Filled.DeleteForever"
                                Size="Size.Medium"
                                Color="Color.Error"
@@ -113,42 +114,42 @@
         <MudPaper Elevation="1" Class="pa-4 d-flex flex-column align-center" Style="text-align:center">
             <MudIcon Icon="@Icons.Material.Filled.EventNote" Color="Color.Primary" Class="mb-1" />
             <MudText Typo="Typo.h5"><strong>@totalCount</strong></MudText>
-            <MudText Typo="Typo.caption" Color="Color.Secondary">Activities</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">@_t.Activities</MudText>
         </MudPaper>
     </MudItem>
     <MudItem xs="6" sm="3">
         <MudPaper Elevation="1" Class="pa-4 d-flex flex-column align-center" Style="text-align:center">
             <MudIcon Icon="@Icons.Material.Filled.LockOpen" Color="Color.Success" Class="mb-1" />
             <MudText Typo="Typo.h5"><strong>@openCount</strong></MudText>
-            <MudText Typo="Typo.caption" Color="Color.Secondary">Open</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">@_t.Open</MudText>
         </MudPaper>
     </MudItem>
     <MudItem xs="6" sm="3">
         <MudPaper Elevation="1" Class="pa-4 d-flex flex-column align-center" Style="text-align:center">
             <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Info" Class="mb-1" />
             <MudText Typo="Typo.h5"><strong>@settledCount</strong></MudText>
-            <MudText Typo="Typo.caption" Color="Color.Secondary">Settled</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">@_t.Settled</MudText>
         </MudPaper>
     </MudItem>
     <MudItem xs="6" sm="3">
         <MudPaper Elevation="1" Class="pa-4 d-flex flex-column align-center" Style="text-align:center">
             <MudIcon Icon="@Icons.Material.Filled.FamilyRestroom" Color="Color.Secondary" Class="mb-1" />
             <MudText Typo="Typo.h5"><strong>@group.Families.Count</strong></MudText>
-            <MudText Typo="Typo.caption" Color="Color.Secondary">Families · @totalMembers members</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">Families · @totalMembers @_t.Members</MudText>
         </MudPaper>
     </MudItem>
 </MudGrid>
 
 <!-- ── Activities (primary) ───────────────────────────────────────────────── -->
 <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3" Spacing="2">
-    <MudText Typo="Typo.h6">Activities</MudText>
+    <MudText Typo="Typo.h6">@_t.Activities</MudText>
     <MudSpacer />
     <MudButton Variant="Variant.Filled"
                Color="Color.Primary"
                Size="Size.Medium"
                StartIcon="@Icons.Material.Filled.Add"
                OnClick="OpenCreateActivityDialog">
-        New activity
+        @_t.NewActivity
     </MudButton>
 </MudStack>
 
@@ -169,7 +170,7 @@ else if (!ActivityState.Value.Activities.Any())
     <MudPaper Elevation="0" Class="pa-6 d-flex flex-column align-center mb-6"
               Style="border: 1px dashed var(--mud-palette-divider);">
         <MudIcon Icon="@Icons.Material.Outlined.EventNote" Size="Size.Large" Color="Color.Secondary" Class="mb-2" />
-        <MudText Typo="Typo.body2" Color="Color.Secondary">No activities yet. Create one to start tracking shared costs.</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">@_t.NoActivitiesYet</MudText>
     </MudPaper>
 }
 else
@@ -209,7 +210,7 @@ else
                     <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3" Wrap="Wrap.Wrap">
                         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
                             <MudIcon Icon="@Icons.Material.Filled.People" Size="Size.Small" Color="Color.Secondary" />
-                            <MudText Typo="Typo.caption" Color="Color.Secondary">@activity.ParticipantCount participants</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@activity.ParticipantCount @_t.ParticipantsCount</MudText>
                         </MudStack>
 
                         @if (activity.SubActivityCount > 0)
@@ -217,7 +218,7 @@ else
                             <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
                                 <MudIcon Icon="@Icons.Material.Filled.AccountTree" Size="Size.Small" Color="Color.Secondary" />
                                 <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                    @activity.SubActivityCount sub-activit@(activity.SubActivityCount == 1 ? "y" : "ies")
+                                    @activity.SubActivityCount @(_t.SubActivityCount + (activity.SubActivityCount == 1 ? _t.SubActivitySingular : _t.SubActivityPlural))
                                 </MudText>
                             </MudStack>
                         }
@@ -234,7 +235,7 @@ else
                             <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
                                 <MudIcon Icon="@Icons.Material.Filled.EventAvailable" Size="Size.Small" Color="Color.Secondary" />
                                 <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                    closed @activity.ClosedAt.Value.ToLocalTime().ToString("dd MMM yyyy")
+                                    @_t.ClosedAt @activity.ClosedAt.Value.ToLocalTime().ToString("dd MMM yyyy")
                                 </MudText>
                             </MudStack>
                         }
@@ -250,10 +251,10 @@ else
 
 <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3" Spacing="2">
     <MudIcon Icon="@Icons.Material.Filled.AccountBalance" Color="Color.Warning" Size="Size.Small" />
-    <MudText Typo="Typo.h6">Settlements</MudText>
+    <MudText Typo="Typo.h6">@_t.Settlements</MudText>
     @if (pendingCount > 0)
     {
-        <MudChip T="string" Color="Color.Warning" Size="Size.Small">@pendingCount pending</MudChip>
+        <MudChip T="string" Color="Color.Warning" Size="Size.Small">@pendingCount @_t.PendingChip</MudChip>
     }
 </MudStack>
 
@@ -266,7 +267,7 @@ else if (!SettlementState.Value.GroupSettlements.Any())
     <MudPaper Elevation="0" Class="pa-5 d-flex flex-column align-center mb-4"
               Style="border: 1px dashed var(--mud-palette-divider);">
         <MudIcon Icon="@Icons.Material.Outlined.AccountBalance" Size="Size.Large" Color="Color.Secondary" Class="mb-2" />
-        <MudText Typo="Typo.body2" Color="Color.Secondary">No pending settlements. Close an activity and generate settlements to see them here.</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">@_t.NoPendingSettlementsGroup</MudText>
     </MudPaper>
 }
 else
@@ -316,7 +317,7 @@ else
 
                     <!-- Status chip -->
                     <MudChip T="string" Color="@chipColor" Size="Size.Small" Icon="@chipIcon">
-                        @(s.Status == SettlementStatus.PayerSent ? "Sent" : s.Status.ToString())
+                        @(s.Status == SettlementStatus.PayerSent ? _t.StatusSent : s.Status.ToString())
                     </MudChip>
 
                     <!-- Action buttons -->
@@ -327,7 +328,7 @@ else
                                    Size="Size.Small"
                                    StartIcon="@Icons.Material.Filled.Send"
                                    OnClick="@(() => ConfirmGroupSettlementSent(s))">
-                            Mark sent
+                            @_t.MarkSent
                         </MudButton>
                     }
                     @if (s.Status == SettlementStatus.PayerSent && isCallerReceiver)
@@ -337,12 +338,12 @@ else
                                    Size="Size.Small"
                                    StartIcon="@Icons.Material.Filled.CheckCircle"
                                    OnClick="@(() => ConfirmGroupSettlementReceived(s))">
-                            Mark received
+                            @_t.MarkReceived
                         </MudButton>
                     }
 
                     <!-- View activity link -->
-                    <MudTooltip Text="View activity">
+                    <MudTooltip Text="@_t.ViewActivity">
                         <MudIconButton Icon="@Icons.Material.Filled.OpenInNew"
                                        Size="Size.Medium"
                                        Color="Color.Default"
@@ -364,9 +365,9 @@ else
             <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
                 <MudIcon Icon="@Icons.Material.Filled.FamilyRestroom" Color="Color.Secondary" Size="Size.Small" />
                 <MudText Typo="Typo.subtitle2" Color="Color.Secondary">
-                    Families &amp; Members
+                    @_t.FamiliesAndMembers
                 </MudText>
-                <MudChip T="string" Size="Size.Small" Color="Color.Default">@group.Families.Count families · @totalMembers members</MudChip>
+                <MudChip T="string" Size="Size.Small" Color="Color.Default">@group.Families.Count families · @totalMembers @_t.Members</MudChip>
                 @if (AuthState.Value.IsGlobalAdmin)
                 {
                     <span @onclick:stopPropagation="true">
@@ -375,7 +376,7 @@ else
                                    Color="Color.Primary"
                                    StartIcon="@Icons.Material.Filled.GroupAdd"
                                    OnClick="OpenAddFamilyDialog">
-                            Add family
+                            @_t.AddFamily
                         </MudButton>
                     </span>
                 }
@@ -387,17 +388,17 @@ else
                       Style="border:1px solid var(--mud-palette-divider); width:fit-content">
                 <MudIcon Icon="@Icons.Material.Filled.VpnKey" Color="Color.Primary" Size="Size.Small" />
                 <div>
-                    <MudText Typo="Typo.caption" Color="Color.Secondary">Invite code</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">@_t.InviteCode</MudText>
                     <MudText Typo="Typo.subtitle2" Style="letter-spacing:0.2em">@group.InviteCode</MudText>
                 </div>
-                <MudTooltip Text="Copy invite code">
+                <MudTooltip Text="@_t.CopyInviteCode">
                     <MudIconButton Icon="@Icons.Material.Filled.ContentCopy"
                                    Size="Size.Medium"
                                    OnClick="CopyInviteCode" />
                 </MudTooltip>
                 @if (isAdmin)
                 {
-                    <MudTooltip Text="Regenerate invite code">
+                    <MudTooltip Text="@_t.RegenerateInviteCode">
                         <MudIconButton Icon="@Icons.Material.Filled.Refresh"
                                        Size="Size.Medium"
                                        Color="Color.Warning"
@@ -414,14 +415,14 @@ else
                         <MudText Typo="Typo.subtitle2">@family.FamilyName</MudText>
                         @if (family.Role == MemberRole.Admin)
                         {
-                            <MudChip T="string" Color="Color.Warning" Size="Size.Small">Admin</MudChip>
+                            <MudChip T="string" Color="Color.Warning" Size="Size.Small">@_t.FamilyAdminChip</MudChip>
                         }
                         <MudText Typo="Typo.caption" Color="Color.Secondary" Class="ml-auto">
-                            joined @family.JoinedAt.ToLocalTime().ToString("dd MMM yyyy")
+                            @_t.Joined @family.JoinedAt.ToLocalTime().ToString("dd MMM yyyy")
                         </MudText>
                         @if (AuthState.Value.IsGlobalAdmin)
                         {
-                            <MudTooltip Text="Remove family from group">
+                            <MudTooltip Text="@_t.RemoveFamilyFromGroup">
                                 <MudIconButton Icon="@Icons.Material.Filled.GroupRemove"
                                                Size="Size.Medium"
                                                Color="Color.Error"
@@ -432,7 +433,7 @@ else
 
                     @if (family.Members.Count == 0)
                     {
-                        <MudText Typo="Typo.body2" Color="Color.Secondary">No active members.</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">@_t.NoActiveMembers</MudText>
                     }
                     else
                     {
@@ -459,17 +460,19 @@ else
 @code {
     [Parameter] public Guid GroupId { get; set; }
 
+    private AppText _t = new();
     private List<BreadcrumbItem> _crumbs = [];
 
     /// <summary>True when the logged-in user's FamilyMember has IsAdmin = true.</summary>
     private bool IsCallerFamilyAdmin => ProfileState.Value.MyProfile?.IsAdmin == true;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        base.OnInitialized();
+        await base.OnInitializedAsync();
+        _t = await I18nText.GetTextTableAsync<AppText>(this);
         _crumbs =
         [
-            new BreadcrumbItem("Groups", href: "/groups"),
+            new BreadcrumbItem(_t.GroupBreadcrumb, href: "/groups"),
             new BreadcrumbItem("Detail", href: null, disabled: true)
         ];
 
@@ -503,7 +506,7 @@ else
             { x => x.InitialDescription, group.Description }
         };
 
-        var dialog = await DialogService.ShowAsync<EditGroupDialog>("Edit group", parameters);
+        var dialog = await DialogService.ShowAsync<EditGroupDialog>(_t.EditGroup, parameters);
         var result = await dialog.Result;
 
         if (result is { Canceled: false, Data: EditGroupFormModel form })
@@ -516,10 +519,10 @@ else
     private async Task ConfirmRegenerate()
     {
         bool? confirmed = await DialogService.ShowMessageBoxAsync(
-            "Regenerate invite code",
-            "The old invite code will stop working immediately. Continue?",
-            yesText: "Regenerate",
-            cancelText: "Cancel");
+            _t.RegenerateInviteCode,
+            _t.RegenerateInviteCodeConfirm,
+            yesText: _t.RegenerateInviteCodeYes,
+            cancelText: _t.Cancel);
 
         if (confirmed == true)
             Dispatcher.Dispatch(new RegenerateInviteCodeAction(GroupId));
@@ -535,7 +538,7 @@ else
 
     private async Task OpenCreateActivityDialog()
     {
-        var dialog = await DialogService.ShowAsync<CreateActivityDialog>("New activity");
+        var dialog = await DialogService.ShowAsync<CreateActivityDialog>(_t.NewActivity);
         var result = await dialog.Result;
         if (result is { Canceled: false, Data: ActivityFormModel form })
         {
@@ -547,10 +550,10 @@ else
     private async Task ConfirmLeave()
     {
         bool? confirmed = await DialogService.ShowMessageBoxAsync(
-            "Leave group",
-            "Your family will be removed from this group. This cannot be undone. Continue?",
-            yesText: "Leave group",
-            cancelText: "Cancel");
+            _t.LeaveGroup,
+            _t.LeaveGroupConfirm,
+            yesText: _t.LeaveGroupYes,
+            cancelText: _t.Cancel);
 
         if (confirmed == true)
             Dispatcher.Dispatch(new LeaveGroupAction(GroupId));
@@ -559,10 +562,10 @@ else
     private async Task ConfirmDelete()
     {
         bool? confirmed = await DialogService.ShowMessageBoxAsync(
-            "Delete group",
-            $"This will permanently delete \"{State.Value.SelectedGroup?.Name}\" and all its activities. This cannot be undone. Continue?",
-            yesText: "Delete group",
-            cancelText: "Cancel");
+            _t.DeleteGroup,
+            _t.DeleteGroupConfirm,
+            yesText: _t.DeleteGroupYes,
+            cancelText: _t.Cancel);
 
         if (confirmed == true)
             Dispatcher.Dispatch(new DeleteGroupAction(GroupId));
@@ -579,7 +582,7 @@ else
             { x => x.ExistingFamilyIds, existingIds }
         };
 
-        var dialog = await DialogService.ShowAsync<AdminAddFamilyDialog>("Add family to group", parameters);
+        var dialog = await DialogService.ShowAsync<AdminAddFamilyDialog>(_t.AddFamilyToGroup, parameters);
         var result = await dialog.Result;
 
         if (result is { Canceled: false, Data: Guid familyId })
@@ -589,10 +592,10 @@ else
     private async Task ConfirmRemoveFamily(GroupFamilyDto family)
     {
         bool? confirmed = await DialogService.ShowMessageBoxAsync(
-            "Remove family",
-            $"Remove \"{family.FamilyName}\" from this group? They will no longer participate in new activities.",
-            yesText: "Remove",
-            cancelText: "Cancel");
+            _t.RemoveFamilyFromGroup,
+            _t.RemoveFamilyConfirm,
+            yesText: _t.Remove,
+            cancelText: _t.Cancel);
 
         if (confirmed == true)
             Dispatcher.Dispatch(new AdminRemoveFamilyFromGroupAction(GroupId, family.FamilyId));
@@ -603,10 +606,10 @@ else
     private async Task ConfirmGroupSettlementSent(GroupSettlementSummaryDto settlement)
     {
         bool? confirmed = await DialogService.ShowMessageBoxAsync(
-            "Mark as sent",
+            _t.MarkAsSent,
             $"Confirm that {settlement.PayerFamilyName} has sent {settlement.Amount:F2} {settlement.Currency} to {settlement.ReceiverFamilyName}?",
-            yesText: "Mark sent",
-            cancelText: "Cancel");
+            yesText: _t.MarkSent,
+            cancelText: _t.Cancel);
 
         if (confirmed == true)
             Dispatcher.Dispatch(new ConfirmSentAction(GroupId, settlement.ActivityId, settlement.Id));
@@ -615,10 +618,10 @@ else
     private async Task ConfirmGroupSettlementReceived(GroupSettlementSummaryDto settlement)
     {
         bool? confirmed = await DialogService.ShowMessageBoxAsync(
-            "Mark as received",
+            _t.MarkAsReceived,
             $"Confirm that {settlement.ReceiverFamilyName} has received {settlement.Amount:F2} {settlement.Currency} from {settlement.PayerFamilyName}?",
-            yesText: "Mark received",
-            cancelText: "Cancel");
+            yesText: _t.MarkReceived,
+            cancelText: _t.Cancel);
 
         if (confirmed == true)
             Dispatcher.Dispatch(new ConfirmReceivedAction(GroupId, settlement.ActivityId, settlement.Id));

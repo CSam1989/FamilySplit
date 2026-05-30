@@ -1,12 +1,13 @@
 @using FamilySplit.Domain.Enums
 @using FamilySplit.Client.Store.Settlements
 @inject IDispatcher Dispatcher
+@inject I18nText I18nText
 
 <MudDialog>
     <TitleContent>
         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
             <MudIcon Icon="@Icons.Material.Filled.AccountBalance" />
-            <MudText Typo="Typo.h6">Transfer detail</MudText>
+            <MudText Typo="Typo.h6">@_t.TransferDetail</MudText>
         </MudStack>
     </TitleContent>
     <DialogContent>
@@ -27,29 +28,31 @@
 
             <MudGrid Spacing="2" Class="mb-4">
                 <MudItem xs="12" sm="6">
-                    <MudText Typo="Typo.caption" Color="Color.Secondary">From (payer)</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">@_t.FromPayer</MudText>
                     <MudText Typo="Typo.body1"><strong>@Settlement.PayerFamilyName</strong></MudText>
                 </MudItem>
                 <MudItem xs="12" sm="6">
-                    <MudText Typo="Typo.caption" Color="Color.Secondary">To (receiver)</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">@_t.ToReceiver</MudText>
                     <MudText Typo="Typo.body1"><strong>@Settlement.ReceiverFamilyName</strong></MudText>
                 </MudItem>
                 <MudItem xs="12" sm="6">
-                    <MudText Typo="Typo.caption" Color="Color.Secondary">Amount</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">@_t.ColAmount</MudText>
                     <MudText Typo="Typo.body1"><strong>@Settlement.Amount.ToString("F2") @Settlement.Currency</strong></MudText>
                 </MudItem>
                 <MudItem xs="12" sm="6">
-                    <MudText Typo="Typo.caption" Color="Color.Secondary">Status</MudText>
-                    <MudChip T="string" Color="@statusColor" Size="Size.Small">@Settlement.Status</MudChip>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">@_t.StatusLabel</MudText>
+                    <MudChip T="string" Color="@statusColor" Size="Size.Small">
+                        @(Settlement.Status == SettlementStatus.PayerSent ? _t.StatusSent : Settlement.Status.ToString())
+                    </MudChip>
                 </MudItem>
                 <MudItem xs="12" sm="6">
-                    <MudText Typo="Typo.caption" Color="Color.Secondary">Proposed</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">@_t.ProposedAt</MudText>
                     <MudText Typo="Typo.body2">@Settlement.ProposedAt.ToLocalTime().ToString("dd MMM yyyy HH:mm")</MudText>
                 </MudItem>
                 @if (Settlement.CompletedAt.HasValue)
                 {
                     <MudItem xs="12" sm="6">
-                        <MudText Typo="Typo.caption" Color="Color.Secondary">Completed</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@_t.CompletedAt</MudText>
                         <MudText Typo="Typo.body2">@Settlement.CompletedAt.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm")</MudText>
                     </MudItem>
                 }
@@ -57,7 +60,7 @@
 
             @if (Settlement.ApprovalSteps.Count > 0)
             {
-                <MudText Typo="Typo.subtitle2" Class="mb-2">Approval history</MudText>
+                <MudText Typo="Typo.subtitle2" Class="mb-2">@_t.ApprovalHistory</MudText>
                 <MudTimeline TimelinePosition="TimelinePosition.Start" Class="mb-2">
                     @foreach (var step in Settlement.ApprovalSteps)
                     {
@@ -65,8 +68,8 @@
                             ? Icons.Material.Filled.Send
                             : Icons.Material.Filled.CheckCircle;
                         var stepLabel = step.StepType == StepType.PayerSent
-                            ? "Payment sent"
-                            : "Payment received";
+                            ? _t.PaymentSent
+                            : _t.PaymentReceived;
                         <MudTimelineItem Icon="@stepIcon" Color="Color.Success" Size="Size.Small">
                             <ItemContent>
                                 <MudText Typo="Typo.body2"><strong>@stepLabel</strong></MudText>
@@ -97,7 +100,7 @@
                            Color="Color.Primary"
                            StartIcon="@Icons.Material.Filled.Send"
                            OnClick="OnMarkSent">
-                    Mark sent
+                    @_t.MarkSent
                 </MudButton>
             }
             @if (Settlement.Status == SettlementStatus.PayerSent && CallerFamilyId == Settlement.ReceiverFamilyId)
@@ -106,7 +109,7 @@
                            Color="Color.Success"
                            StartIcon="@Icons.Material.Filled.CheckCircle"
                            OnClick="OnConfirmReceived">
-                    Mark received
+                    @_t.MarkReceived
                 </MudButton>
             }
         }
@@ -127,6 +130,13 @@
 
     /// <summary>The caller's FamilyId — used to decide which action button to show.</summary>
     [Parameter] public Guid? CallerFamilyId { get; set; }
+
+    private AppText _t = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _t = await I18nText.GetTextTableAsync<AppText>(this);
+    }
 
     private void OnMarkSent()
     {

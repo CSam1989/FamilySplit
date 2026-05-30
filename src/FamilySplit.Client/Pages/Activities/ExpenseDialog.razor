@@ -1,32 +1,33 @@
 @using FamilySplit.Client.Services
 @inject IDialogService DialogService
+@inject I18nText I18nText
 
 <MudDialog>
     <TitleContent>
-        <MudText Typo="Typo.h6">@(IsEdit ? "Edit expense" : "Add expense")</MudText>
+        <MudText Typo="Typo.h6">@(IsEdit ? _t.EditExpenseTitle : _t.AddExpenseTitle)</MudText>
     </TitleContent>
     <DialogContent>
         <MudForm @ref="_form" Model="_model">
-            <MudTextField Label="Title" @bind-Value="_model.Title"
-                          Required="true" RequiredError="Title is required."
+            <MudTextField Label="@_t.ExpenseTitle" @bind-Value="_model.Title"
+                          Required="true" RequiredError="@_t.ExpenseTitleRequired"
                           MaxLength="200" Immediate="true" Class="mb-3" />
 
             <MudTextField Label="Description" @bind-Value="_model.Description"
                           Lines="2" MaxLength="500" Class="mb-3" />
 
-            <MudNumericField T="decimal?" Label="Amount (EUR)" @bind-Value="_model.TotalAmount"
-                             Required="true" RequiredError="Amount is required."
+            <MudNumericField T="decimal?" Label="@_t.ExpenseAmount" @bind-Value="_model.TotalAmount"
+                             Required="true" RequiredError="@_t.ExpenseAmountRequired"
                              Min="0.01m" Immediate="true" Class="mb-3" />
 
-            <MudDatePicker Label="Date" @bind-Date="_expenseDate"
-                           Required="true" RequiredError="Date is required."
+            <MudDatePicker Label="@_t.ExpenseDate" @bind-Date="_expenseDate"
+                           Required="true" RequiredError="@_t.ExpenseDateRequired"
                            DateFormat="dd/MM/yyyy" Class="mb-1" />
         </MudForm>
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton OnClick="Cancel">@_t.Cancel</MudButton>
         <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">
-            @(IsEdit ? "Save" : "Add")
+            @(IsEdit ? _t.Save : _t.Add)
         </MudButton>
     </DialogActions>
 </MudDialog>
@@ -38,18 +39,24 @@
     [Parameter] public string? InitialTitle { get; set; }
     [Parameter] public string? InitialDescription { get; set; }
     [Parameter] public decimal? InitialAmount { get; set; }
-[Parameter] public DateOnly InitialDate { get; set; }
+    [Parameter] public DateOnly InitialDate { get; set; }
 
     private MudForm _form = default!;
     private readonly ExpenseFormModel _model = new();
     private DateTime? _expenseDate;
+    private AppText _t = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _t = await I18nText.GetTextTableAsync<AppText>(this);
+    }
 
     protected override void OnParametersSet()
     {
         _model.Title       = InitialTitle ?? string.Empty;
         _model.Description = InitialDescription;
         _model.TotalAmount = InitialAmount;
-_expenseDate       = InitialDate == default
+        _expenseDate       = InitialDate == default
             ? DateTime.Today
             : InitialDate.ToDateTime(TimeOnly.MinValue);
     }

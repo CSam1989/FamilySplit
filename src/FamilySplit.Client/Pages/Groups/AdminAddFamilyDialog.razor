@@ -1,4 +1,5 @@
 @inject IAdminClient AdminClient
+@inject I18nText I18nText
 
 <MudDialog>
     <TitleContent>
@@ -18,11 +19,11 @@
         }
         else if (_availableFamilies.Count == 0)
         {
-            <MudAlert Severity="Severity.Info">All families are already in this group.</MudAlert>
+            <MudAlert Severity="Severity.Info">@_t.AllFamiliesAlreadyInGroup</MudAlert>
         }
         else
         {
-            <MudSelect T="Guid?" Label="Select family" @bind-Value="_selectedFamilyId"
+            <MudSelect T="Guid?" Label="@_t.SelectFamily" @bind-Value="_selectedFamilyId"
                        Variant="Variant.Outlined"
                        AnchorOrigin="Origin.BottomCenter"
                        Class="mt-2">
@@ -34,12 +35,12 @@
         }
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton OnClick="Cancel">@_t.Cancel</MudButton>
         <MudButton Color="Color.Primary"
                    Variant="Variant.Filled"
                    Disabled="@(_selectedFamilyId is null || _availableFamilies.Count == 0)"
                    OnClick="Submit">
-            Add
+            @_t.Add
         </MudButton>
     </DialogActions>
 </MudDialog>
@@ -54,9 +55,11 @@
     private string? _error;
     private List<FamilyDto> _availableFamilies = [];
     private Guid? _selectedFamilyId;
+    private AppText _t = new();
 
     protected override async Task OnInitializedAsync()
     {
+        _t = await I18nText.GetTextTableAsync<AppText>(this);
         try
         {
             var all = await AdminClient.ListFamiliesAsync();

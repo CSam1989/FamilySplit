@@ -18,6 +18,7 @@
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
     <PackageReference Include="Refit" />
     <PackageReference Include="Refit.HttpClientFactory" />
+    <PackageReference Include="Toolbelt.Blazor.I18nText" />
   </ItemGroup>
 
   <ItemGroup>

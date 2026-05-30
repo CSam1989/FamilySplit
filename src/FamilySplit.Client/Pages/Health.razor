@@ -1,12 +1,13 @@
 @page "/health"
 @inject IHealthApi HealthApi
+@inject I18nText I18nText
 
 <PageTitle>FamilySplit · API health</PageTitle>
 
-<MudText Typo="Typo.h5" GutterBottom="true">API health check</MudText>
+<MudText Typo="Typo.h5" GutterBottom="true">@_t.ApiHealthCheck</MudText>
 
 <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@CheckAsync" Disabled="@_loading">
-    @(_loading ? "Checking…" : "Ping API")
+    @(_loading ? _t.CheckingApi : _t.PingApi)
 </MudButton>
 
 @if (_result is not null)
@@ -21,9 +22,15 @@ else if (_error is not null)
 }
 
 @code {
+    private AppText _t = new();
     private bool _loading;
     private HealthResponse? _result;
     private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _t = await I18nText.GetTextTableAsync<AppText>(this);
+    }
 
     private async Task CheckAsync()
     {

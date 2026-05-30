@@ -102,6 +102,38 @@ await _db.SaveChangesAsync();
 
 ---
 
+## Internationalisation — hardcoded strings are forbidden in the client
+
+**Never write a raw string literal as visible text in a `.razor` file.** Every user-facing string must come from the `AppText` i18n table.
+
+### Pattern (required in every razor file that shows text)
+
+```razor
+@inject I18nText I18nText
+
+private AppText _t = new();
+
+protected override async Task OnInitializedAsync()
+{
+    await base.OnInitializedAsync(); // must come first for FluxorComponent subclasses
+    _t = await I18nText.GetTextTableAsync<AppText>(this);
+}
+```
+
+### Adding new strings
+
+1. Add the key to **all four** JSON files in `src/FamilySplit.Client/i18ntext/`:
+   - `AppText.en.json` — English (default)
+   - `AppText.nl.json` — Dutch
+   - `AppText.fr.json` — French
+   - `AppText.de.json` — German
+2. Reference it in markup as `@_t.YourNewKey`.
+3. Missing keys in any JSON file fall back to the key name — always provide all four translations.
+
+This rule applies to: labels, button text, dialog titles, confirmation messages, tooltips, chip labels, placeholder text, error messages, and empty-state copy.
+
+---
+
 ## Other conventions to follow
 
 ### EF Core — never use navigation properties in LINQ

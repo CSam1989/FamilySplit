@@ -8,14 +8,15 @@
 @inject IState<FamilyMemberState> ProfileState
 @inject IDialogService DialogService
 @inject NavigationManager Nav
+@inject I18nText I18nText
 
 <PageTitle>Admin — FamilySplit</PageTitle>
 
 <RequireAdmin />
 
-<MudText Typo="Typo.h5" Class="mb-1">Families</MudText>
+<MudText Typo="Typo.h5" Class="mb-1">@_t.AdminFamilies</MudText>
 <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
-    Global admin view — create and manage all families and their members.
+    @_t.AdminFamiliesSubtitle
 </MudText>
 
 @if (State.Value.ErrorMessage is not null)
@@ -31,7 +32,7 @@
            StartIcon="@Icons.Material.Filled.GroupAdd"
            OnClick="OpenCreateDialog"
            Class="mb-4">
-    Create family
+    @_t.CreateFamily
 </MudButton>
 
 @if (State.Value.IsLoading)
@@ -44,8 +45,8 @@
     <MudPaper Elevation="0" Class="pa-6 d-flex flex-column align-center"
               Style="border: 1px dashed var(--mud-palette-divider);">
         <MudIcon Icon="@Icons.Material.Outlined.FamilyRestroom" Size="Size.Large" Color="Color.Secondary" Class="mb-2" />
-        <MudText Typo="Typo.body1" Color="Color.Secondary">No families yet.</MudText>
-        <MudText Typo="Typo.body2" Color="Color.Secondary">Create the first family to get started.</MudText>
+        <MudText Typo="Typo.body1" Color="Color.Secondary">@_t.NoFamiliesYet</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">@_t.CreateFirstFamily</MudText>
     </MudPaper>
 }
 else
@@ -55,24 +56,24 @@ else
               Elevation="1"
               OnRowClick="@((TableRowClickEventArgs<FamilyDto> args) => Nav.NavigateTo($"/admin/families/{args.Item!.Id}"))">
         <HeaderContent>
-            <MudTh>Name</MudTh>
-            <MudTh>Members</MudTh>
-            <MudTh>Created</MudTh>
+            <MudTh>@_t.ColName</MudTh>
+            <MudTh>@_t.ColMembers</MudTh>
+            <MudTh>@_t.ColCreated</MudTh>
             <MudTh Style="width:48px"></MudTh>
         </HeaderContent>
         <RowTemplate Context="family">
-            <MudTd DataLabel="Name">
+            <MudTd DataLabel="@_t.ColName">
                 <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
                     <MudIcon Icon="@Icons.Material.Filled.FamilyRestroom" Color="Color.Primary" Size="Size.Small" />
                     <MudText><strong>@family.Name</strong></MudText>
                     @if (family.Members.Any(m => m.Id == ProfileState.Value.MyProfile?.Id))
                     {
-                        <MudChip T="string" Color="Color.Info" Size="Size.Small" Icon="@Icons.Material.Filled.Home">Your family</MudChip>
+                        <MudChip T="string" Color="Color.Info" Size="Size.Small" Icon="@Icons.Material.Filled.Home">@_t.YourFamilyChip</MudChip>
                     }
                 </MudStack>
             </MudTd>
-            <MudTd DataLabel="Members">@family.Members.Count</MudTd>
-            <MudTd DataLabel="Created">@family.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</MudTd>
+            <MudTd DataLabel="@_t.ColMembers">@family.Members.Count</MudTd>
+            <MudTd DataLabel="@_t.ColCreated">@family.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")</MudTd>
             <MudTd>
                 <MudIconButton Icon="@Icons.Material.Filled.ArrowForward"
                                Size="Size.Small"
@@ -83,15 +84,18 @@ else
 }
 
 @code {
-    protected override void OnInitialized()
+    private AppText _t = new();
+
+    protected override async Task OnInitializedAsync()
     {
-        base.OnInitialized();
+        await base.OnInitializedAsync();
+        _t = await I18nText.GetTextTableAsync<AppText>(this);
         Dispatcher.Dispatch(new LoadAdminFamiliesAction());
     }
 
     private async Task OpenCreateDialog()
     {
-        var dialog = await DialogService.ShowAsync<CreateFamilyDialog>("Create family");
+        var dialog = await DialogService.ShowAsync<CreateFamilyDialog>(_t.CreateFamilyTitle);
         var result = await dialog.Result;
 
         if (result is { Canceled: false, Data: string name })

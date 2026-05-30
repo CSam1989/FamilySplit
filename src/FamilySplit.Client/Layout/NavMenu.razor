@@ -4,6 +4,7 @@
 @inject IDispatcher Dispatcher
 @inject IState<AuthState> AuthState
 @inject IDialogService DialogService
+@inject I18nText I18nText
 
 <MudNavMenu Class="pa-2" Style="margin-top:8px">
 
@@ -45,31 +46,32 @@
                        Style="height:42px;font-weight:600;font-size:0.9rem;
                               border-radius:var(--fs-radius-md);
                               box-shadow:var(--fs-shadow-fab)">
-                Add expense
+                @_t.NavAddExpense
             </MudButton>
         </div>
 
-        <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Rounded.Home">Dashboard</MudNavLink>
-        <MudNavLink Href="groups" Icon="@Icons.Material.Rounded.Groups">Groups</MudNavLink>
-        <MudNavLink Href="families/mine" Icon="@Icons.Material.Rounded.FamilyRestroom">My Family</MudNavLink>
+        <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Rounded.Home">@_t.NavHome</MudNavLink>
+        <MudNavLink Href="groups" Icon="@Icons.Material.Rounded.Groups">@_t.NavGroups</MudNavLink>
+        <MudNavLink Href="families/mine" Icon="@Icons.Material.Rounded.FamilyRestroom">@_t.MyFamily</MudNavLink>
+        <MudNavLink Href="settings" Icon="@Icons.Material.Rounded.Settings">@_t.NavSettings</MudNavLink>
 
         @if (AuthState.Value.IsGlobalAdmin)
         {
             <MudDivider Class="my-2" Style="margin:12px 8px" />
             <div style="padding:4px 12px 4px;font-size:0.6875rem;font-weight:600;color:var(--fs-text-tertiary);text-transform:uppercase;letter-spacing:0.06em">
-                Admin
+                @_t.NavAdmin
             </div>
-            <MudNavLink Href="admin" Icon="@Icons.Material.Rounded.AdminPanelSettings">Families</MudNavLink>
+            <MudNavLink Href="admin" Icon="@Icons.Material.Rounded.AdminPanelSettings">@_t.AdminFamilies</MudNavLink>
         }
 
         <MudDivider Class="my-2" Style="margin:12px 8px" />
-        <MudNavLink Href="health" Icon="@Icons.Material.Rounded.MonitorHeart">API health</MudNavLink>
+        <MudNavLink Href="health" Icon="@Icons.Material.Rounded.MonitorHeart">@_t.NavHealth</MudNavLink>
 
         <div style="padding:4px 0 0">
             <MudNavLink Icon="@Icons.Material.Rounded.Logout"
                         OnClick="@(() => Dispatcher.Dispatch(new SignOutAction()))"
                         Style="color:var(--fs-text-secondary)">
-                Sign out
+                @_t.SignOut
             </MudNavLink>
         </div>
     }
@@ -81,9 +83,12 @@
 </MudNavMenu>
 
 @code {
-    protected override void OnInitialized()
+    private AppText _t = new();
+
+    protected override async Task OnInitializedAsync()
     {
-        base.OnInitialized();
+        await base.OnInitializedAsync();
+        _t = await I18nText.GetTextTableAsync<AppText>(this);
         // Guard: only dispatch if auth state is not already resolved or in-flight.
         // This prevents a redundant CheckAuthAction (and its associated refresh call)
         // if NavMenu ever re-mounts while authentication is already known.
@@ -100,6 +105,6 @@
             CloseOnEscapeKey = true,
             BackdropClick   = true,
         };
-        await DialogService.ShowAsync<QuickExpenseDialog>("Add expense", options);
+        await DialogService.ShowAsync<QuickExpenseDialog>(_t.NavAddExpense, options);
     }
 }

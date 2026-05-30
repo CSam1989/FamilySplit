@@ -6,15 +6,15 @@
 @inject IState<DashboardState> DashboardState
 @inject IDialogService DialogService
 @inject NavigationManager Nav
+@inject I18nText I18nText
 
 <PageTitle>Groups — FamilySplit</PageTitle>
 
 <RequireAuth />
 
-<MudText Typo="Typo.h5" Class="mb-2">My Groups</MudText>
+<MudText Typo="Typo.h5" Class="mb-2">@_t.MyGroups</MudText>
 <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-5">
-    Groups let you split expenses with family members or housemates.
-    Create a group and share the invite code with others to let them join.
+    @_t.GroupsSubtitle
 </MudText>
 
 @if (State.Value.ErrorMessage is not null)
@@ -30,13 +30,13 @@
                Color="Color.Primary"
                StartIcon="@Icons.Material.Filled.GroupAdd"
                OnClick="OpenCreateDialog">
-        New group
+        @_t.CreateGroup
     </MudButton>
     <MudButton Variant="Variant.Outlined"
                Color="Color.Primary"
                StartIcon="@Icons.Material.Filled.Login"
                OnClick="OpenJoinDialog">
-        Join group
+        @_t.JoinGroup
     </MudButton>
 </MudStack>
 
@@ -49,8 +49,8 @@
 {
     <MudPaper Elevation="0" Class="pa-6 d-flex flex-column align-center" Style="border: 1px dashed var(--mud-palette-divider);">
         <MudIcon Icon="@Icons.Material.Outlined.Group" Size="Size.Large" Color="Color.Secondary" Class="mb-2" />
-        <MudText Typo="Typo.body1" Color="Color.Secondary">You're not in any groups yet.</MudText>
-        <MudText Typo="Typo.body2" Color="Color.Secondary">Create a new group or join one with an invite code.</MudText>
+        <MudText Typo="Typo.body1" Color="Color.Secondary">@_t.NoGroupsYet</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">@_t.CreateOrJoinGroup</MudText>
     </MudPaper>
 }
 else
@@ -76,7 +76,7 @@ else
                         <CardHeaderActions>
                             @if (group.CallerFamilyRole == MemberRole.Admin)
                             {
-                                <MudChip T="string" Color="Color.Warning" Size="Size.Small">Admin</MudChip>
+                                <MudChip T="string" Color="Color.Warning" Size="Size.Small">@_t.FamilyAdminChip</MudChip>
                             }
                         </CardHeaderActions>
                     </MudCardHeader>
@@ -85,7 +85,7 @@ else
                         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="mb-3">
                             <MudIcon Icon="@Icons.Material.Filled.People" Size="Size.Small" Color="Color.Secondary" />
                             <MudText Typo="Typo.body2" Color="Color.Secondary">
-                                @group.FamilyCount famil@(group.FamilyCount == 1 ? "y" : "ies")
+                                @group.FamilyCount @(group.FamilyCount == 1 ? _t.FamilySingular : _t.FamiliesPlural)
                             </MudText>
                         </MudStack>
 
@@ -97,10 +97,10 @@ else
                                 <!-- Activity count -->
                                 <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;color:var(--mud-palette-text-secondary);background:var(--mud-palette-action-default-hover);border-radius:6px;padding:3px 8px">
                                     <MudIcon Icon="@Icons.Material.Rounded.EventNote" Style="font-size:12px" />
-                                    @stat.TotalActivities @(stat.TotalActivities == 1 ? "activity" : "activities")
+                                    @stat.TotalActivities @(stat.TotalActivities == 1 ? _t.ActivitySingular : _t.ActivitiesPlural)
                                     @if (stat.OpenActivities > 0)
                                     {
-                                        <span style="color:var(--mud-palette-primary);font-weight:600">(@stat.OpenActivities open)</span>
+                                        <span style="color:var(--mud-palette-primary);font-weight:600">(@stat.OpenActivities @_t.OpenLabel)</span>
                                     }
                                 </span>
 
@@ -111,16 +111,16 @@ else
                                         <MudIcon Icon="@Icons.Material.Rounded.Receipt" Style="font-size:12px" />
                                         @FormatAmount(stat.TotalGroupSpend, stat.Currency)
                                         <span style="opacity:0.4">·</span>
-                                        your share @FormatAmount(stat.MyFamilyShare, stat.Currency)
+                                        @_t.YourShare @FormatAmount(stat.MyFamilyShare, stat.Currency)
                                     </span>
                                 }
                                 @if (stat.ActiveGroupSpend > 0)
                                 {
                                     <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;color:var(--mud-palette-text-secondary);background:var(--mud-palette-action-default-hover);border-radius:6px;padding:3px 8px">
                                         <MudIcon Icon="@Icons.Material.Rounded.ReceiptLong" Style="font-size:12px" />
-                                        active @FormatAmount(stat.ActiveGroupSpend, stat.Currency)
+                                        @_t.ActiveLabel @FormatAmount(stat.ActiveGroupSpend, stat.Currency)
                                         <span style="opacity:0.4">·</span>
-                                        your share @FormatAmount(stat.ActiveFamilyShare, stat.Currency)
+                                        @_t.YourShare @FormatAmount(stat.ActiveFamilyShare, stat.Currency)
                                     </span>
                                 }
 
@@ -131,21 +131,21 @@ else
                                     {
                                         <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;font-weight:600;color:#059669;background:rgba(5,150,105,0.1);border-radius:6px;padding:3px 8px">
                                             <MudIcon Icon="@Icons.Material.Rounded.TrendingUp" Style="font-size:12px" />
-                                            @FormatAmount(stat.NetBalance, stat.Currency) to receive
+                                            @FormatAmount(stat.NetBalance, stat.Currency) @_t.ToReceive
                                         </span>
                                     }
                                     else if (stat.NetBalance < 0)
                                     {
                                         <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;font-weight:600;color:#DC2626;background:rgba(220,38,38,0.1);border-radius:6px;padding:3px 8px">
                                             <MudIcon Icon="@Icons.Material.Rounded.TrendingDown" Style="font-size:12px" />
-                                            @FormatAmount(Math.Abs(stat.NetBalance), stat.Currency) to pay
+                                            @FormatAmount(Math.Abs(stat.NetBalance), stat.Currency) @_t.ToPay
                                         </span>
                                     }
                                     else if (stat.SettledActivities == stat.TotalActivities)
                                     {
                                         <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;font-weight:600;color:#059669;background:rgba(5,150,105,0.1);border-radius:6px;padding:3px 8px">
                                             <MudIcon Icon="@Icons.Material.Rounded.CheckCircle" Style="font-size:12px" />
-                                            All settled
+                                            @_t.AllSettled
                                         </span>
                                     }
                                 }
@@ -155,7 +155,7 @@ else
                                 {
                                     <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;font-weight:600;color:#D97706;background:rgba(217,119,6,0.12);border-radius:6px;padding:3px 8px">
                                         <MudIcon Icon="@Icons.Material.Rounded.Pending" Style="font-size:12px" />
-                                        @stat.PendingSettlements @(stat.PendingSettlements == 1 ? "payment" : "payments") pending
+                                        @stat.PendingSettlements @(stat.PendingSettlements == 1 ? _t.PaymentSingular : _t.PaymentsPlural) @_t.PendingChip
                                     </span>
                                 }
 
@@ -173,9 +173,12 @@ else
 }
 
 @code {
-    protected override void OnInitialized()
+    private AppText _t = new();
+
+    protected override async Task OnInitializedAsync()
     {
-        base.OnInitialized();
+        await base.OnInitializedAsync();
+        _t = await I18nText.GetTextTableAsync<AppText>(this);
         Dispatcher.Dispatch(new LoadGroupsAction());
 
         if (!DashboardState.Value.Stats.Any() && !DashboardState.Value.IsLoading)
@@ -199,7 +202,7 @@ else
 
     private async Task OpenCreateDialog()
     {
-        var dialog = await DialogService.ShowAsync<CreateGroupDialog>("Create group");
+        var dialog = await DialogService.ShowAsync<CreateGroupDialog>(_t.CreateGroup);
         var result = await dialog.Result;
 
         if (result is { Canceled: false, Data: CreateGroupFormModel form })
@@ -212,7 +215,7 @@ else
 
     private async Task OpenJoinDialog()
     {
-        var dialog = await DialogService.ShowAsync<JoinGroupDialog>("Join group");
+        var dialog = await DialogService.ShowAsync<JoinGroupDialog>(_t.JoinGroup);
         var result = await dialog.Result;
 
         if (result is { Canceled: false, Data: string inviteCode })
