@@ -78,15 +78,6 @@ var apiBaseUri = new Uri(builder.Configuration["Api:BaseUrl"] ?? "https://localh
 // the JsonSerializerOptions for every registration on cold start.
 var refitSettings = new RefitSettings();
 
-// Public API — no auth header, no credentials. Short explicit timeout since
-// a health check that doesn't respond in 10 s is itself a failure signal.
-builder.Services.AddRefitClient<IHealthApi>(refitSettings)
-    .ConfigureHttpClient(c =>
-    {
-        c.BaseAddress = apiBaseUri;
-        c.Timeout = TimeSpan.FromSeconds(10);
-    });
-
 // Authenticated APIs — attach Bearer token from AuthService via JwtAuthHandler.
 AddAuthedClient<IWhoAmIApi>();
 AddAuthedClient<IFamilyMemberClient>();

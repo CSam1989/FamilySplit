@@ -231,11 +231,7 @@
   "AdminMembersCaption": "All family members. You can add, edit, or deactivate them as global admin.",
   "AdminFamilyMembersEmpty": "No members in this family.",
 
-  "ApiHealthCheck": "API health check",
-  "PingApi": "Ping API",
-  "CheckingApi": "Checking…",
-
-  "AccountNotRegistered": "Account not registered",
+"AccountNotRegistered": "Account not registered",
   "NotRegisteredMessage": "Your email address is not linked to any family member in FamilySplit. Please ask a family admin to add you, then try signing in again.",
   "BackToDashboard": "Back to dashboard",
   "SignInCompleting": "Completing sign-in…",
@@ -274,7 +270,5 @@
   "MoreGroups": "more groups",
   "ConfirmSentBody": "Confirm that {0} has sent {1} to {2}?",
   "ConfirmReceivedBody": "Confirm that {0} has received {1} from {2}?",
-  "NavHealth": "API health",
-
-  "AdminFamiliesSubtitle": "Global admin view — create and manage all families and their members."
+"AdminFamiliesSubtitle": "Global admin view — create and manage all families and their members."
 }

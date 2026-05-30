@@ -64,9 +64,6 @@
             <MudNavLink Href="admin" Icon="@Icons.Material.Rounded.AdminPanelSettings">@_t.AdminFamilies</MudNavLink>
         }
 
-        <MudDivider Class="my-2" Style="margin:12px 8px" />
-        <MudNavLink Href="health" Icon="@Icons.Material.Rounded.MonitorHeart">@_t.NavHealth</MudNavLink>
-
         <div style="padding:4px 0 0">
             <MudNavLink Icon="@Icons.Material.Rounded.Logout"
                         OnClick="@(() => Dispatcher.Dispatch(new SignOutAction()))"

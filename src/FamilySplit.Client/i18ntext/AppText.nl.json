@@ -232,11 +232,7 @@
   "AdminMembersCaption": "Alle familieleden. Je kunt ze toevoegen, bewerken of deactiveren als globale beheerder.",
   "AdminFamilyMembersEmpty": "Geen leden in deze familie.",
 
-  "ApiHealthCheck": "API gezondheidscontrole",
-  "PingApi": "API pingen",
-  "CheckingApi": "Controleren…",
-
-  "AccountNotRegistered": "Account niet geregistreerd",
+"AccountNotRegistered": "Account niet geregistreerd",
   "NotRegisteredMessage": "Jouw e-mailadres is niet gekoppeld aan een familielid in FamilySplit. Vraag een familiebeheerder om je toe te voegen en probeer dan opnieuw in te loggen.",
   "BackToDashboard": "Terug naar dashboard",
   "SignInCompleting": "Inloggen voltooien…",
@@ -274,7 +270,5 @@
   "MoreGroups": "meer groepen",
   "ConfirmSentBody": "Bevestig dat {0} {1} heeft verstuurd naar {2}?",
   "ConfirmReceivedBody": "Bevestig dat {0} {1} heeft ontvangen van {2}?",
-  "NavHealth": "API-status",
-
-  "AdminFamiliesSubtitle": "Globale beheerdersweergave — maak families aan en beheer hun leden."
+"AdminFamiliesSubtitle": "Globale beheerdersweergave — maak families aan en beheer hun leden."
 }

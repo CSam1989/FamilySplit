@@ -232,11 +232,7 @@
   "AdminMembersCaption": "Alle Familienmitglieder. Sie können sie als globaler Admin hinzufügen, bearbeiten oder deaktivieren.",
   "AdminFamilyMembersEmpty": "Keine Mitglieder in dieser Familie.",
 
-  "ApiHealthCheck": "API-Gesundheitscheck",
-  "PingApi": "API pingen",
-  "CheckingApi": "Überprüfen…",
-
-  "AccountNotRegistered": "Konto nicht registriert",
+"AccountNotRegistered": "Konto nicht registriert",
   "NotRegisteredMessage": "Ihre E-Mail-Adresse ist keinem Familienmitglied in FamilySplit zugeordnet. Bitten Sie einen Familienadmin, Sie hinzuzufügen, und versuchen Sie dann erneut, sich anzumelden.",
   "BackToDashboard": "Zurück zum Dashboard",
   "SignInCompleting": "Anmeldung abschließen…",
@@ -274,7 +270,5 @@
   "MoreGroups": "weitere Gruppen",
   "ConfirmSentBody": "Bestätigen, dass {0} {1} an {2} gesendet hat?",
   "ConfirmReceivedBody": "Bestätigen, dass {0} {1} von {2} empfangen hat?",
-  "NavHealth": "API-Zustand",
-
-  "AdminFamiliesSubtitle": "Globale Admin-Ansicht — Familien erstellen und ihre Mitglieder verwalten."
+"AdminFamiliesSubtitle": "Globale Admin-Ansicht — Familien erstellen und ihre Mitglieder verwalten."
 }
