@@ -1,5 +1,6 @@
 using FamilySplit.Client.Services;
 using Fluxor;
+using Microsoft.AspNetCore.Components;
 
 namespace FamilySplit.Client.Store.Auth;
 
@@ -7,11 +8,13 @@ public class AuthEffects
 {
     private readonly AuthService _auth;
     private readonly IWhoAmIApi _whoAmI;
+    private readonly NavigationManager _nav;
 
-    public AuthEffects(AuthService auth, IWhoAmIApi whoAmI)
+    public AuthEffects(AuthService auth, IWhoAmIApi whoAmI, NavigationManager nav)
     {
         _auth = auth;
         _whoAmI = whoAmI;
+        _nav = nav;
     }
 
     [EffectMethod(typeof(CheckAuthAction))]
@@ -49,6 +52,7 @@ public class AuthEffects
     public async Task HandleSignOut(IDispatcher dispatcher)
     {
         await _auth.LogoutAsync();
-        // State is reset by the reducer; no further dispatch needed.
+        // State is reset by the reducer; navigate to home so the login screen is shown.
+        _nav.NavigateTo("/");
     }
 }
