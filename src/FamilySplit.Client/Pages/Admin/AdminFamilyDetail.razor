@@ -118,7 +118,7 @@ else
                     <MudChip T="string" Color="Color.Success" Size="Size.Small"
                              Icon="@Icons.Material.Filled.VerifiedUser">Linked</MudChip>
                 }
-                else
+                else if (member.Email is not null)
                 {
                     <MudChip T="string" Color="Color.Default" Size="Size.Small"
                              Icon="@Icons.Material.Filled.PersonOff">Pending</MudChip>
