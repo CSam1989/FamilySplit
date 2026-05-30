@@ -247,8 +247,28 @@ if (builder.Environment.IsDevelopment())
 var app = builder.Build();
 
 // --- Middleware pipeline ----------------------------------------------------------
-// Security headers on every response — registered first so they are present even
-// on error responses produced by middleware further down the pipeline.
+// Forwarded headers MUST run first. Railway terminates TLS at its edge proxy and
+// forwards the request to the container as plain HTTP with X-Forwarded-Proto: https.
+// Until this middleware rewrites Request.Scheme and Request.Host, anything that
+// reads them sees the raw http scheme — which causes UseHttpsRedirection to fire
+// in a loop, builds http:// redirect_uris that Google rejects, and produces Secure
+// cookies the browser won't store.
+//
+// KnownNetworks/KnownProxies are cleared because the proxy IPs Railway uses are
+// not stable and we cannot enumerate them. The only safe alternative would be to
+// hardcode Railway's egress range, which they don't publish.
+var forwardedHeadersOptions = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor
+                     | ForwardedHeaders.XForwardedProto
+                     | ForwardedHeaders.XForwardedHost
+};
+forwardedHeadersOptions.KnownNetworks.Clear();
+forwardedHeadersOptions.KnownProxies.Clear();
+app.UseForwardedHeaders(forwardedHeadersOptions);
+
+// Security headers on every response — registered after ForwardedHeaders so any
+// header values that depend on scheme (e.g. CSP report-uri) see the correct one.
 app.UseMiddleware<SecurityHeadersMiddleware>();
 
 // HSTS + HTTPS redirection are production-only: dev typically runs on a self-signed
@@ -264,11 +284,6 @@ app.UseSerilogRequestLogging();
 app.UseMiddleware<ValidationExceptionMiddleware>();
 app.UseCors("ClientApp");
 app.UseRateLimiter();
-
-app.UseForwardedHeaders(new ForwardedHeadersOptions
-{
-    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
-});
 
 app.UseAuthentication();
 app.UseAuthorization();

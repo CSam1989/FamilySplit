@@ -60,6 +60,11 @@ builder.Services.AddSingleton<NotificationHubConnection>();
 builder.Services.AddScoped<PushNotificationClientService>();
 
 // --- HTTP / Refit -----------------------------------------------------------------
+// Api:BaseUrl is the absolute URL of the API host. Configured per environment:
+//   • dev:  "https://localhost:5081"
+//   • prod: "https://api.familysplit.net"
+// Both client and API share the eTLD+1 (familysplit.net) so cookies set by the
+// API are same-site for requests originating from the SPA at app.familysplit.net.
 var apiBaseUri = new Uri(builder.Configuration["Api:BaseUrl"] ?? "https://localhost:5081");
 
 // Reuse a single Refit settings instance across all clients — avoids re-creating

@@ -12,10 +12,10 @@ public static class AuthEndpoints
     private const string RefreshCookie = "fs_refresh";
 
     /// <summary>
-    /// The refresh cookie is scoped to the auth subtree so it is only sent on
-    /// /auth/refresh and /auth/logout — nothing else can read or forward it.
+    /// Both the OAuth state cookie and the long-lived refresh cookie are scoped
+    /// to the auth subtree so they aren't sent on unrelated endpoints.
     /// </summary>
-    private const string RefreshCookiePath = "/auth";
+    private const string AuthCookiePath = "/auth";
 
     public static IEndpointRouteBuilder MapAuthEndpoints(this IEndpointRouteBuilder app)
     {
@@ -55,7 +55,7 @@ public static class AuthEndpoints
                 HttpOnly = true,
                 Secure = true,
                 SameSite = SameSiteMode.Lax, // callback is a top-level cross-site GET from Google
-                Path = "/auth",
+                Path = AuthCookiePath,
                 MaxAge = TimeSpan.FromMinutes(10),
                 IsEssential = true,
             });
@@ -111,7 +111,7 @@ public static class AuthEndpoints
                 return Results.BadRequest(new { error = "Missing code or state" });
 
             var flow = pkce.Unprotect(http.Request.Cookies[StateCookie]);
-            http.Response.Cookies.Delete(StateCookie, new CookieOptions { Path = "/auth" });
+            http.Response.Cookies.Delete(StateCookie, new CookieOptions { Path = AuthCookiePath });
 
             if (flow is null)
                 return Results.BadRequest(new { error = "Missing or invalid state cookie. Restart the login flow." });
@@ -244,8 +244,13 @@ public static class AuthEndpoints
         {
             HttpOnly = true,
             Secure = true,
-            SameSite = SameSiteMode.None, // client (pages.dev) and API (railway.app) are cross-site
-            Path = RefreshCookiePath,
+            // app.familysplit.net and api.familysplit.net share the same eTLD+1,
+            // so requests from the SPA to the API are same-site even though they
+            // are cross-origin. SameSite=Lax cookies are sent on same-site
+            // fetches, and we get CSRF protection for free on the refresh
+            // endpoint — no cross-site browser allowance needed.
+            SameSite = SameSiteMode.Lax,
+            Path = AuthCookiePath,
             Expires = expiresAt,
             IsEssential = true,
         });
@@ -255,15 +260,30 @@ public static class AuthEndpoints
     {
         http.Response.Cookies.Delete(RefreshCookie, new CookieOptions
         {
-            Path = RefreshCookiePath,
+            Path = AuthCookiePath,
             Secure = true,
             HttpOnly = true,
-            SameSite = SameSiteMode.None,
+            SameSite = SameSiteMode.Lax,
         });
     }
 
     private static string BuildRedirectUri(HttpContext http, string providerName)
-        => $"{http.Request.Scheme}://{http.Request.Host}/auth/callback/{providerName}";
+    {
+        // Defensive: even with UseForwardedHeaders registered first, force https
+        // when the request looks like it came in over TLS (forwarded or direct).
+        // The redirect_uri must match Google's registered URI exactly, so a
+        // single http:// slip would reject the entire OAuth round trip.
+        var scheme = http.Request.Scheme;
+        var isHttps = http.Request.IsHttps
+                   || string.Equals(http.Request.Headers["X-Forwarded-Proto"], "https",
+                          StringComparison.OrdinalIgnoreCase);
+        if (isHttps) scheme = "https";
+
+        // Produces e.g. https://api.familysplit.net/auth/callback/Google.
+        // This exact URL must also be in Google Cloud Console → OAuth client →
+        // Authorized redirect URIs, otherwise Google rejects the code exchange.
+        return $"{scheme}://{http.Request.Host}/auth/callback/{providerName}";
+    }
 
     private static string GetReturnUrlFromState(PkceFlow pkce, HttpContext http)
     {
