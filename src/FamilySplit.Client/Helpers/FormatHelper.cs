@@ -15,7 +15,7 @@ public static class FormatHelper
             "EUR" => "€",
             "USD" => "$",
             "GBP" => "£",
-            _     => currency + " "
+            _ => currency + " "
         };
         return $"{symbol}{amount:N2}";
     }

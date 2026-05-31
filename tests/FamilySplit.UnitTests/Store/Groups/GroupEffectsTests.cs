@@ -1,11 +1,11 @@
+using FamilySplit.Client.Services;
+using FamilySplit.Client.Store.Groups;
+using FamilySplit.Domain.Enums;
 using FluentAssertions;
 using Fluxor;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Logging;
 using Moq;
-using FamilySplit.Client.Services;
-using FamilySplit.Client.Store.Groups;
-using FamilySplit.Domain.Enums;
 using Xunit;
 
 namespace FamilySplit.UnitTests.Store.Groups;

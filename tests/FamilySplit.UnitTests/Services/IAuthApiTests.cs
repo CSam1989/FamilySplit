@@ -1,6 +1,6 @@
+using FamilySplit.Client.Services;
 using FluentAssertions;
 using Moq;
-using FamilySplit.Client.Services;
 
 namespace FamilySplit.UnitTests.Services;
 

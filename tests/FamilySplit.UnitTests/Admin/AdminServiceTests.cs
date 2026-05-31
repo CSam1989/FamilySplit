@@ -4,12 +4,12 @@ using FamilySplit.Application.Exceptions;
 using FamilySplit.Application.Families;
 using FamilySplit.Application.Families.Dtos;
 using FamilySplit.Domain.Entities;
+using FamilySplit.Domain.Enums;
 using FamilySplit.Infrastructure;
 using FluentAssertions;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using FamilySplit.Domain.Enums;
 using Moq;
 
 namespace FamilySplit.UnitTests.Admin;

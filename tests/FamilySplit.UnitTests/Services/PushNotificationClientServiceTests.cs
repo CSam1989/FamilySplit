@@ -81,7 +81,7 @@ public class PushNotificationClientServiceTests
         result.Should().BeFalse();
     }
 
-    [Fact(Skip="ProductionBugSuspected")]
+    [Fact(Skip = "ProductionBugSuspected")]
     [Trait("Category", "ProductionBugSuspected")]
     public async Task SubscribeAsync_ReturnsTrue_WhenFullFlowSucceeds()
     {

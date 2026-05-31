@@ -1,6 +1,6 @@
 using FamilySplit.Client.Services;
-using FamilySplit.Domain.Enums;
 using FamilySplit.Client.Store.Admin;
+using FamilySplit.Domain.Enums;
 using FluentAssertions;
 using Fluxor;
 using Microsoft.Extensions.Logging;

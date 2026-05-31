@@ -1,12 +1,12 @@
+using System.Net;
 using FamilySplit.Client.Services;
 using FamilySplit.Client.Store.Auth;
-using Fluxor;
 using FluentAssertions;
+using Fluxor;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Refit;
-using System.Net;
 using Xunit;
 
 namespace FamilySplit.UnitTests.Store.Auth;

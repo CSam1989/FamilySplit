@@ -1,11 +1,11 @@
-using FluentAssertions;
-using Fluxor;
-using Microsoft.Extensions.Logging;
-using Moq;
 using FamilySplit.Client.Services;
 using FamilySplit.Client.Store.Activities;
 using FamilySplit.Client.Store.Settlements;
 using FamilySplit.Domain.Enums;
+using FluentAssertions;
+using Fluxor;
+using Microsoft.Extensions.Logging;
+using Moq;
 using Xunit;
 
 namespace FamilySplit.UnitTests.Store.Activities;

@@ -1,5 +1,5 @@
-using FluentAssertions;
 using FamilySplit.Infrastructure;
+using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 
 namespace FamilySplit.UnitTests;
