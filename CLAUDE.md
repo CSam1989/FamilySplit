@@ -470,6 +470,52 @@ dotnet ef database update --startup-project ../FamilySplit.Api
 
 ---
 
+## Shared Components — Client Layer
+
+All reusable UI building blocks live in `src/FamilySplit.Client/Components/Shared/` and are globally imported via `_Imports.razor`. **Always check this list before writing new markup** — if a component covers the pattern, use it.
+
+### Available shared components
+
+| Component | Props | Use when |
+|---|---|---|
+| `PageErrorBanner` | `ErrorMessage`, `OnDismiss` | Any dismissable store error alert |
+| `EmptyState` | `Icon`, `Title`, `Subtitle?`, `Class?`, `ChildContent?` | Dashed-border empty-state card |
+| `SectionHeader` | `Title`, `LeadingIcon?`, `Actions?` | `h6` section title row with optional right-aligned actions |
+| `StatCard` | `Icon`, `IconColor`, `Value`, `Label` | Centred stat tile (icon + large number + caption) |
+| `GroupStatsChips` | `Stat?`, `IsLoading` | Group activity/spend/balance/pending chip row |
+| `MemberRoleChip` | `IsAdmin` | Admin / Member role chip in a member table |
+| `MemberStatusChip` | `IsLinked`, `HasEmail` | Linked / Pending account-link chip in a member table |
+
+### `FormatHelper` — static helper class (`Helpers/FormatHelper.cs`)
+
+```csharp
+FormatHelper.FormatAmount(decimal amount, string currency)  // → "€ 12.50"
+FormatHelper.AvatarColor(string name)                       // → deterministic hex colour for avatar backgrounds
+```
+
+**Never** duplicate these as private static methods inside a page or component. Call `FormatHelper` directly — no injection needed.
+
+### CSS utility classes for stat chips
+
+Use the `fs-stat-chip` family of CSS classes when a component or page renders inline stat spans:
+
+```html
+<span class="fs-stat-chip">           <!-- default: neutral grey -->
+<span class="fs-stat-chip fs-stat-chip--positive">  <!-- green: creditor balance, all-settled -->
+<span class="fs-stat-chip fs-stat-chip--negative">  <!-- red: debtor balance -->
+<span class="fs-stat-chip fs-stat-chip--warning">   <!-- amber: pending settlements -->
+```
+
+### Rules for adding new shared components
+
+1. Create the `.razor` file in `Components/Shared/`.
+2. Use `[Parameter, EditorRequired]` for required props; `[Parameter]` for optional ones.
+3. Inject `I18nText` and load `AppText` in `OnInitializedAsync` if the component renders any user-visible text.
+4. Add the component to the table above and to `.github/copilot-instructions.md`.
+5. Do **not** create a new shared component for logic that appears in only one place — it belongs inline until it's needed in a second place.
+
+---
+
 ## Internationalisation (i18n) — Client Layer
 
 **All visible text in `FamilySplit.Client` must be translated. Hardcoded strings are never allowed.**

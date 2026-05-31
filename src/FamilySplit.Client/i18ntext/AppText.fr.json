@@ -211,6 +211,7 @@
   "RenameFamilyTooltip": "Renommer la famille",
   "NotLinked": "—",
   "FamilyAdminLabel": "Admin",
+  "MemberLabel": "Membre",
   "WeightTierLabel": "tranche",
 
   "Language": "Langue",
@@ -272,3 +273,4 @@
   "ConfirmReceivedBody": "Confirmer que {0} a reçu {1} de {2} ?",
 "AdminFamiliesSubtitle": "Vue administrateur global — créez et gérez toutes les familles et leurs membres."
 }
+                                                                                                                                                       

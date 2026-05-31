@@ -211,6 +211,7 @@
   "RenameFamilyTooltip": "Familie hernoemen",
   "NotLinked": "—",
   "FamilyAdminLabel": "Beheerder",
+  "MemberLabel": "Lid",
   "WeightTierLabel": "groep",
 
   "Language": "Taal",
@@ -272,3 +273,4 @@
   "ConfirmReceivedBody": "Bevestig dat {0} {1} heeft ontvangen van {2}?",
 "AdminFamiliesSubtitle": "Globale beheerdersweergave — maak families aan en beheer hun leden."
 }
+                                                                                                                                                

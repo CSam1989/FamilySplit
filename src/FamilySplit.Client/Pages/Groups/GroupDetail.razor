@@ -32,7 +32,8 @@
 @if (State.Value.ErrorMessage is not null && State.Value.SelectedGroup is null)
 {
     <MudAlert Severity="Severity.Error" Class="mb-4">@State.Value.ErrorMessage</MudAlert>
-    <MudButton StartIcon="@Icons.Material.Filled.ArrowBack" OnClick="@(() => Nav.NavigateTo("/groups"))">@_t.BackToGroups</MudButton>
+    <MudButton StartIcon="@Icons.Material.Filled.ArrowBack"
+               OnClick="@(() => Nav.NavigateTo("/groups"))">@_t.BackToGroups</MudButton>
     return;
 }
 
@@ -100,66 +101,45 @@
     <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">@group.Description</MudText>
 }
 
-@if (State.Value.ErrorMessage is not null)
-{
-    <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true"
-              CloseIconClicked="@(() => Dispatcher.Dispatch(new ClearGroupErrorAction()))">
-        @State.Value.ErrorMessage
-    </MudAlert>
-}
+<PageErrorBanner ErrorMessage="@State.Value.ErrorMessage"
+                 OnDismiss="@(() => Dispatcher.Dispatch(new ClearGroupErrorAction()))" />
 
 <!-- ── Summary stat cards ─────────────────────────────────────────────────── -->
 <MudGrid Spacing="3" Class="mb-5">
     <MudItem xs="6" sm="3">
-        <MudPaper Elevation="1" Class="pa-4 d-flex flex-column align-center" Style="text-align:center">
-            <MudIcon Icon="@Icons.Material.Filled.EventNote" Color="Color.Primary" Class="mb-1" />
-            <MudText Typo="Typo.h5"><strong>@totalCount</strong></MudText>
-            <MudText Typo="Typo.caption" Color="Color.Secondary">@_t.Activities</MudText>
-        </MudPaper>
+        <StatCard Icon="@Icons.Material.Filled.EventNote" IconColor="Color.Primary"
+                  Value="@totalCount.ToString()" Label="@_t.Activities" />
     </MudItem>
     <MudItem xs="6" sm="3">
-        <MudPaper Elevation="1" Class="pa-4 d-flex flex-column align-center" Style="text-align:center">
-            <MudIcon Icon="@Icons.Material.Filled.LockOpen" Color="Color.Success" Class="mb-1" />
-            <MudText Typo="Typo.h5"><strong>@openCount</strong></MudText>
-            <MudText Typo="Typo.caption" Color="Color.Secondary">@_t.Open</MudText>
-        </MudPaper>
+        <StatCard Icon="@Icons.Material.Filled.LockOpen" IconColor="Color.Success"
+                  Value="@openCount.ToString()" Label="@_t.Open" />
     </MudItem>
     <MudItem xs="6" sm="3">
-        <MudPaper Elevation="1" Class="pa-4 d-flex flex-column align-center" Style="text-align:center">
-            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Info" Class="mb-1" />
-            <MudText Typo="Typo.h5"><strong>@settledCount</strong></MudText>
-            <MudText Typo="Typo.caption" Color="Color.Secondary">@_t.Settled</MudText>
-        </MudPaper>
+        <StatCard Icon="@Icons.Material.Filled.CheckCircle" IconColor="Color.Info"
+                  Value="@settledCount.ToString()" Label="@_t.Settled" />
     </MudItem>
     <MudItem xs="6" sm="3">
-        <MudPaper Elevation="1" Class="pa-4 d-flex flex-column align-center" Style="text-align:center">
-            <MudIcon Icon="@Icons.Material.Filled.FamilyRestroom" Color="Color.Secondary" Class="mb-1" />
-            <MudText Typo="Typo.h5"><strong>@group.Families.Count</strong></MudText>
-            <MudText Typo="Typo.caption" Color="Color.Secondary">Families · @totalMembers @_t.Members</MudText>
-        </MudPaper>
+        <StatCard Icon="@Icons.Material.Filled.FamilyRestroom" IconColor="Color.Secondary"
+                  Value="@group.Families.Count.ToString()"
+                  Label="@($"Families · {totalMembers} {_t.Members}")" />
     </MudItem>
 </MudGrid>
 
 <!-- ── Activities (primary) ───────────────────────────────────────────────── -->
-<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3" Spacing="2">
-    <MudText Typo="Typo.h6">@_t.Activities</MudText>
-    <MudSpacer />
-    <MudButton Variant="Variant.Filled"
-               Color="Color.Primary"
-               Size="Size.Medium"
-               StartIcon="@Icons.Material.Filled.Add"
-               OnClick="OpenCreateActivityDialog">
-        @_t.NewActivity
-    </MudButton>
-</MudStack>
+<SectionHeader Title="@_t.Activities">
+    <Actions>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   Size="Size.Medium"
+                   StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="OpenCreateActivityDialog">
+            @_t.NewActivity
+        </MudButton>
+    </Actions>
+</SectionHeader>
 
-@if (ActivityState.Value.ErrorMessage is not null)
-{
-    <MudAlert Severity="Severity.Error" Class="mb-3" ShowCloseIcon="true"
-              CloseIconClicked="@(() => Dispatcher.Dispatch(new ClearActivityErrorAction()))">
-        @ActivityState.Value.ErrorMessage
-    </MudAlert>
-}
+<PageErrorBanner ErrorMessage="@ActivityState.Value.ErrorMessage"
+                 OnDismiss="@(() => Dispatcher.Dispatch(new ClearActivityErrorAction()))" />
 
 @if (ActivityState.Value.IsLoading && !ActivityState.Value.Activities.Any())
 {
@@ -167,11 +147,9 @@
 }
 else if (!ActivityState.Value.Activities.Any())
 {
-    <MudPaper Elevation="0" Class="pa-6 d-flex flex-column align-center mb-6"
-              Style="border: 1px dashed var(--mud-palette-divider);">
-        <MudIcon Icon="@Icons.Material.Outlined.EventNote" Size="Size.Large" Color="Color.Secondary" Class="mb-2" />
-        <MudText Typo="Typo.body2" Color="Color.Secondary">@_t.NoActivitiesYet</MudText>
-    </MudPaper>
+    <EmptyState Icon="@Icons.Material.Outlined.EventNote"
+                Title="@_t.NoActivitiesYet"
+                Class="mb-6" />
 }
 else
 {
@@ -264,11 +242,9 @@ else
 }
 else if (!SettlementState.Value.GroupSettlements.Any())
 {
-    <MudPaper Elevation="0" Class="pa-5 d-flex flex-column align-center mb-4"
-              Style="border: 1px dashed var(--mud-palette-divider);">
-        <MudIcon Icon="@Icons.Material.Outlined.AccountBalance" Size="Size.Large" Color="Color.Secondary" Class="mb-2" />
-        <MudText Typo="Typo.body2" Color="Color.Secondary">@_t.NoPendingSettlementsGroup</MudText>
-    </MudPaper>
+    <EmptyState Icon="@Icons.Material.Outlined.AccountBalance"
+                Title="@_t.NoPendingSettlementsGroup"
+                Class="mb-4" />
 }
 else
 {
@@ -312,7 +288,7 @@ else
 
                     <!-- Amount -->
                     <MudText Typo="Typo.subtitle2" Style="font-weight:700">
-                        @FormatSettlementAmount(s.Amount, s.Currency)
+                        @FormatHelper.FormatAmount(s.Amount, s.Currency)
                     </MudText>
 
                     <!-- Status chip -->
@@ -606,7 +582,7 @@ else
     {
         bool? confirmed = await DialogService.ShowMessageBoxAsync(
             _t.MarkAsSent,
-            $"Confirm that {settlement.PayerFamilyName} has sent {settlement.Amount:F2} {settlement.Currency} to {settlement.ReceiverFamilyName}?",
+            $"Confirm that {settlement.PayerFamilyName} has sent {FormatHelper.FormatAmount(settlement.Amount, settlement.Currency)} to {settlement.ReceiverFamilyName}?",
             yesText: _t.MarkSent,
             cancelText: _t.Cancel);
 
@@ -618,7 +594,7 @@ else
     {
         bool? confirmed = await DialogService.ShowMessageBoxAsync(
             _t.MarkAsReceived,
-            $"Confirm that {settlement.ReceiverFamilyName} has received {settlement.Amount:F2} {settlement.Currency} from {settlement.PayerFamilyName}?",
+            $"Confirm that {settlement.ReceiverFamilyName} has received {FormatHelper.FormatAmount(settlement.Amount, settlement.Currency)} from {settlement.PayerFamilyName}?",
             yesText: _t.MarkReceived,
             cancelText: _t.Cancel);
 
@@ -626,9 +602,4 @@ else
             Dispatcher.Dispatch(new ConfirmReceivedAction(GroupId, settlement.ActivityId, settlement.Id));
     }
 
-    private static string FormatSettlementAmount(decimal amount, string currency)
-    {
-        var symbol = currency switch { "EUR" => "€", "USD" => "$", "GBP" => "£", _ => currency + " " };
-        return $"{symbol}{amount:N2}";
-    }
 }

@@ -102,6 +102,38 @@ await _db.SaveChangesAsync();
 
 ---
 
+## Shared Blazor components — use before writing new markup
+
+All shared components live in `src/FamilySplit.Client/Components/Shared/` and are globally available via `_Imports.razor`. Before writing any repeated markup pattern, check whether one of these components fits:
+
+| Component | Use when |
+|---|---|
+| `<PageErrorBanner ErrorMessage="..." OnDismiss="..." />` | Any dismissable store error alert (replaces inline `MudAlert` + `ShowCloseIcon`) |
+| `<EmptyState Icon="..." Title="..." Subtitle="..." />` | Any dashed-border empty-state card (replaces inline `MudPaper` + `MudIcon` + `MudText`) |
+| `<SectionHeader Title="..."><Actions>...</Actions></SectionHeader>` | Any `h6` title row with a right-aligned action button |
+| `<StatCard Icon="..." IconColor="..." Value="..." Label="..." />` | Any centred stat tile (icon + large value + caption) |
+| `<GroupStatsChips Stat="..." IsLoading="..." />` | Group activity/spend/balance/pending chip row on group cards |
+| `<MemberRoleChip IsAdmin="..." />` | Admin / Member role chip in a member table |
+| `<MemberStatusChip IsLinked="..." HasEmail="..." />` | Linked / Pending account-link chip in a member table |
+
+### Helper — `FormatHelper` (static, no inject needed)
+
+```csharp
+FormatHelper.FormatAmount(decimal amount, string currency)  // → "€ 12.50"
+FormatHelper.AvatarColor(string name)                       // → deterministic hex colour
+```
+
+Never duplicate these as private static methods inside a page or component.
+
+### Adding a new shared component
+
+1. Create the `.razor` file in `Components/Shared/`.
+2. Use `[Parameter, EditorRequired]` for required inputs.
+3. Inject `I18nText` and load `AppText` if the component renders any user-visible strings.
+4. Document the component in this table and in `CLAUDE.md`.
+
+---
+
 ## Internationalisation — hardcoded strings are forbidden in the client
 
 **Never write a raw string literal as visible text in a `.razor` file.** Every user-facing string must come from the `AppText` i18n table.

@@ -35,13 +35,8 @@
 
 <MudBreadcrumbs Items="_crumbs" Class="mb-2" />
 
-@if (State.Value.ErrorMessage is not null)
-{
-    <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true"
-              CloseIconClicked="@(() => Dispatcher.Dispatch(new ClearAdminErrorAction()))">
-        @State.Value.ErrorMessage
-    </MudAlert>
-}
+<PageErrorBanner ErrorMessage="@State.Value.ErrorMessage"
+                 OnDismiss="@(() => Dispatcher.Dispatch(new ClearAdminErrorAction()))" />
 
 <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-1" Wrap="Wrap.Wrap">
     <MudIcon Icon="@Icons.Material.Filled.FamilyRestroom" Color="Color.Primary" Size="Size.Large" />
@@ -49,29 +44,28 @@
     <MudChip T="string" Color="Color.Error" Size="Size.Small">@_t.GlobalAdminChip</MudChip>
     @if (IsOwnFamily)
     {
-        <MudChip T="string" Color="Color.Info" Size="Size.Small" Icon="@Icons.Material.Filled.Home">@_t.YourFamilyChip</MudChip>
+        <MudChip T="string" Color="Color.Info" Size="Size.Small"
+                 Icon="@Icons.Material.Filled.Home">@_t.YourFamilyChip</MudChip>
     }
 </MudStack>
 <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-4">
     ID: @family.Id · Created @family.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")
 </MudText>
 
-<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2">
-    <MudText Typo="Typo.h6">@_t.Members</MudText>
-    <MudSpacer />
-    <MudButton Variant="Variant.Outlined"
-               Size="Size.Medium"
-               StartIcon="@Icons.Material.Filled.PersonAdd"
-               OnClick="OpenAddMemberDialog">
-        @_t.AddMember
-    </MudButton>
-</MudStack>
+<SectionHeader Title="@_t.Members">
+    <Actions>
+        <MudButton Variant="Variant.Outlined"
+                   Size="Size.Medium"
+                   StartIcon="@Icons.Material.Filled.PersonAdd"
+                   OnClick="OpenAddMemberDialog">
+            @_t.AddMember
+        </MudButton>
+    </Actions>
+</SectionHeader>
 
 @if (!family.Members.Any())
 {
-    <MudAlert Severity="Severity.Info" Class="mb-4">
-        @_t.AdminFamilyMembersEmpty
-    </MudAlert>
+    <MudAlert Severity="Severity.Info" Class="mb-4">@_t.AdminFamilyMembersEmpty</MudAlert>
 }
 else
 {
@@ -104,37 +98,21 @@ else
                 <WeightBadge Tier="member.CurrentTier" Weight="member.CurrentWeight" />
             </MudTd>
             <MudTd DataLabel="Role">
-                @if (member.IsAdmin)
-                {
-                    <MudChip T="string" Color="Color.Warning" Size="Size.Small">@_t.FamilyAdminLabel</MudChip>
-                }
-                else
-                {
-                    <MudChip T="string" Color="Color.Default" Size="Size.Small">Member</MudChip>
-                }
+                <MemberRoleChip IsAdmin="member.IsAdmin" />
             </MudTd>
             <MudTd DataLabel="Status">
-                @if (member.IsLinked)
-                {
-                    <MudChip T="string" Color="Color.Success" Size="Size.Small"
-                             Icon="@Icons.Material.Filled.VerifiedUser">Linked</MudChip>
-                }
-                else if (member.Email is not null)
-                {
-                    <MudChip T="string" Color="Color.Default" Size="Size.Small"
-                             Icon="@Icons.Material.Filled.PersonOff">Pending</MudChip>
-                }
+                <MemberStatusChip IsLinked="member.IsLinked" HasEmail="member.Email is not null" />
             </MudTd>
             <MudTd>
                 <MudStack Row="true" Spacing="0">
                     <MudIconButton Icon="@Icons.Material.Filled.Edit"
-                                   Size="Size.Small"
+                                   Size="Size.Medium"
                                    title="Edit member"
                                    OnClick="@(() => OpenEditMemberDialog(member))" />
                     @if (member.Id != MyMemberId)
                     {
                         <MudIconButton Icon="@Icons.Material.Filled.PersonRemove"
-                                       Size="Size.Small"
+                                       Size="Size.Medium"
                                        Color="Color.Error"
                                        title="@_t.RemoveMember"
                                        OnClick="@(() => ConfirmRemoveMember(member))" />

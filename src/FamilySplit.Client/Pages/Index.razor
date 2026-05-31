@@ -174,7 +174,7 @@ else
                        style="display:block;text-decoration:none">
                         <!-- Top row: avatar + name + chevron -->
                         <div style="display:flex;align-items:center;gap:12px">
-                            <div style="width:44px;height:44px;border-radius:12px;background:@GroupColor(group.Name);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                            <div style="width:44px;height:44px;border-radius:12px;background:@FormatHelper.AvatarColor(group.Name);display:flex;align-items:center;justify-content:center;flex-shrink:0">
                                 <span style="font-size:1.125rem;font-weight:700;color:white">@group.Name[0]</span>
                             </div>
                             <div style="flex:1;min-width:0">
@@ -195,81 +195,10 @@ else
                         </div>
 
                         <!-- Stats row -->
-                        @if (stat is not null)
-                        {
-                            <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--fs-border);display:flex;flex-wrap:wrap;gap:6px;align-items:center">
-
-                                <!-- Activity count -->
-                                <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;color:var(--fs-text-secondary);background:var(--fs-surface-2);border-radius:6px;padding:3px 8px">
-                                    <MudIcon Icon="@Icons.Material.Rounded.EventNote" Style="font-size:12px" />
-                                    @stat.TotalActivities @(stat.TotalActivities == 1 ? _t.ActivitySingular : _t.ActivitiesPlural)
-                                    @if (stat.OpenActivities > 0)
-                                    {
-                                        <span style="color:var(--fs-primary);font-weight:600">(@stat.OpenActivities @_t.OpenLabel)</span>
-                                    }
-                                </span>
-
-                                <!-- Spend chips: all-time + active -->
-                                @if (stat.TotalGroupSpend > 0)
-                                {
-                                    <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;color:var(--fs-text-secondary);background:var(--fs-surface-2);border-radius:6px;padding:3px 8px">
-                                        <MudIcon Icon="@Icons.Material.Rounded.Receipt" Style="font-size:12px" />
-                                        @FormatAmount(stat.TotalGroupSpend, stat.Currency)
-                                        <span style="color:var(--fs-border)">·</span>
-                                        @_t.YourShare @FormatAmount(stat.MyFamilyShare, stat.Currency)
-                                    </span>
-                                }
-                                @if (stat.ActiveGroupSpend > 0)
-                                {
-                                    <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;color:var(--fs-text-secondary);background:var(--fs-surface-2);border-radius:6px;padding:3px 8px">
-                                        <MudIcon Icon="@Icons.Material.Rounded.ReceiptLong" Style="font-size:12px" />
-                                        @_t.ActiveLabel @FormatAmount(stat.ActiveGroupSpend, stat.Currency)
-                                        <span style="color:var(--fs-border)">·</span>
-                                        @_t.YourShare @FormatAmount(stat.ActiveFamilyShare, stat.Currency)
-                                    </span>
-                                }
-
-                                <!-- Net balance chip -->
-                                @if (stat.TotalActivities > 0)
-                                {
-                                    @if (stat.NetBalance > 0)
-                                    {
-                                        <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;font-weight:600;color:#059669;background:rgba(5,150,105,0.1);border-radius:6px;padding:3px 8px">
-                                            <MudIcon Icon="@Icons.Material.Rounded.TrendingUp" Style="font-size:12px" />
-                                            @FormatAmount(stat.NetBalance, stat.Currency) @_t.ToReceive
-                                        </span>
-                                    }
-                                    else if (stat.NetBalance < 0)
-                                    {
-                                        <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;font-weight:600;color:#DC2626;background:rgba(220,38,38,0.1);border-radius:6px;padding:3px 8px">
-                                            <MudIcon Icon="@Icons.Material.Rounded.TrendingDown" Style="font-size:12px" />
-                                            @FormatAmount(Math.Abs(stat.NetBalance), stat.Currency) @_t.ToPay
-                                        </span>
-                                    }
-                                    else if (stat.SettledActivities == stat.TotalActivities && stat.TotalActivities > 0)
-                                    {
-                                        <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;font-weight:600;color:#059669;background:rgba(5,150,105,0.1);border-radius:6px;padding:3px 8px">
-                                            <MudIcon Icon="@Icons.Material.Rounded.CheckCircle" Style="font-size:12px" />
-                                            @_t.AllSettled
-                                        </span>
-                                    }
-                                }
-
-                                <!-- Pending settlement action badge -->
-                                @if (stat.PendingSettlements > 0)
-                                {
-                                    <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;font-weight:600;color:#D97706;background:rgba(217,119,6,0.12);border-radius:6px;padding:3px 8px">
-                                        <MudIcon Icon="@Icons.Material.Rounded.Pending" Style="font-size:12px" />
-                                        @stat.PendingSettlements @(stat.PendingSettlements == 1 ? _t.PaymentSingular : _t.PaymentsPlural) @_t.PendingChip
-                                    </span>
-                                }
-
-                            </div>
-                        }
-                        else if (statsLoading)
+                        @if (stat is not null || statsLoading)
                         {
                             <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--fs-border)">
-                                <MudSkeleton Width="200px" Height="20px" />
+                                <GroupStatsChips Stat="@stat" IsLoading="@statsLoading" />
                             </div>
                         }
                     </a>
@@ -358,19 +287,19 @@ else
                             <!-- Payer → Receiver + amount -->
                             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
                                 <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:0">
-                                    <div style="width:28px;height:28px;border-radius:8px;background:@GroupColor(s.PayerFamilyName);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                                    <div style="width:28px;height:28px;border-radius:8px;background:@FormatHelper.AvatarColor(s.PayerFamilyName);display:flex;align-items:center;justify-content:center;flex-shrink:0">
                                         <span style="font-size:0.75rem;font-weight:700;color:white">@s.PayerFamilyName[0]</span>
                                     </div>
                                     <span style="font-size:0.875rem;@payerStyle;color:var(--fs-text-primary)">@s.PayerFamilyName</span>
                                     <MudIcon Icon="@Icons.Material.Rounded.ArrowForward" Style="font-size:16px;color:var(--fs-text-tertiary)" />
-                                    <div style="width:28px;height:28px;border-radius:8px;background:@GroupColor(s.ReceiverFamilyName);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                                    <div style="width:28px;height:28px;border-radius:8px;background:@FormatHelper.AvatarColor(s.ReceiverFamilyName);display:flex;align-items:center;justify-content:center;flex-shrink:0">
                                         <span style="font-size:0.75rem;font-weight:700;color:white">@s.ReceiverFamilyName[0]</span>
                                     </div>
                                     <span style="font-size:0.875rem;@receiverStyle;color:var(--fs-text-primary)">@s.ReceiverFamilyName</span>
                                 </div>
 
                                 <span style="font-size:0.9375rem;font-weight:700;color:var(--fs-text-primary);flex-shrink:0">
-                                    @FormatAmount(s.Amount, s.Currency)
+                                    @FormatHelper.FormatAmount(s.Amount, s.Currency)
                                 </span>
 
                                 <MudChip T="string" Color="@chipColor" Size="Size.Small" Icon="@chipIcon" Style="flex-shrink:0">
@@ -486,7 +415,7 @@ else
     {
         bool? confirmed = await DialogService.ShowMessageBoxAsync(
             _t.MarkAsSent,
-            string.Format(_t.ConfirmSentBody, settlement.PayerFamilyName, FormatAmount(settlement.Amount, settlement.Currency), settlement.ReceiverFamilyName),
+            string.Format(_t.ConfirmSentBody, settlement.PayerFamilyName, FormatHelper.FormatAmount(settlement.Amount, settlement.Currency), settlement.ReceiverFamilyName),
             yesText: _t.MarkSent,
             cancelText: _t.Cancel);
 
@@ -498,7 +427,7 @@ else
     {
         bool? confirmed = await DialogService.ShowMessageBoxAsync(
             _t.MarkAsReceived,
-            string.Format(_t.ConfirmReceivedBody, settlement.ReceiverFamilyName, FormatAmount(settlement.Amount, settlement.Currency), settlement.PayerFamilyName),
+            string.Format(_t.ConfirmReceivedBody, settlement.ReceiverFamilyName, FormatHelper.FormatAmount(settlement.Amount, settlement.Currency), settlement.PayerFamilyName),
             yesText: _t.MarkReceived,
             cancelText: _t.Cancel);
 
@@ -535,27 +464,4 @@ else
         return hour < 12 ? _t.GreetingMorning : hour < 18 ? _t.GreetingAfternoon : _t.GreetingEvening;
     }
 
-    // Deterministic colour from group name
-    private static string GroupColor(string name)
-    {
-        var colors = new[]
-        {
-            "#4F46E5", "#7C3AED", "#DB2777", "#DC2626",
-            "#D97706", "#059669", "#0891B2", "#0284C7",
-        };
-        var idx = Math.Abs(name.GetHashCode()) % colors.Length;
-        return colors[idx];
-    }
-
-    private static string FormatAmount(decimal amount, string currency)
-    {
-        var symbol = currency switch
-        {
-            "EUR" => "€",
-            "USD" => "$",
-            "GBP" => "£",
-            _     => currency + " ",
-        };
-        return $"{symbol}{amount:N2}";
-    }
 }

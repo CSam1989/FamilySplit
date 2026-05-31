@@ -38,13 +38,8 @@
     var isAdmin = family.Members.FirstOrDefault(m => m.Id == ProfileState.Value.MyProfile?.Id)?.IsAdmin ?? false;
 }
 
-@if (State.Value.ErrorMessage is not null)
-{
-    <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true"
-              CloseIconClicked="@(() => Dispatcher.Dispatch(new ClearFamilyErrorAction()))">
-        @State.Value.ErrorMessage
-    </MudAlert>
-}
+<PageErrorBanner ErrorMessage="@State.Value.ErrorMessage"
+                 OnDismiss="@(() => Dispatcher.Dispatch(new ClearFamilyErrorAction()))" />
 
 <!-- Header -->
 <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-1" Wrap="Wrap.Wrap">
@@ -65,19 +60,19 @@
 </MudText>
 
 <!-- Members -->
-<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2">
-    <MudText Typo="Typo.h6">@_t.Members</MudText>
-    <MudSpacer />
-    @if (isAdmin)
-    {
-        <MudButton Variant="Variant.Outlined"
-                   Size="Size.Medium"
-                   StartIcon="@Icons.Material.Filled.PersonAdd"
-                   OnClick="OpenAddMemberDialog">
-            @_t.AddMember
-        </MudButton>
-    }
-</MudStack>
+<SectionHeader Title="@_t.Members">
+    <Actions>
+        @if (isAdmin)
+        {
+            <MudButton Variant="Variant.Outlined"
+                       Size="Size.Medium"
+                       StartIcon="@Icons.Material.Filled.PersonAdd"
+                       OnClick="OpenAddMemberDialog">
+                @_t.AddMember
+            </MudButton>
+        }
+    </Actions>
+</SectionHeader>
 
 <MudTable Items="family.Members"
           Dense="true"
@@ -113,39 +108,23 @@
             <WeightBadge Tier="member.CurrentTier" Weight="member.CurrentWeight" />
         </MudTd>
         <MudTd DataLabel="Role">
-            @if (member.IsAdmin)
-            {
-                <MudChip T="string" Color="Color.Warning" Size="Size.Small">@_t.FamilyAdminLabel</MudChip>
-            }
-            else
-            {
-                <MudChip T="string" Color="Color.Default" Size="Size.Small">Member</MudChip>
-            }
+            <MemberRoleChip IsAdmin="member.IsAdmin" />
         </MudTd>
         <MudTd DataLabel="Status">
-            @if (member.IsLinked)
-            {
-                <MudChip T="string" Color="Color.Success" Size="Size.Small"
-                         Icon="@Icons.Material.Filled.VerifiedUser">Linked</MudChip>
-            }
-            else if (member.Email is not null)
-            {
-                <MudChip T="string" Color="Color.Default" Size="Size.Small"
-                         Icon="@Icons.Material.Filled.PersonOff">Pending</MudChip>
-            }
+            <MemberStatusChip IsLinked="member.IsLinked" HasEmail="member.Email is not null" />
         </MudTd>
         @if (isAdmin)
         {
             <MudTd>
                 <MudStack Row="true" Spacing="0">
                     <MudIconButton Icon="@Icons.Material.Filled.Edit"
-                                   Size="Size.Small"
+                                   Size="Size.Medium"
                                    title="@_t.Edit"
                                    OnClick="@(() => OpenEditMemberDialog(member))" />
                     @if (member.Id != ProfileState.Value.MyProfile?.Id)
                     {
                         <MudIconButton Icon="@Icons.Material.Filled.PersonRemove"
-                                       Size="Size.Small"
+                                       Size="Size.Medium"
                                        Color="Color.Error"
                                        title="@_t.RemoveMember"
                                        OnClick="@(() => ConfirmRemoveMember(member))" />
@@ -168,8 +147,6 @@
             Dispatcher.Dispatch(new LoadMyProfileAction());
     }
 
-    // ── Rename ────────────────────────────────────────────────────────────────
-
     private async Task OpenRenameDialog()
     {
         var parameters = new DialogParameters<RenameFamilyDialog>
@@ -181,12 +158,8 @@
         var result = await dialog.Result;
 
         if (result is { Canceled: false, Data: string newName })
-        {
             Dispatcher.Dispatch(new UpdateFamilyNameAction(new UpdateFamilyNameRequest(newName)));
-        }
     }
-
-    // ── Add member ────────────────────────────────────────────────────────────
 
     private async Task OpenAddMemberDialog()
     {
@@ -208,8 +181,6 @@
         }
     }
 
-    // ── Edit member ───────────────────────────────────────────────────────────
-
     private async Task OpenEditMemberDialog(FamilyMemberDto member)
     {
         var initial = new FamilyMemberFormModel
@@ -227,8 +198,8 @@
 
         var parameters = new DialogParameters<FamilyMemberDialog>
         {
-            { x => x.InitialValues,    initial },
-            { x => x.ShowAdminToggle,  callerIsAdmin }
+            { x => x.InitialValues,   initial },
+            { x => x.ShowAdminToggle, callerIsAdmin }
         };
 
         var dialog = await DialogService.ShowAsync<FamilyMemberDialog>(_t.EditMemberTitle, parameters);
@@ -244,8 +215,6 @@
                 form.IsAdmin)));
         }
     }
-
-    // ── Remove member ─────────────────────────────────────────────────────────
 
     private async Task ConfirmRemoveMember(FamilyMemberDto member)
     {

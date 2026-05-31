@@ -210,6 +210,7 @@
   "RenameFamilyTooltip": "Rename family",
   "NotLinked": "—",
   "FamilyAdminLabel": "Admin",
+  "MemberLabel": "Member",
   "WeightTierLabel": "tier",
 
   "Language": "Language",
@@ -272,3 +273,4 @@
   "ConfirmReceivedBody": "Confirm that {0} has received {1} from {2}?",
 "AdminFamiliesSubtitle": "Global admin view — create and manage all families and their members."
 }
+                                                                                                                                    

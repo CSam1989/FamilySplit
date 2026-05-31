@@ -58,13 +58,8 @@
 
 <MudBreadcrumbs Items="Crumbs" Class="mb-2" />
 
-@if (State.Value.ErrorMessage is not null)
-{
-    <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true"
-              CloseIconClicked="@(() => Dispatcher.Dispatch(new ClearActivityErrorAction()))">
-        @State.Value.ErrorMessage
-    </MudAlert>
-}
+<PageErrorBanner ErrorMessage="@State.Value.ErrorMessage"
+                 OnDismiss="@(() => Dispatcher.Dispatch(new ClearActivityErrorAction()))" />
 
 <!-- ── Header ─────────────────────────────────────────────────────────────── -->
 <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween"
@@ -121,63 +116,44 @@
 <!-- ── Stats bar ──────────────────────────────────────────────────────────── -->
 <MudGrid Spacing="3" Class="mb-5">
     <MudItem xs="6" sm="3">
-        <MudPaper Elevation="1" Class="pa-4 d-flex flex-column align-center" Style="text-align:center">
-            <MudIcon Icon="@Icons.Material.Filled.ReceiptLong" Color="Color.Primary" Class="mb-1" />
-            <MudText Typo="Typo.h5"><strong>@ExpenseCount</strong></MudText>
-            <MudText Typo="Typo.caption" Color="Color.Secondary">
-                @(IsTopLevel && activity.SubActivities.Count > 0 ? _t.ExpensesInclSubs : _t.Expenses)
-            </MudText>
-        </MudPaper>
+        <StatCard Icon="@Icons.Material.Filled.ReceiptLong" IconColor="Color.Primary"
+                  Value="@ExpenseCount.ToString()"
+                  Label="@(IsTopLevel && activity.SubActivities.Count > 0 ? _t.ExpensesInclSubs : _t.Expenses)" />
     </MudItem>
     <MudItem xs="6" sm="3">
-        <MudPaper Elevation="1" Class="pa-4 d-flex flex-column align-center" Style="text-align:center">
-            <MudIcon Icon="@Icons.Material.Filled.Payments" Color="Color.Success" Class="mb-1" />
-            <MudText Typo="Typo.h5"><strong>@TotalFormatted</strong></MudText>
-            <MudText Typo="Typo.caption" Color="Color.Secondary">
-                @(IsTopLevel && activity.SubActivities.Count > 0 ? _t.TotalSpendInclSubs : _t.TotalSpend)
-            </MudText>
-        </MudPaper>
+        <StatCard Icon="@Icons.Material.Filled.Payments" IconColor="Color.Success"
+                  Value="@TotalFormatted"
+                  Label="@(IsTopLevel && activity.SubActivities.Count > 0 ? _t.TotalSpendInclSubs : _t.TotalSpend)" />
     </MudItem>
     @if (IsTopLevel)
     {
         <MudItem xs="6" sm="3">
-            <MudPaper Elevation="1" Class="pa-4 d-flex flex-column align-center" Style="text-align:center">
-                <MudIcon Icon="@Icons.Material.Filled.AccountTree" Color="Color.Secondary" Class="mb-1" />
-                <MudText Typo="Typo.h5"><strong>@activity.SubActivities.Count</strong></MudText>
-                <MudText Typo="Typo.caption" Color="Color.Secondary">@_t.SubActivities</MudText>
-            </MudPaper>
+            <StatCard Icon="@Icons.Material.Filled.AccountTree" IconColor="Color.Secondary"
+                      Value="@activity.SubActivities.Count.ToString()" Label="@_t.SubActivities" />
         </MudItem>
     }
     <MudItem xs="6" sm="@(IsTopLevel ? 3 : 6)">
-        <MudPaper Elevation="1" Class="pa-4 d-flex flex-column align-center" Style="text-align:center">
-            <MudIcon Icon="@Icons.Material.Filled.People" Color="Color.Info" Class="mb-1" />
-            <MudText Typo="Typo.h5"><strong>@activity.Participants.Count</strong></MudText>
-            <MudText Typo="Typo.caption" Color="Color.Secondary">@_t.Participants</MudText>
-        </MudPaper>
+        <StatCard Icon="@Icons.Material.Filled.People" IconColor="Color.Info"
+                  Value="@activity.Participants.Count.ToString()" Label="@_t.Participants" />
     </MudItem>
 </MudGrid>
 
 <!-- ── Expenses ───────────────────────────────────────────────────────────── -->
-<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3" Spacing="2">
-    <MudText Typo="Typo.h6">@_t.Expenses</MudText>
-    <MudSpacer />
-    @if (isOpen)
-    {
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Medium"
-                   StartIcon="@Icons.Material.Filled.Add"
-                   OnClick="OpenAddExpenseDialog">
-            @_t.AddExpense
-        </MudButton>
-    }
-</MudStack>
+<SectionHeader Title="@_t.Expenses">
+    <Actions>
+        @if (isOpen)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Medium"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="OpenAddExpenseDialog">
+                @_t.AddExpense
+            </MudButton>
+        }
+    </Actions>
+</SectionHeader>
 
-@if (ExpenseState.Value.ErrorMessage is not null)
-{
-    <MudAlert Severity="Severity.Error" Class="mb-3" ShowCloseIcon="true"
-              CloseIconClicked="@(() => Dispatcher.Dispatch(new ClearExpenseErrorAction()))">
-        @ExpenseState.Value.ErrorMessage
-    </MudAlert>
-}
+<PageErrorBanner ErrorMessage="@ExpenseState.Value.ErrorMessage"
+                 OnDismiss="@(() => Dispatcher.Dispatch(new ClearExpenseErrorAction()))" />
 
 @if (ExpenseState.Value.IsLoading && ExpenseState.Value.Expenses.Count == 0)
 {
@@ -185,14 +161,9 @@
 }
 else if (ExpenseState.Value.Expenses.Count == 0)
 {
-    <MudPaper Elevation="0" Class="pa-6 d-flex flex-column align-center mb-5"
-              Style="border:1px dashed var(--mud-palette-divider)">
-        <MudIcon Icon="@Icons.Material.Outlined.ReceiptLong" Size="Size.Large"
-                 Color="Color.Secondary" Class="mb-2" />
-        <MudText Typo="Typo.body2" Color="Color.Secondary">
-            @(isOpen ? _t.NoExpensesOpen : _t.NoExpensesClosed)
-        </MudText>
-    </MudPaper>
+    <EmptyState Icon="@Icons.Material.Outlined.ReceiptLong"
+                Title="@(isOpen ? _t.NoExpensesOpen : _t.NoExpensesClosed)"
+                Class="mb-5" />
 }
 else
 {
@@ -235,7 +206,7 @@ else
                             </MudStack>
                         </div>
                         <MudText Typo="Typo.subtitle2" Style="font-weight:700;white-space:nowrap">
-                            @FormatAmount(e.TotalAmount, e.Currency)
+                            @FormatHelper.FormatAmount(e.TotalAmount, e.Currency)
                         </MudText>
                         <MudStack Row="true" Spacing="0">
                             <MudTooltip Text="@_t.ViewBreakdown">
@@ -294,13 +265,8 @@ else
         }
     </MudStack>
 
-    @if (SettlementState.Value.ErrorMessage is not null)
-    {
-        <MudAlert Severity="Severity.Error" Class="mb-3" ShowCloseIcon="true"
-                  CloseIconClicked="@(() => Dispatcher.Dispatch(new ClearSettlementErrorAction()))">
-            @SettlementState.Value.ErrorMessage
-        </MudAlert>
-    }
+    <PageErrorBanner ErrorMessage="@SettlementState.Value.ErrorMessage"
+                     OnDismiss="@(() => Dispatcher.Dispatch(new ClearSettlementErrorAction()))" />
 
     @if (SettlementState.Value.IsLoading || SettlementState.Value.IsGenerating)
     {
@@ -393,7 +359,7 @@ else
                                 </MudText>
                             </MudStack>
                             <MudText Typo="Typo.subtitle2" Style="font-weight:700">
-                                @FormatAmount(s.Amount, s.Currency)
+                                @FormatHelper.FormatAmount(s.Amount, s.Currency)
                             </MudText>
                             <MudChip T="string" Color="@chipColor" Size="Size.Small" Icon="@chipIcon">
                                 @(s.Status == SettlementStatus.PayerSent ? _t.StatusSent : s.Status.ToString())
@@ -500,7 +466,7 @@ else
                                     @sub.ExpenseCount @(sub.ExpenseCount == 1 ? _t.ExpenseCount : _t.ExpensesCount)
                                     @if (sub.TotalExpenseAmount > 0)
                                     {
-                                        <span> · @FormatAmount(sub.TotalExpenseAmount, sub.ExpenseCurrency)</span>
+                                        <span> · @FormatHelper.FormatAmount(sub.TotalExpenseAmount, sub.ExpenseCurrency)</span>
                                     }
                                 </MudText>
                             </MudStack>
@@ -660,13 +626,7 @@ else
                                            .FirstOrDefault(s => s.ExpenseCount > 0)?.ExpenseCurrency
                                     ?? "EUR";
 
-    private static string FormatAmount(decimal amount, string currency)
-    {
-        var symbol = currency switch { "EUR" => "€", "USD" => "$", "GBP" => "£", _ => currency + " " };
-        return $"{symbol}{amount:N2}";
-    }
-
-    private string TotalFormatted => FormatAmount(TotalAmount, PrimaryCurrency);
+    private string TotalFormatted => FormatHelper.FormatAmount(TotalAmount, PrimaryCurrency);
 
     protected override async Task OnInitializedAsync()
     {
@@ -855,7 +815,7 @@ else
     {
         bool? confirmed = await DialogService.ShowMessageBoxAsync(
             _t.MarkAsSent,
-            $"Confirm that {settlement.PayerFamilyName} has sent {FormatAmount(settlement.Amount, settlement.Currency)} to {settlement.ReceiverFamilyName}?",
+            $"Confirm that {settlement.PayerFamilyName} has sent {FormatHelper.FormatAmount(settlement.Amount, settlement.Currency)} to {settlement.ReceiverFamilyName}?",
             yesText: _t.MarkSent, cancelText: _t.Cancel);
 
         if (confirmed == true)
@@ -866,7 +826,7 @@ else
     {
         bool? confirmed = await DialogService.ShowMessageBoxAsync(
             _t.MarkAsReceived,
-            $"Confirm that {settlement.ReceiverFamilyName} has received {FormatAmount(settlement.Amount, settlement.Currency)} from {settlement.PayerFamilyName}?",
+            $"Confirm that {settlement.ReceiverFamilyName} has received {FormatHelper.FormatAmount(settlement.Amount, settlement.Currency)} from {settlement.PayerFamilyName}?",
             yesText: _t.MarkReceived, cancelText: _t.Cancel);
 
         if (confirmed == true)
