@@ -250,11 +250,14 @@ else
                                                    Size="Size.Medium"
                                                    OnClick="@(() => OpenEditExpenseDialog(e))" />
                                 </MudTooltip>
-                                <MudTooltip Text="@_t.Delete">
-                                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
-                                                   Size="Size.Medium" Color="Color.Error"
-                                                   OnClick="@(() => ConfirmDeleteExpense(e))" />
-                                </MudTooltip>
+                                @if (e.Status != ExpenseStatus.Locked)
+                                {
+                                    <MudTooltip Text="@_t.Delete">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                       Size="Size.Medium" Color="Color.Error"
+                                                       OnClick="@(() => ConfirmDeleteExpense(e))" />
+                                    </MudTooltip>
+                                }
                             }
                         </MudStack>
                     </MudStack>
@@ -549,12 +552,12 @@ else
                 @if (isOpen)
                 {
                     <span @onclick:stopPropagation="true">
-                        <MudButton Variant="Variant.Text" Size="Size.Medium"
-                                   Color="Color.Primary"
-                                   StartIcon="@Icons.Material.Filled.PersonAdd"
-                                   OnClick="OpenAddParticipantDialog">
-                            @_t.AddParticipant
-                        </MudButton>
+                        <MudTooltip Text="@_t.AddParticipant">
+                            <MudIconButton Icon="@Icons.Material.Filled.PersonAdd"
+                                           Size="Size.Medium"
+                                           Color="Color.Primary"
+                                           OnClick="OpenAddParticipantDialog" />
+                        </MudTooltip>
                     </span>
                 }
             </MudStack>

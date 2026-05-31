@@ -371,13 +371,12 @@ else
                 @if (AuthState.Value.IsGlobalAdmin)
                 {
                     <span @onclick:stopPropagation="true">
-                        <MudButton Variant="Variant.Text"
-                                   Size="Size.Medium"
-                                   Color="Color.Primary"
-                                   StartIcon="@Icons.Material.Filled.GroupAdd"
-                                   OnClick="OpenAddFamilyDialog">
-                            @_t.AddFamily
-                        </MudButton>
+                        <MudTooltip Text="@_t.AddFamily">
+                            <MudIconButton Icon="@Icons.Material.Filled.GroupAdd"
+                                           Size="Size.Medium"
+                                           Color="Color.Primary"
+                                           OnClick="OpenAddFamilyDialog" />
+                        </MudTooltip>
                     </span>
                 }
             </MudStack>

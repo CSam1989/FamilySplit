@@ -47,7 +47,7 @@
 }
 
 <!-- Header -->
-<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-1">
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-1" Wrap="Wrap.Wrap">
     <MudIcon Icon="@Icons.Material.Filled.FamilyRestroom" Color="Color.Primary" Size="Size.Large" />
     <MudText Typo="Typo.h5">@family.Name</MudText>
     @if (isAdmin)
@@ -55,7 +55,7 @@
         <MudChip T="string" Color="Color.Warning" Size="Size.Small">@_t.FamilyAdminChip</MudChip>
         <MudTooltip Text="@_t.RenameFamilyTooltip">
             <MudIconButton Icon="@Icons.Material.Filled.Edit"
-                           Size="Size.Small"
+                           Size="Size.Medium"
                            OnClick="OpenRenameDialog" />
         </MudTooltip>
     }
@@ -67,10 +67,11 @@
 <!-- Members -->
 <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2">
     <MudText Typo="Typo.h6">@_t.Members</MudText>
+    <MudSpacer />
     @if (isAdmin)
     {
         <MudButton Variant="Variant.Outlined"
-                   Size="Size.Small"
+                   Size="Size.Medium"
                    StartIcon="@Icons.Material.Filled.PersonAdd"
                    OnClick="OpenAddMemberDialog">
             @_t.AddMember
