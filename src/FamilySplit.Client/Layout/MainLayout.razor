@@ -126,6 +126,7 @@
     private ErrorBoundary? _drawerBoundary;
     private bool _hubConnected;
     private bool _themeInitialized;
+    private DotNetObjectReference<MainLayout>? _selfRef;
 
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
 
@@ -136,8 +137,43 @@
 
     private void OnThemeChanged() => InvokeAsync(StateHasChanged);
 
+    [JSInvokable]
+    public void OnSwUpdated()
+    {
+        Snackbar.Add(builder =>
+        {
+            builder.OpenElement(0, "div");
+            builder.AddAttribute(1, "style", "display:flex;align-items:center;gap:12px");
+
+            builder.OpenElement(2, "span");
+            builder.AddContent(3, "A new version is available.");
+            builder.CloseElement();
+
+            builder.OpenComponent<MudButton>(4);
+            builder.AddAttribute(5, "Variant", Variant.Filled);
+            builder.AddAttribute(6, "Color", Color.Primary);
+            builder.AddAttribute(7, "Size", Size.Small);
+            builder.AddAttribute(8, "OnClick", EventCallback.Factory.Create(this, () => JS.InvokeVoidAsync("FamilySplitSw.reload")));
+            builder.AddContent(9, "Reload");
+            builder.CloseComponent();
+
+            builder.CloseElement();
+        }, Severity.Info, config =>
+        {
+            config.RequireInteraction        = true;
+            config.ShowCloseIcon             = false;
+            config.VisibleStateDuration      = int.MaxValue;
+        });
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (firstRender)
+        {
+            _selfRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("FamilySplitSw.registerUpdateListener", _selfRef);
+        }
+
         // Recover the ErrorBoundary so the drawer re-renders after the transient
         // JS race condition on first WASM load. The second render always succeeds.
         _drawerBoundary?.Recover();
@@ -188,6 +224,7 @@
         ThemeService.OnChanged -= OnThemeChanged;
         HubConnection.OnNotificationReceived -= ShowNotificationToast;
         await HubConnection.DisconnectAsync();
+        _selfRef?.Dispose();
     }
 
 }
