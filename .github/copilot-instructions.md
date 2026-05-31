@@ -166,6 +166,64 @@ This rule applies to: labels, button text, dialog titles, confirmation messages,
 
 ---
 
+## Testing
+
+**Priority: Integration and E2E tests are most critical. Write them first.**
+
+### Test projects
+
+| Project | Type | Stack |
+|---|---|---|
+| `FamilySplit.Tests.Unit` | Unit — server | xUnit, FluentAssertions, NSubstitute |
+| `FamilySplit.Tests.Unit.Client` | Unit — Blazor | xUnit, bUnit, FluentAssertions |
+| `FamilySplit.Tests.Integration` | Integration | xUnit, Testcontainers (PostgreSQL), `WebApplicationFactory` |
+| `FamilySplit.Tests.E2E` | End-to-end | xUnit, Playwright, Testcontainers (PostgreSQL) |
+
+### Unit tests
+
+Cover pure logic only — no DB, no HTTP:
+- `WeightCalculator`, `SplitCalculator`, `BalanceCalculator`, `SettlementOptimiser`
+- All `AbstractValidator<T>` validators (valid input + each individual rule violation)
+- Blazor shared components via bUnit
+
+**Design rule:** testable logic must live in dedicated methods (static where possible) — never inlined in service methods.
+
+```csharp
+// ✅ Static helper — trivially unit-testable
+public static class WeightCalculator
+{
+    public static WeightTier GetTier(FamilyMember member, DateOnly date) { ... }
+}
+```
+
+### Integration tests
+
+Spin up a real PostgreSQL container (Testcontainers), apply migrations, drive requests through `WebApplicationFactory`. Authenticate by seeding a `User` + `FamilyMember` in the DB and generating a JWT.
+
+Cover per feature: happy-path CRUD · permission boundaries · validation rejection (→ 422) · state transitions.
+
+### E2E tests
+
+Start the full stack (API + WASM client + PostgreSQL Testcontainer). Use Playwright to drive Chromium.
+
+Flows that **must** have coverage:
+- Login / unauthenticated redirect
+- Create group → join via invite code
+- Create activity → add expense → view breakdown
+- Close activity → generate settlements → mark sent → mark received → Settled
+- Family admin: add / remove member
+- Permission guards: non-admin controls are hidden
+
+### General rules
+
+- Arrange-Act-Assert. One concern per test.
+- Names: `Flow_Condition_ExpectedOutcome`
+- No `Thread.Sleep` — use Playwright's `Expect(...).ToBeVisibleAsync()`
+- Each test seeds its own data; never assumes pre-existing rows
+- Tag slow tests: `[Trait("Category", "Integration")]` / `[Trait("Category", "E2E")]`
+
+---
+
 ## Other conventions to follow
 
 ### EF Core — never use navigation properties in LINQ

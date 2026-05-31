@@ -675,6 +675,208 @@ public async Task<Foo> CreateAsync(...)
 
 ---
 
+## Testing
+
+### Test projects and tooling
+
+| Project | Type | Key libraries |
+|---|---|---|
+| `FamilySplit.Tests.Unit` | Unit | xUnit, FluentAssertions, NSubstitute |
+| `FamilySplit.Tests.Unit.Client` | Client unit | xUnit, bUnit, FluentAssertions, NSubstitute |
+| `FamilySplit.Tests.Integration` | Integration | xUnit, FluentAssertions, Testcontainers (PostgreSQL), `WebApplicationFactory` |
+| `FamilySplit.Tests.E2E` | End-to-end | xUnit, Playwright, Testcontainers (PostgreSQL) |
+
+**Priority:** Integration and E2E tests catch the highest-value bugs. Write them first. Unit tests cover edge cases in pure logic that would be expensive to verify end-to-end.
+
+---
+
+### Unit tests — server (FamilySplit.Tests.Unit)
+
+Target: pure logic that has no database or HTTP dependency.
+
+**What to test:**
+- `WeightCalculator` — all tier boundary dates, override tier, edge cases
+- `SplitCalculator` — share distribution, rounding remainder assignment, excluded participants
+- `BalanceCalculator` — net balance per family across various expense/participant combinations
+- `SettlementOptimiser` — minimised transfer count, zero-balance early exit
+- All `AbstractValidator<T>` validators — valid inputs, each individual rule violation
+
+**Design rule:** any logic that needs to be unit-tested **must live in a dedicated method** (static where possible) rather than being inlined in service methods. Service methods call these helpers; tests call the helpers directly.
+
+```csharp
+// Application/Core/WeightCalculator.cs — static, no dependencies
+public static class WeightCalculator
+{
+    public static WeightTier GetTier(FamilyMember member, DateOnly date) { ... }
+    public static decimal GetWeight(FamilyMember member, DateOnly date) { ... }
+}
+```
+
+**Example — validator test:**
+```csharp
+public class CreateActivityValidatorTests
+{
+    private readonly CreateActivityValidator _sut = new();
+
+    [Fact]
+    public async Task Name_empty_fails()
+    {
+        var result = await _sut.TestValidateAsync(new CreateActivityRequest { Name = "" });
+        result.ShouldHaveValidationErrorFor(x => x.Name);
+    }
+
+    [Fact]
+    public async Task Valid_request_passes()
+    {
+        var result = await _sut.TestValidateAsync(new CreateActivityRequest { Name = "Trip" });
+        result.ShouldNotHaveAnyValidationErrors();
+    }
+}
+```
+
+---
+
+### Client unit tests — Blazor (FamilySplit.Tests.Unit.Client)
+
+Target: Blazor components in isolation using **bUnit**.
+
+**What to test:**
+- `FormatHelper` — amount formatting, avatar colour determinism
+- Shared components (`StatCard`, `EmptyState`, `SectionHeader`, …) — rendered output for given props
+- Page components with mocked Fluxor store state — button disabled states, conditional rendering, permission guards
+
+**bUnit pattern:**
+```csharp
+public class StatCardTests : TestContext
+{
+    [Fact]
+    public void Renders_value_and_label()
+    {
+        var cut = RenderComponent<StatCard>(p => p
+            .Add(x => x.Value, "42")
+            .Add(x => x.Label, "Activities")
+            .Add(x => x.Icon, Icons.Material.Filled.List)
+            .Add(x => x.IconColor, Color.Primary));
+
+        cut.Find(".mud-typography").TextContent.Should().Contain("42");
+    }
+}
+```
+
+Inject MudBlazor services via `Services.AddMudBlazorServices()` in `TestContext` setup when components use MudBlazor internals.
+
+---
+
+### Integration tests (FamilySplit.Tests.Integration)
+
+Target: the full server stack — HTTP request → minimal API endpoint → service → real PostgreSQL → HTTP response.
+
+**These are the most important tests. Prioritise them.**
+
+**Setup:**
+- Spin up a real PostgreSQL container with **Testcontainers**.
+- Use `WebApplicationFactory<Program>` with the container's connection string overriding the app's.
+- Apply migrations on test startup; roll back or recreate the database between test classes.
+- Authenticate by seeding a `User` + linked `FamilyMember` directly in the DB and generating a JWT with the same signing key used by the test host.
+
+```csharp
+public class IntegrationTestBase : IAsyncLifetime
+{
+    protected PostgreSqlContainer Db { get; } =
+        new PostgreSqlBuilder().WithImage("postgres:16-alpine").Build();
+
+    protected HttpClient Client { get; private set; } = null!;
+
+    public async Task InitializeAsync()
+    {
+        await Db.StartAsync();
+        var factory = new WebApplicationFactory<Program>()
+            .WithWebHostBuilder(b => b.UseSetting(
+                "ConnectionStrings:Default", Db.GetConnectionString()));
+        Client = factory.CreateClient();
+        // apply migrations, seed caller user, set Authorization header
+    }
+
+    public async Task DisposeAsync() => await Db.DisposeAsync();
+}
+```
+
+**What to test per feature:**
+- Happy-path CRUD (create → read → update → delete)
+- Permission boundaries (non-member cannot read group; non-admin cannot rename family)
+- Validation rejection (missing required field → 422 with error on the right property)
+- State transitions (close activity → sub-activities absorbed; confirm-received on last settlement → activity Settled)
+- Weight snapshots and split calculations verified against known inputs
+
+---
+
+### E2E tests (FamilySplit.Tests.E2E)
+
+Target: real browser against a fully running stack (API + client + PostgreSQL in Testcontainers).
+
+**These are equally critical. Every important user flow needs an E2E test.**
+
+**Setup:**
+- Start a PostgreSQL Testcontainer and apply migrations.
+- Start the API (`WebApplicationFactory` or `dotnet run` process) pointing at the container.
+- Start the Blazor WASM client dev server (or serve the published output).
+- Use **Playwright** (`Microsoft.Playwright`) to drive Chromium.
+- Seed the DB with the minimum data each test needs; clean up after.
+
+```csharp
+public class GroupFlowTests : IAsyncLifetime
+{
+    private IPlaywright _playwright = null!;
+    private IBrowser _browser = null!;
+
+    public async Task InitializeAsync()
+    {
+        _playwright = await Playwright.CreateAsync();
+        _browser = await _playwright.Chromium.LaunchAsync();
+        // start containers and app host
+    }
+
+    [Fact]
+    public async Task User_can_create_group_and_see_it_in_list()
+    {
+        var page = await _browser.NewPageAsync();
+        // authenticate (seed JWT cookie or go through login flow)
+        await page.GotoAsync("https://localhost:5001/groups");
+        await page.GetByRole(AriaRole.Button, new() { Name = "Create group" }).ClickAsync();
+        await page.GetByLabel("Name").FillAsync("Holiday 2026");
+        await page.GetByRole(AriaRole.Button, new() { Name = "Create" }).ClickAsync();
+        await Expect(page.GetByText("Holiday 2026")).ToBeVisibleAsync();
+    }
+
+    public async Task DisposeAsync()
+    {
+        await _browser.DisposeAsync();
+        _playwright.Dispose();
+    }
+}
+```
+
+**Flows that must have E2E coverage:**
+- Login → redirected to home; unauthenticated redirect to login
+- Create group → join group via invite code (second family)
+- Create activity → add expense → view participant breakdown
+- Close activity → generate settlements → mark sent → mark received → activity shows Settled
+- Family admin: add member → member appears in list; remove member → member gone
+- Permission guard: non-admin cannot see rename/remove controls
+
+---
+
+### General testing rules
+
+- **Arrange-Act-Assert** structure in every test method.
+- Test method names: `MethodOrFlow_Condition_ExpectedOutcome` (e.g., `CreateExpense_MissingTitle_Returns422`).
+- Never share mutable state between tests. Each test is fully self-contained.
+- No `Thread.Sleep` or fixed delays in E2E tests — use Playwright's built-in `WaitForAsync` / `Expect(...).ToBeVisibleAsync()`.
+- Integration and E2E tests must pass against a clean database — never assume pre-existing rows.
+- Keep unit tests fast (<1 ms each). Integration and E2E tests may be slow; mark them with `[Trait("Category", "Integration")]` / `[Trait("Category", "E2E")]` so they can be filtered in CI.
+
+---
+
 ## Logging Standards
 
 All service methods **must** follow these rules. They apply to every new service and must be maintained when modifying existing ones.

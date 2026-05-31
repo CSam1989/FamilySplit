@@ -1,0 +1,32 @@
+@* Dashed-border empty-state card with an icon, title, optional subtitle, and optional action content. *@
+
+<MudPaper Elevation="0"
+          Class="@($"pa-6 d-flex flex-column align-center {Class}")"
+          Style="border:1px dashed var(--mud-palette-divider)">
+    <MudIcon Icon="@Icon"
+             Size="Size.Large"
+             Color="Color.Secondary"
+             Class="mb-2" />
+    <MudText Typo="Typo.body1" Color="Color.Secondary">@Title</MudText>
+    @if (Subtitle is not null)
+    {
+        <MudText Typo="Typo.body2" Color="Color.Secondary">@Subtitle</MudText>
+    }
+    @if (ChildContent is not null)
+    {
+        <div class="mt-3">@ChildContent</div>
+    }
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired] public string Icon    { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Title   { get; set; } = string.Empty;
+    [Parameter]                 public string? Subtitle { get; set; }
+
+    /// <summary>Optional action content (e.g. a button) rendered below the text.</summary>
+    /// <summary>Additional CSS classes applied to the outer MudPaper.</summary>
+    [Parameter] public string Class { get; set; } = string.Empty;
+
+    /// <summary>Optional action content (e.g. a button) rendered below the text.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

@@ -1,0 +1,19 @@
+@* Dismissable error alert. Renders nothing when ErrorMessage is null. *@
+
+@if (ErrorMessage is not null)
+{
+    <MudAlert Severity="Severity.Error"
+              Class="mb-4"
+              ShowCloseIcon="true"
+              CloseIconClicked="OnDismiss">
+        @ErrorMessage
+    </MudAlert>
+}
+
+@code {
+    /// <summary>The error message to display. Pass null to hide the banner.</summary>
+    [Parameter, EditorRequired] public string? ErrorMessage { get; set; }
+
+    /// <summary>Invoked when the user clicks the close icon.</summary>
+    [Parameter, EditorRequired] public EventCallback OnDismiss { get; set; }
+}

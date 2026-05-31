@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <RootNamespace>FamilySplit.UnitTests</RootNamespace>
@@ -20,11 +20,15 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="xunit.v3" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\FamilySplit.Api\FamilySplit.Api.csproj" />
+    <ProjectReference Include="..\..\src\FamilySplit.Client\FamilySplit.Client.csproj" />
     <ProjectReference Include="..\..\src\FamilySplit.Domain\FamilySplit.Domain.csproj" />
     <ProjectReference Include="..\..\src\FamilySplit.Application\FamilySplit.Application.csproj" />
+    <ProjectReference Include="..\..\src\FamilySplit.Infrastructure\FamilySplit.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

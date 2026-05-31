@@ -1,0 +1,25 @@
+@* Account-link status chip for a FamilyMember. *@
+
+@if (IsLinked)
+{
+    <MudChip T="string"
+             Color="Color.Success"
+             Size="Size.Small"
+             Icon="@Icons.Material.Filled.VerifiedUser">
+        Linked
+    </MudChip>
+}
+else if (HasEmail)
+{
+    <MudChip T="string"
+             Color="Color.Default"
+             Size="Size.Small"
+             Icon="@Icons.Material.Filled.PersonOff">
+        Pending
+    </MudChip>
+}
+
+@code {
+    [Parameter, EditorRequired] public bool  IsLinked { get; set; }
+    [Parameter, EditorRequired] public bool  HasEmail { get; set; }
+}

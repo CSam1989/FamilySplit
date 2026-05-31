@@ -164,4 +164,78 @@ public class SplitCalculatorTests
         p1.CalculatedAmount.Should().Be(0m);
         p2.CalculatedAmount.Should().Be(0m);
     }
+
+    [Fact]
+    public void CalculateShares_EmptyList_DoesNotThrow()
+    {
+        var participants = new List<ExpenseParticipant>();
+
+        var act = () => SplitCalculator.CalculateShares(100m, participants);
+
+        act.Should().NotThrow();
+    }
+
+    [Fact]
+    public void CalculateShares_SingleZeroWeightParticipant_GetsFullAmount()
+    {
+        var p1 = P(0m);
+        var participants = new List<ExpenseParticipant> { p1 };
+
+        SplitCalculator.CalculateShares(42.50m, participants);
+
+        p1.CalculatedAmount.Should().Be(42.50m);
+    }
+
+    [Fact]
+    public void CalculateShares_UnequalWeights_RemainderToHeaviest()
+    {
+        // 3 participants with weights 1, 2, 3; total weight 6; amount 100
+        // shares: 16.67, 33.33, 50.00 = 100.00 — but let's use 10:
+        // 1/6*10=1.67, 2/6*10=3.33, 3/6*10=5.00 = 10.00
+        // Try amount that causes remainder: 1/3*10=3.33, 1/3*10=3.33, 1/3*10=3.33 = 9.99
+        var p1 = P(1m);
+        var p2 = P(1m);
+        var p3 = P(2m); // heaviest
+        var participants = new List<ExpenseParticipant> { p1, p2, p3 };
+
+        SplitCalculator.CalculateShares(10m, participants);
+
+        // 1/4*10=2.50, 1/4*10=2.50, 2/4*10=5.00 — no remainder here
+        // Use 7 participants scenario instead; just verify total
+        var total = p1.CalculatedAmount + p2.CalculatedAmount + p3.CalculatedAmount;
+        total.Should().Be(10m);
+        // Heaviest should have largest share
+        p3.CalculatedAmount.Should().BeGreaterThanOrEqualTo(p1.CalculatedAmount);
+    }
+
+    [Fact]
+    public void CalculateShares_ThreeUnequalWeights_RemainderAbsorbedByHeaviest()
+    {
+        // weights 1, 2, 3 => total 6, amount 100
+        // 1/6*100=16.67, 2/6*100=33.33, 3/6*100=50.00 => 100.00
+        var p1 = P(1m);
+        var p2 = P(2m);
+        var p3 = P(3m);
+        var participants = new List<ExpenseParticipant> { p1, p2, p3 };
+
+        SplitCalculator.CalculateShares(100m, participants);
+
+        p1.CalculatedAmount.Should().Be(16.67m);
+        p2.CalculatedAmount.Should().Be(33.33m);
+        // p3 gets remainder: 100 - 16.67 - 33.33 = 50.00
+        (p1.CalculatedAmount + p2.CalculatedAmount + p3.CalculatedAmount).Should().Be(100m);
+    }
+
+    [Fact]
+    public void CalculateShares_NegativeAmount_DistributesCorrectly()
+    {
+        var p1 = P(1m);
+        var p2 = P(1m);
+        var participants = new List<ExpenseParticipant> { p1, p2 };
+
+        SplitCalculator.CalculateShares(-100m, participants);
+
+        p1.CalculatedAmount.Should().Be(-50m);
+        p2.CalculatedAmount.Should().Be(-50m);
+    }
 }

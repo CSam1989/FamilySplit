@@ -208,4 +208,89 @@ public class SettlementOptimiserTests
         result[0].PayerFamilyId.Should().Be(debtor);
         result[0].ReceiverFamilyId.Should().Be(creditor);
     }
+
+    [Fact]
+    public void Optimise_DebtorLargerThanCreditor_AdvancesCreditorFirst()
+    {
+        // One debtor owes 100, two creditors owed 60 and 40
+        var balances = new Dictionary<Guid, decimal>
+        {
+            [FamilyA] = -100m,
+            [FamilyB] = 60m,
+            [FamilyC] = 40m,
+        };
+
+        var result = SettlementOptimiser.Optimise(balances);
+
+        result.Should().HaveCount(2);
+        result.Should().AllSatisfy(t => t.PayerFamilyId.Should().Be(FamilyA));
+        result.Sum(t => t.Amount).Should().Be(100m);
+    }
+
+    [Fact]
+    public void Optimise_CreditorLargerThanDebtor_AdvancesDebtorFirst()
+    {
+        // Two debtors owe 30 and 70, one creditor owed 100
+        var balances = new Dictionary<Guid, decimal>
+        {
+            [FamilyA] = -70m,
+            [FamilyB] = -30m,
+            [FamilyC] = 100m,
+        };
+
+        var result = SettlementOptimiser.Optimise(balances);
+
+        result.Should().HaveCount(2);
+        result.Should().AllSatisfy(t => t.ReceiverFamilyId.Should().Be(FamilyC));
+        result[0].Amount.Should().Be(70m);
+        result[1].Amount.Should().Be(30m);
+    }
+
+    [Fact]
+    public void Optimise_EqualDebtAndCredit_BothAdvanceTogether()
+    {
+        // Two debtors and two creditors with matching amounts
+        var balances = new Dictionary<Guid, decimal>
+        {
+            [FamilyA] = -50m,
+            [FamilyB] = -50m,
+            [FamilyC] = 50m,
+            [FamilyD] = 50m,
+        };
+
+        var result = SettlementOptimiser.Optimise(balances);
+
+        result.Should().HaveCount(2);
+        result.Sum(t => t.Amount).Should().Be(100m);
+        result.Should().AllSatisfy(t => t.Amount.Should().Be(50m));
+    }
+
+    [Fact]
+    public void Optimise_FractionalAmounts_ProducesCorrectTransfers()
+    {
+        var balances = new Dictionary<Guid, decimal>
+        {
+            [FamilyA] = -10.50m,
+            [FamilyB] = -9.50m,
+            [FamilyC] = 20.00m,
+        };
+
+        var result = SettlementOptimiser.Optimise(balances);
+
+        result.Should().HaveCount(2);
+        result.Sum(t => t.Amount).Should().Be(20.00m);
+    }
+
+    [Fact]
+    public void Optimise_SingleEntryNearZero_ReturnsEmpty()
+    {
+        var balances = new Dictionary<Guid, decimal>
+        {
+            [FamilyA] = 0.004m,
+        };
+
+        var result = SettlementOptimiser.Optimise(balances);
+
+        result.Should().BeEmpty();
+    }
 }

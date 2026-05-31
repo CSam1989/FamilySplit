@@ -1,0 +1,99 @@
+@*
+    Renders the stats chip row for a group card: activity count, spend totals,
+    net balance, and pending settlements. Pass Stat=null + IsLoading=true to
+    show a skeleton while the dashboard stats are still loading.
+*@
+@inject I18nText I18nText
+
+@if (IsLoading && Stat is null)
+{
+    <MudSkeleton Width="200px" Height="22px" />
+}
+else if (Stat is not null)
+{
+    <div style="display:flex;flex-wrap:wrap;gap:6px">
+
+        <!-- Activity count -->
+        <span class="fs-stat-chip">
+            <MudIcon Icon="@Icons.Material.Rounded.EventNote" Style="font-size:12px" />
+            @Stat.TotalActivities @(Stat.TotalActivities == 1 ? _t.ActivitySingular : _t.ActivitiesPlural)
+            @if (Stat.OpenActivities > 0)
+            {
+                <span style="color:var(--fs-primary);font-weight:600">(@Stat.OpenActivities @_t.OpenLabel)</span>
+            }
+        </span>
+
+        <!-- All-time spend + your share -->
+        @if (Stat.TotalGroupSpend > 0)
+        {
+            <span class="fs-stat-chip">
+                <MudIcon Icon="@Icons.Material.Rounded.Receipt" Style="font-size:12px" />
+                @FormatHelper.FormatAmount(Stat.TotalGroupSpend, Stat.Currency)
+                <span style="color:var(--fs-border)">·</span>
+                @_t.YourShare @FormatHelper.FormatAmount(Stat.MyFamilyShare, Stat.Currency)
+            </span>
+        }
+
+        <!-- Active spend + your share -->
+        @if (Stat.ActiveGroupSpend > 0)
+        {
+            <span class="fs-stat-chip">
+                <MudIcon Icon="@Icons.Material.Rounded.ReceiptLong" Style="font-size:12px" />
+                @_t.ActiveLabel @FormatHelper.FormatAmount(Stat.ActiveGroupSpend, Stat.Currency)
+                <span style="color:var(--fs-border)">·</span>
+                @_t.YourShare @FormatHelper.FormatAmount(Stat.ActiveFamilyShare, Stat.Currency)
+            </span>
+        }
+
+        <!-- Net balance -->
+        @if (Stat.TotalActivities > 0)
+        {
+            @if (Stat.NetBalance > 0)
+            {
+                <span class="fs-stat-chip fs-stat-chip--positive">
+                    <MudIcon Icon="@Icons.Material.Rounded.TrendingUp" Style="font-size:12px" />
+                    @FormatHelper.FormatAmount(Stat.NetBalance, Stat.Currency) @_t.ToReceive
+                </span>
+            }
+            else if (Stat.NetBalance < 0)
+            {
+                <span class="fs-stat-chip fs-stat-chip--negative">
+                    <MudIcon Icon="@Icons.Material.Rounded.TrendingDown" Style="font-size:12px" />
+                    @FormatHelper.FormatAmount(Math.Abs(Stat.NetBalance), Stat.Currency) @_t.ToPay
+                </span>
+            }
+            else if (Stat.SettledActivities == Stat.TotalActivities)
+            {
+                <span class="fs-stat-chip fs-stat-chip--positive">
+                    <MudIcon Icon="@Icons.Material.Rounded.CheckCircle" Style="font-size:12px" />
+                    @_t.AllSettled
+                </span>
+            }
+        }
+
+        <!-- Pending settlements -->
+        @if (Stat.PendingSettlements > 0)
+        {
+            <span class="fs-stat-chip fs-stat-chip--warning">
+                <MudIcon Icon="@Icons.Material.Rounded.Pending" Style="font-size:12px" />
+                @Stat.PendingSettlements @(Stat.PendingSettlements == 1 ? _t.PaymentSingular : _t.PaymentsPlural) @_t.PendingChip
+            </span>
+        }
+
+    </div>
+}
+
+@code {
+    /// <summary>The stat data to render. Pass null while loading.</summary>
+    [Parameter] public DashboardGroupStatDto? Stat      { get; set; }
+
+    /// <summary>Show a skeleton when true and Stat is null.</summary>
+    [Parameter] public bool                  IsLoading  { get; set; }
+
+    private AppText _t = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _t = await I18nText.GetTextTableAsync<AppText>(this);
+    }
+}

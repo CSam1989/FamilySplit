@@ -276,4 +276,72 @@ public class FamilyValidatorTests
         var result = _updateValidator.TestValidate(req);
         result.ShouldNotHaveValidationErrorFor(x => x.WeightOverride);
     }
+
+    [Fact]
+    public void UpdateFamilyMemberValidator_TodayDateOfBirth_Passes()
+    {
+        var req = new UpdateFamilyMemberRequest("Alice", null, DateOnly.FromDateTime(DateTime.UtcNow), null);
+        var result = _updateValidator.TestValidate(req);
+        result.ShouldNotHaveValidationErrorFor(x => x.DateOfBirth);
+    }
+
+    [Fact]
+    public void UpdateFamilyMemberValidator_WeightOverrideSmallPositive_Passes()
+    {
+        var req = new UpdateFamilyMemberRequest("Alice", null, null, 0.01m);
+        var result = _updateValidator.TestValidate(req);
+        result.ShouldNotHaveValidationErrorFor(x => x.WeightOverride);
+    }
+
+    [Fact]
+    public void AddFamilyMemberValidator_NegativeWeightOverride_FailsWithWeightMessage()
+    {
+        var req = new AddFamilyMemberRequest("Alice", null, null, -1m);
+        var result = _addValidator.TestValidate(req);
+        result.ShouldHaveValidationErrorFor(x => x.WeightOverride)
+              .WithErrorMessage("Weight override must be between 0.01 and 10.");
+    }
+
+    [Fact]
+    public void UpdateFamilyMemberValidator_NegativeWeightOverride_FailsWithWeightMessage()
+    {
+        var req = new UpdateFamilyMemberRequest("Alice", null, null, -1m);
+        var result = _updateValidator.TestValidate(req);
+        result.ShouldHaveValidationErrorFor(x => x.WeightOverride)
+              .WithErrorMessage("Weight override must be between 0.01 and 10.");
+    }
+
+    [Fact]
+    public void AddFamilyMemberValidator_DisplayNameExactly100Chars_Passes()
+    {
+        var req = new AddFamilyMemberRequest(new string('A', 100), null, null, null);
+        var result = _addValidator.TestValidate(req);
+        result.ShouldNotHaveValidationErrorFor(x => x.DisplayName);
+    }
+
+    [Fact]
+    public void UpdateFamilyMemberValidator_DisplayNameExactly100Chars_Passes()
+    {
+        var req = new UpdateFamilyMemberRequest(new string('A', 100), null, null, null);
+        var result = _updateValidator.TestValidate(req);
+        result.ShouldNotHaveValidationErrorFor(x => x.DisplayName);
+    }
+
+    [Fact]
+    public void AddFamilyMemberValidator_ValidEmailExactly255Chars_Passes()
+    {
+        var email = new string('a', 243) + "@example.com";
+        var req = new AddFamilyMemberRequest("Alice", email, null, null);
+        var result = _addValidator.TestValidate(req);
+        result.ShouldNotHaveValidationErrorFor(x => x.Email);
+    }
+
+    [Fact]
+    public void UpdateFamilyMemberValidator_ValidEmailExactly255Chars_Passes()
+    {
+        var email = new string('a', 243) + "@example.com";
+        var req = new UpdateFamilyMemberRequest("Alice", email, null, null);
+        var result = _updateValidator.TestValidate(req);
+        result.ShouldNotHaveValidationErrorFor(x => x.Email);
+    }
 }

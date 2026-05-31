@@ -23,4 +23,8 @@
     <ProjectReference Include="..\FamilySplit.Domain\FamilySplit.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="FamilySplit.UnitTests" />
+  </ItemGroup>
+
 </Project>

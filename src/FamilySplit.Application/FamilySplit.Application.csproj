@@ -19,4 +19,8 @@
     <ProjectReference Include="..\FamilySplit.Infrastructure\FamilySplit.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="FamilySplit.UnitTests" />
+  </ItemGroup>
+
 </Project>

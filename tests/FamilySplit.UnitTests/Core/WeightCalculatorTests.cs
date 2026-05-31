@@ -78,4 +78,43 @@ public class WeightCalculatorTests
         // On ReferenceDate (May 21 2026) they are still 17 → middelbaar onderwijs
         WeightCalculator.GetWeight(member, ReferenceDate).Should().Be(0.75m);
     }
+
+    [Fact]
+    public void GetTier_returns_Volwassene_when_dob_missing()
+    {
+        var member = new FamilyMember { Id = Guid.NewGuid(), DisplayName = "No DOB" };
+
+        WeightCalculator.GetTier(member, ReferenceDate).Should().Be(WeightTier.Volwassene);
+    }
+
+    [Theory]
+    [InlineData(2024, 1, 1, WeightTier.Kleuterschool)]
+    [InlineData(2020, 5, 21, WeightTier.LagerOnderwijs)]
+    [InlineData(2014, 5, 21, WeightTier.MiddelbaarOnderwijs)]
+    [InlineData(2008, 5, 21, WeightTier.Volwassene)]
+    public void GetTier_returns_correct_tier_for_age(int year, int month, int day, WeightTier expected)
+    {
+        var member = new FamilyMember
+        {
+            Id = Guid.NewGuid(),
+            DisplayName = "Test",
+            DateOfBirth = new DateOnly(year, month, day),
+        };
+
+        WeightCalculator.GetTier(member, ReferenceDate).Should().Be(expected);
+    }
+
+    [Fact]
+    public void GetTier_birthday_not_yet_reached_drops_age_by_one()
+    {
+        var member = new FamilyMember
+        {
+            Id = Guid.NewGuid(),
+            DisplayName = "Just under",
+            DateOfBirth = new DateOnly(2008, 5, 22),
+        };
+
+        // Still 17 on May 21 → MiddelbaarOnderwijs
+        WeightCalculator.GetTier(member, ReferenceDate).Should().Be(WeightTier.MiddelbaarOnderwijs);
+    }
 }
