@@ -1,3 +1,5 @@
+Mobile UI checks
+
 Automated Tests (good code coverage) (xUnit)
 * unit tests
 * bunit to test blazor components
@@ -20,12 +22,67 @@ Refactor client, extract and reuse components as much as possible
 this will make the different pages look more similar
 
  More features
- UserProfile
+ Settings page with also global admin settings
  Light/Dark theme
- Translations (english/dutch/french/german)
 
  PWA Offline support (be able to add expenses (need to see how to link them to groups/activities))
 
+Kamion List + Pack + Assign
  Shared shoppinglist in main activity
+ Shared packinglist
+ Assign responsibilities:
+“Sam → BBQ”
+“Lisa → drinks”
+
+ Kamion Plan
  Weekplanning in main activity with crud on "planned activities" wich can be linked with subactivities or even creates these subactivities
  Drag and drop UI on a week planner
+ Copy / duplicate days
+ Reuse previous trips
+ Weather API (trip days)
+Calendar sync (export plan)
+
+Kamion Vote
+Simple voting (yes/no, option A/B/C)
+Store votes in DB
+
+Kamion Ping
+Quick real-time coordination:
+“Where is everyone?”
+Send quick location pings
+“I’m here”
+Can be exported to google maps
+
+Kamion Countdown
+Simple, but addictive:
+
+Countdown to trip start
+“5 days until KamionCrew Trip”
+Builds excitement
+
+Kamion Next (Trip Suggestions + Voting)
+Concept
+“Where are we going next?”
+A dedicated feature where your crew:
+Suggests trip ideas
+Votes on them
+Gradually turns ideas into real plans
+Each crew member can add:
+Destination (e.g. “Ardennes”, “Spain road trip”)
+Optional:
+Dates (rough)
+Notes (“cheap flights”, “camping vibes”)
+Estimated budget
+Link (Airbnb, blog, etc.)
+Attach voting to each suggestion:
+👍 / 👎 (simple)
+Limit number of votes per user (e.g. top 3 picks)
+Automatically sort suggestions by:
+Number of votes
+Average rating
+ When a suggestion wins:
+Convert it into a Kamion Plan + Trip
+Copy over:
+Title
+Notes
+Participants
