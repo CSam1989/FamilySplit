@@ -2,12 +2,13 @@
 @using FamilySplit.Client.Store.Auth
 @using FamilySplit.Client.Services
 @using FamilySplit.Client.Components
+@using FamilySplit.Client.Theme
 @inject IState<AuthState> AuthState
 @inject NotificationHubConnection HubConnection
 @inject ISnackbar Snackbar
 @implements IAsyncDisposable
 
-<MudThemeProvider Theme="_theme" />
+<MudThemeProvider Theme="AppTheme.Theme" />
 <MudPopoverProvider />
 <MudDialogProvider FullWidth="true" MaxWidth="MaxWidth.ExtraSmall" />
 <MudSnackbarProvider />
@@ -168,47 +169,4 @@
         await HubConnection.DisconnectAsync();
     }
 
-    private readonly MudTheme _theme = new()
-    {
-        PaletteLight = new PaletteLight
-        {
-            Primary              = "#4F46E5",
-            PrimaryContrastText  = "#FFFFFF",
-            PrimaryDarken        = "#3730A3",
-            PrimaryLighten       = "#EEF2FF",
-            Secondary            = "#10B981",
-            SecondaryContrastText= "#FFFFFF",
-            Background           = "#F8FAFC",
-            BackgroundGray       = "#F1F5F9",
-            Surface              = "#FFFFFF",
-            DrawerBackground     = "#FFFFFF",
-            DrawerText           = "#0F172A",
-            DrawerIcon           = "#64748B",
-            AppbarBackground     = "#FFFFFF",
-            AppbarText           = "#0F172A",
-            TextPrimary          = "#0F172A",
-            TextSecondary        = "#64748B",
-            TextDisabled         = "#94A3B8",
-            ActionDefault        = "#64748B",
-            ActionDisabled       = "#CBD5E1",
-            ActionDisabledBackground = "#F1F5F9",
-            Divider              = "#E2E8F0",
-            DividerLight         = "#F1F5F9",
-            TableLines           = "#E2E8F0",
-            LinesDefault         = "#E2E8F0",
-            OverlayDark          = "rgba(15,23,42,0.55)",
-            OverlayLight         = "rgba(248,250,252,0.80)",
-            Success              = "#10B981",
-            Warning              = "#F59E0B",
-            Error                = "#EF4444",
-            Info                 = "#3B82F6",
-        },
-        // Typography font family is applied globally via app.css (.mud-typography override)
-        LayoutProperties = new LayoutProperties
-        {
-            AppbarHeight   = "56px",
-            DrawerWidthLeft= "240px",
-        },
-        // Shadows: using MudBlazor defaults (custom array length varies by version)
-    };
 }

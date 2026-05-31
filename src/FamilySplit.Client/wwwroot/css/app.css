@@ -1,43 +1,57 @@
 /* ─────────────────────────────────────────────────────────────────────────────
    FamilySplit — Mobile-first Design System
+   ─────────────────────────────────────────────────────────────────────────────
+   Color single source of truth: src/FamilySplit.Client/Theme/AppTheme.cs
+   MudThemeProvider emits --mud-palette-* CSS variables from that theme.
+   The --fs-* aliases below map to those variables so all CSS stays in sync
+   with the theme automatically — change AppTheme.cs and everything updates.
    ───────────────────────────────────────────────────────────────────────────── */
 
-/* ── Custom properties ───────────────────────────────────────────────────── */
+/* ── Semantic aliases → MudBlazor palette vars ───────────────────────────── */
 :root {
-    --fs-primary:        #4F46E5;
-    --fs-primary-light:  #EEF2FF;
-    --fs-primary-dark:   #3730A3;
-    --fs-green:          #10B981;
-    --fs-green-light:    #D1FAE5;
-    --fs-red:            #EF4444;
-    --fs-red-light:      #FEE2E2;
-    --fs-amber:          #F59E0B;
-    --fs-amber-light:    #FEF3C7;
+    /* Brand */
+    --fs-primary:        var(--mud-palette-primary);
+    --fs-primary-light:  var(--mud-palette-primary-lighten);
+    --fs-primary-dark:   var(--mud-palette-primary-darken);
 
-    --fs-bg:             #F8FAFC;
-    --fs-surface:        #FFFFFF;
-    --fs-border:         #E2E8F0;
-    --fs-border-subtle:  #F1F5F9;
+    /* Semantic colours */
+    --fs-green:          var(--mud-palette-success);
+    --fs-green-light:    var(--mud-palette-success-lighten);
+    --fs-red:            var(--mud-palette-error);
+    --fs-red-light:      var(--mud-palette-error-lighten);
+    --fs-amber:          var(--mud-palette-warning);
+    --fs-amber-light:    var(--mud-palette-warning-lighten);
 
-    --fs-text-primary:   #0F172A;
-    --fs-text-secondary: #64748B;
-    --fs-text-tertiary:  #94A3B8;
-    --fs-text-inverse:   #FFFFFF;
+    /* Surfaces */
+    --fs-bg:             var(--mud-palette-background);
+    --fs-surface:        var(--mud-palette-surface);
+    --fs-surface-2:      var(--mud-palette-background-gray);
+    --fs-border:         var(--mud-palette-divider);
+    --fs-border-subtle:  var(--mud-palette-divider-light);
 
+    /* Text */
+    --fs-text-primary:   var(--mud-palette-text-primary);
+    --fs-text-secondary: var(--mud-palette-text-secondary);
+    --fs-text-tertiary:  var(--mud-palette-text-disabled);
+    --fs-text-inverse:   var(--mud-palette-primary-text);
+
+    /* Shadows — depth tokens stay fixed; only the branded FAB shadow uses
+       color-mix() to derive the primary tint from the palette at runtime.    */
     --fs-shadow-sm:   0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
     --fs-shadow-md:   0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
     --fs-shadow-lg:   0 10px 30px rgba(0,0,0,0.10), 0 4px 8px rgba(0,0,0,0.05);
-    --fs-shadow-fab:  0 6px 20px rgba(79,70,229,0.40);
+    --fs-shadow-fab:  0 6px 20px color-mix(in srgb, var(--mud-palette-primary) 40%, transparent);
 
+    /* Geometry — not palette-derived; keep here for easy adjustment */
     --fs-radius-sm:   8px;
     --fs-radius-md:   12px;
     --fs-radius-lg:   16px;
     --fs-radius-xl:   20px;
     --fs-radius-full: 9999px;
 
-    --fs-nav-height:  64px;
+    --fs-nav-height:    64px;
     --fs-appbar-height: 56px;
-    --fs-fab-size:    54px;
+    --fs-fab-size:      54px;
 }
 
 /* ── Base reset ──────────────────────────────────────────────────────────── */
@@ -265,13 +279,13 @@ html, body {
 
 .fs-nav-fab:hover {
     background: var(--fs-primary-dark);
-    box-shadow: 0 8px 24px rgba(79,70,229,0.50);
+    box-shadow: 0 8px 24px color-mix(in srgb, var(--mud-palette-primary) 50%, transparent);
     transform: translateY(-1px);
 }
 
 .fs-nav-fab:active {
     transform: scale(0.94) translateY(0);
-    box-shadow: 0 3px 10px rgba(79,70,229,0.35);
+    box-shadow: 0 3px 10px color-mix(in srgb, var(--mud-palette-primary) 35%, transparent);
 }
 
 .fs-nav-fab-icon {
@@ -438,20 +452,20 @@ html, body {
 
 .fs-stat-chip--positive {
     font-weight: 600;
-    color: #059669;
-    background: rgba(5, 150, 105, 0.1);
+    color: var(--fs-green);
+    background: var(--fs-green-light);
 }
 
 .fs-stat-chip--negative {
     font-weight: 600;
-    color: #DC2626;
-    background: rgba(220, 38, 38, 0.1);
+    color: var(--fs-red);
+    background: var(--fs-red-light);
 }
 
 .fs-stat-chip--warning {
     font-weight: 600;
-    color: #D97706;
-    background: rgba(217, 119, 6, 0.12);
+    color: var(--fs-amber);
+    background: var(--fs-amber-light);
 }
 
 /* ── Empty state ─────────────────────────────────────────────────────────── */
