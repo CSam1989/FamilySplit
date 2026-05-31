@@ -1,6 +1,21 @@
 // FamilySplit — Web Push helpers called via IJSRuntime from Blazor.
 // All functions return null / false on failure so callers can handle gracefully.
 
+// ── SW update notification ────────────────────────────────────────────────────
+// Called from MainLayout on first render. When the 'sw-updated' event fires
+// (dispatched by the controllerchange listener in index.html), invokes the
+// .NET callback so Blazor can show a snackbar rather than a hard auto-reload.
+window.FamilySplitSw = {
+    registerUpdateListener: function (dotNetObj) {
+        window.addEventListener('sw-updated', function () {
+            dotNetObj.invokeMethodAsync('OnSwUpdated');
+        }, { once: true });
+    },
+    reload: function () {
+        window.location.reload();
+    }
+};
+
 window.FamilySplitPush = (function () {
 
     // ── Utilities ─────────────────────────────────────────────────────────────

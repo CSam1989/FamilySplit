@@ -31,9 +31,12 @@ self.addEventListener('install', event => {
                 .map(a => a.url);
 
             await cache.addAll(urls);
+
+            // skipWaiting must run after caching is complete so the new SW
+            // has all assets ready before it takes control and the page reloads.
+            await self.skipWaiting();
         })()
     );
-    self.skipWaiting();
 });
 
 // ── Activate: remove stale caches ────────────────────────────────────────────
