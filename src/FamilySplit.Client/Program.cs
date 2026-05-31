@@ -1,6 +1,5 @@
 using FamilySplit.Client;
 using FamilySplit.Client.Services;
-using Toolbelt.Blazor.Extensions.DependencyInjection;
 using FamilySplit.Client.Store.Activities;
 using FamilySplit.Client.Store.Admin;
 using FamilySplit.Client.Store.Auth;
@@ -16,6 +15,7 @@ using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using MudBlazor.Services;
 using Refit;
+using Toolbelt.Blazor.Extensions.DependencyInjection;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");

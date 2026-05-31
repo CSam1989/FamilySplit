@@ -48,6 +48,12 @@
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('service-worker.js')
                 .catch(err => console.warn('SW registration failed:', err));
+
+            // When a new service worker activates (skipWaiting fires), reload so
+            // the app picks up the freshly cached assets instead of serving stale files.
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                window.location.reload();
+            });
         }
     </script>
 </body>
