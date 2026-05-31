@@ -22,9 +22,6 @@ Refactor client, extract and reuse components as much as possible
 this will make the different pages look more similar
 
  More features
- Settings page with also global admin settings
- Light/Dark theme
-
  PWA Offline support (be able to add expenses (need to see how to link them to groups/activities))
 
 Kamion List + Pack + Assign

@@ -1,4 +1,4 @@
-{
+﻿{
   "Cancel": "Abbrechen",
   "Save": "Speichern",
   "Add": "Hinzufügen",
@@ -220,6 +220,11 @@
   "LangDutch": "Nederlands",
   "LangFrench": "Français",
   "LangGerman": "Deutsch",
+  "Appearance": "Darstellung",
+  "ThemeLabel": "Design",
+  "ThemeLight": "Hell",
+  "ThemeDark": "Dunkel",
+  "ThemeSystem": "Systemstandard",
 
   "AdminFamilies": "Familien",
   "GlobalAdminChip": "Globaler Admin",

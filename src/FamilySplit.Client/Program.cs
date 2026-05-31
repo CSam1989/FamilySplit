@@ -46,6 +46,9 @@ builder.Services.AddScoped<ExpenseEffects>();
 builder.Services.AddScoped<SettlementEffects>();
 builder.Services.AddScoped<DashboardEffects>();
 
+// --- Theme ------------------------------------------------------------------------
+builder.Services.AddSingleton<ThemeService>();
+
 // --- Auth -------------------------------------------------------------------------
 // Singleton (not Scoped) so that the _refreshLock semaphore is shared across every
 // handler, component, and effect that touches AuthService. In Blazor WASM a single

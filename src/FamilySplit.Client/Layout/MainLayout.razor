@@ -6,9 +6,11 @@
 @inject IState<AuthState> AuthState
 @inject NotificationHubConnection HubConnection
 @inject ISnackbar Snackbar
+@inject ThemeService ThemeService
+@inject IJSRuntime JS
 @implements IAsyncDisposable
 
-<MudThemeProvider Theme="AppTheme.Theme" />
+<MudThemeProvider Theme="AppTheme.Theme" IsDarkMode="@ThemeService.IsDarkMode" />
 <MudPopoverProvider />
 <MudDialogProvider FullWidth="true" MaxWidth="MaxWidth.ExtraSmall" />
 <MudSnackbarProvider />
@@ -123,14 +125,32 @@
     private bool _drawerOpen = true;
     private ErrorBoundary? _drawerBoundary;
     private bool _hubConnected;
+    private bool _themeInitialized;
 
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+
+    protected override void OnInitialized()
+    {
+        ThemeService.OnChanged += OnThemeChanged;
+    }
+
+    private void OnThemeChanged() => InvokeAsync(StateHasChanged);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         // Recover the ErrorBoundary so the drawer re-renders after the transient
         // JS race condition on first WASM load. The second render always succeeds.
         _drawerBoundary?.Recover();
+
+        // Initialize theme once — detect system preference and apply saved setting.
+        if (firstRender && !_themeInitialized)
+        {
+            _themeInitialized = true;
+            var systemIsDark = await JS.InvokeAsync<bool>(
+                "eval", "window.matchMedia('(prefers-color-scheme: dark)').matches");
+            await ThemeService.InitAsync(systemIsDark);
+            StateHasChanged();
+        }
 
         // Connect to the SignalR hub as soon as the user is authenticated.
         if (AuthState.Value.IsAuthenticated && !_hubConnected)
@@ -165,6 +185,7 @@
 
     public async ValueTask DisposeAsync()
     {
+        ThemeService.OnChanged -= OnThemeChanged;
         HubConnection.OnNotificationReceived -= ShowNotificationToast;
         await HubConnection.DisconnectAsync();
     }

@@ -2,12 +2,14 @@
 @page "/profile"
 @using FamilySplit.Client.Store.Auth
 @using FamilySplit.Client.Store.FamilyMembers
+@using FamilySplit.Client.Services
 @inherits Fluxor.Blazor.Web.Components.FluxorComponent
 @inject IDispatcher Dispatcher
 @inject IState<AuthState> AuthState
 @inject IState<FamilyMemberState> ProfileState
 @inject NavigationManager Nav
 @inject I18nText I18nText
+@inject ThemeService ThemeService
 
 <PageTitle>@_t.NavSettings — FamilySplit</PageTitle>
 
@@ -78,6 +80,40 @@
     </MudSelect>
 </MudPaper>
 
+<!-- ── Appearance ─────────────────────────────────────────────────────────── -->
+<MudPaper Elevation="1" Class="pa-4 mb-4" Style="border-radius:var(--fs-radius-lg)">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3" Spacing="2">
+        <MudIcon Icon="@Icons.Material.Filled.Palette" Color="Color.Primary" Size="Size.Small" />
+        <MudText Typo="Typo.h6">@_t.Appearance</MudText>
+    </MudStack>
+
+    <MudToggleGroup T="ThemeMode"
+                    Value="ThemeService.Mode"
+                    ValueChanged="OnThemeChanged"
+                    Color="Color.Primary"
+                    Outlined="true"
+                    Style="max-width:320px">
+        <MudToggleItem Value="ThemeMode.Light">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                <MudIcon Icon="@Icons.Material.Filled.LightMode" Size="Size.Small" />
+                <span>@_t.ThemeLight</span>
+            </MudStack>
+        </MudToggleItem>
+        <MudToggleItem Value="ThemeMode.Dark">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                <MudIcon Icon="@Icons.Material.Filled.DarkMode" Size="Size.Small" />
+                <span>@_t.ThemeDark</span>
+            </MudStack>
+        </MudToggleItem>
+        <MudToggleItem Value="ThemeMode.System">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                <MudIcon Icon="@Icons.Material.Filled.SettingsBrightness" Size="Size.Small" />
+                <span>@_t.ThemeSystem</span>
+            </MudStack>
+        </MudToggleItem>
+    </MudToggleGroup>
+</MudPaper>
+
 <!-- ── Global admin ───────────────────────────────────────────────────────── -->
 @if (AuthState.Value.IsGlobalAdmin)
 {
@@ -122,6 +158,9 @@
         _t = await I18nText.GetTextTableAsync<AppText>(this);
         StateHasChanged();
     }
+
+    private async Task OnThemeChanged(ThemeMode mode) =>
+        await ThemeService.SetModeAsync(mode);
 
     private void SignOut()
     {
