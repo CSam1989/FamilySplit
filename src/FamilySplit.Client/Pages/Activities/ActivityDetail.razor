@@ -173,39 +173,38 @@ else
             <MudStack Row="true" AlignItems="AlignItems.Stretch" Spacing="0">
                 <div style="width:5px;background:var(--mud-palette-primary);flex-shrink:0" />
                 <div style="flex:1;padding:12px 16px">
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-                        <div style="flex:1">
-                            <MudText Typo="Typo.subtitle1" Style="font-weight:600">@e.Title</MudText>
-                            @if (e.Description is not null)
-                            {
-                                <MudText Typo="Typo.body2" Color="Color.Secondary">@e.Description</MudText>
-                            }
-                            <MudStack Row="true" AlignItems="AlignItems.Center"
-                                      Spacing="3" Wrap="Wrap.Wrap" Class="mt-1">
-                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
-                                    <MudIcon Icon="@Icons.Material.Filled.CalendarToday"
-                                             Size="Size.Small" Color="Color.Secondary" />
-                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                        @e.ExpenseDate.ToString("dd MMM yyyy")
-                                    </MudText>
-                                </MudStack>
-                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
-                                    <MudIcon Icon="@Icons.Material.Filled.Person"
-                                             Size="Size.Small" Color="Color.Secondary" />
-                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                        @e.PaidByName · @e.PaidByFamilyName
-                                    </MudText>
-                                </MudStack>
-                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
-                                    <MudIcon Icon="@Icons.Material.Filled.People"
-                                             Size="Size.Small" Color="Color.Secondary" />
-                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                        @e.ParticipantCount @_t.ParticipantsCount
-                                    </MudText>
-                                </MudStack>
-                            </MudStack>
-                        </div>
-                        <MudText Typo="Typo.subtitle2" Style="font-weight:700;white-space:nowrap">
+                    <MudText Typo="Typo.subtitle1" Style="font-weight:600">@e.Title</MudText>
+                    @if (e.Description is not null)
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">@e.Description</MudText>
+                    }
+                    <MudStack Row="true" AlignItems="AlignItems.Center"
+                              Spacing="3" Wrap="Wrap.Wrap" Class="mt-1 mb-1">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                            <MudIcon Icon="@Icons.Material.Filled.CalendarToday"
+                                     Size="Size.Small" Color="Color.Secondary" />
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                @e.ExpenseDate.ToString("dd MMM yyyy")
+                            </MudText>
+                        </MudStack>
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                            <MudIcon Icon="@Icons.Material.Filled.Person"
+                                     Size="Size.Small" Color="Color.Secondary" />
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                @e.PaidByName · @e.PaidByFamilyName
+                            </MudText>
+                        </MudStack>
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                            <MudIcon Icon="@Icons.Material.Filled.People"
+                                     Size="Size.Small" Color="Color.Secondary" />
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                @e.ParticipantCount @_t.ParticipantsCount
+                            </MudText>
+                        </MudStack>
+                    </MudStack>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0"
+                              Justify="Justify.SpaceBetween">
+                        <MudText Typo="Typo.subtitle2" Style="font-weight:700">
                             @FormatHelper.FormatAmount(e.TotalAmount, e.Currency)
                         </MudText>
                         <MudStack Row="true" Spacing="0">

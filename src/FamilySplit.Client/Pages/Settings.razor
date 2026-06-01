@@ -42,7 +42,8 @@
                 <MudText Typo="Typo.body2" Color="Color.Secondary">@user.Email</MudText>
                 @if (member is not null)
                 {
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="mt-1">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1"
+                              Wrap="Wrap.Wrap" Class="mt-1">
                         <WeightBadge Tier="member.CurrentTier" Weight="member.CurrentWeight" />
                         @if (member.IsAdmin)
                         {
@@ -92,7 +93,7 @@
                     ValueChanged="OnThemeChanged"
                     Color="Color.Primary"
                     Outlined="true"
-                    Style="max-width:320px">
+                    Style="width:100%">
         <MudToggleItem Value="ThemeMode.Light">
             <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
                 <MudIcon Icon="@Icons.Material.Filled.LightMode" Size="Size.Small" />
