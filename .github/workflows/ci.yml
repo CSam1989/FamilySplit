@@ -262,13 +262,11 @@ jobs:
             --no-restore -c Release \
             -o /tmp/fs-client-publish
 
-      # Building the E2E project is required so Playwright's MSBuild task copies
-      # the native Node.js driver to the output directory.  Without this step
-      # playwright.ps1 reports "missing required assets".
-      - name: Build E2E tests
-        run: |
-          dotnet build tests/FamilySplit.E2ETests/FamilySplit.E2ETests.csproj \
-            --no-restore -c Release
+      # Build the full solution so:
+      #   - Playwright's MSBuild task copies the native Node.js driver (playwright.ps1)
+      #   - FamilySplit.Api binary exists for E2EApiServer's `dotnet run --no-build`
+      - name: Build solution
+        run: dotnet build FamilySplit.slnx --no-restore -c Release
 
       # Install the Playwright browser binaries that match the NuGet package version.
       - name: Install Playwright browsers
