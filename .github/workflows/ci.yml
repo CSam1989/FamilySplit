@@ -244,25 +244,31 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: build-output
-
-      # The browser-wasm runtime pack is required for WASM bundling and is not
-      # included by default — must be installed before publish.
+      # wasm-tools must be installed before restore so the browser-wasm runtime
+      # pack is available for the Client publish step.
       - name: Install wasm-tools workload
         run: dotnet workload install wasm-tools
 
+      - name: Restore dependencies
+        run: dotnet restore FamilySplit.slnx
+
       # Publish the Blazor WASM client so E2EClientServer can serve it.
-      # Do NOT use --no-build: the WASM publish pipeline invokes Build on project
-      # references regardless, causing NETSDK1085 when NoBuild=true is set.
-      # Let publish do its own restore + build for the client.
+      # --no-build cannot be used: the WASM pipeline invokes Build on project
+      # references regardless (NETSDK1085). --no-restore is safe since we just
+      # restored the full solution above.
       - name: Publish Blazor WASM client
         run: |
           dotnet publish src/FamilySplit.Client/FamilySplit.Client.csproj \
-            -c Release \
+            --no-restore -c Release \
             -o /tmp/fs-client-publish
+
+      # Building the E2E project is required so Playwright's MSBuild task copies
+      # the native Node.js driver to the output directory.  Without this step
+      # playwright.ps1 reports "missing required assets".
+      - name: Build E2E tests
+        run: |
+          dotnet build tests/FamilySplit.E2ETests/FamilySplit.E2ETests.csproj \
+            --no-restore -c Release
 
       # Install the Playwright browser binaries that match the NuGet package version.
       - name: Install Playwright browsers
