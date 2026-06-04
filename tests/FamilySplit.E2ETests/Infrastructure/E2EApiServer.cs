@@ -107,7 +107,10 @@ public sealed class E2EApiServer : IAsyncLifetime
 
         var psi = new ProcessStartInfo("dotnet")
         {
-            Arguments = $"run --no-build --no-launch-profile --project \"{apiProjectPath}\"",
+            // -c Release must match the configuration used to build the binary.
+            // Without it, dotnet run --no-build looks in bin/Debug/ and exits
+            // immediately (connection refused), causing a silent 60-second timeout.
+            Arguments = $"run --no-build -c Release --no-launch-profile --project \"{apiProjectPath}\"",
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -120,21 +123,35 @@ public sealed class E2EApiServer : IAsyncLifetime
         _apiProcess = Process.Start(psi)
             ?? throw new InvalidOperationException("Failed to start API process.");
 
-        // Drain stdout/stderr to avoid blocking the process on a full pipe.
+        // Capture stdout/stderr so a startup crash is visible in test output.
+        var outputLines = new System.Collections.Concurrent.ConcurrentBag<string>();
+        _apiProcess.OutputDataReceived += (_, e) => { if (e.Data != null) outputLines.Add(e.Data); };
+        _apiProcess.ErrorDataReceived  += (_, e) => { if (e.Data != null) outputLines.Add($"ERR: {e.Data}"); };
         _apiProcess.BeginOutputReadLine();
         _apiProcess.BeginErrorReadLine();
 
         // Wait until the health endpoint responds (up to 60 s).
-        await WaitForHealthyAsync(TimeSpan.FromSeconds(60));
+        await WaitForHealthyAsync(TimeSpan.FromSeconds(60), _apiProcess, outputLines);
     }
 
-    private static async Task WaitForHealthyAsync(TimeSpan timeout)
+    private static async Task WaitForHealthyAsync(
+        TimeSpan timeout,
+        Process process,
+        System.Collections.Concurrent.ConcurrentBag<string> outputLines)
     {
         using var http = new HttpClient();
         var deadline = DateTime.UtcNow + timeout;
 
         while (DateTime.UtcNow < deadline)
         {
+            // Fail fast: if the process already exited it will never serve /health.
+            if (process.HasExited)
+            {
+                var output = string.Join(Environment.NewLine, outputLines);
+                throw new InvalidOperationException(
+                    $"API process exited with code {process.ExitCode} before becoming healthy.{Environment.NewLine}{output}");
+            }
+
             try
             {
                 var response = await http.GetAsync($"{E2EConfig.ApiBaseUrl}/health");
@@ -149,8 +166,9 @@ public sealed class E2EApiServer : IAsyncLifetime
             await Task.Delay(500);
         }
 
+        var finalOutput = string.Join(Environment.NewLine, outputLines);
         throw new TimeoutException(
-            $"API at {E2EConfig.ApiBaseUrl}/health did not become healthy within {timeout.TotalSeconds}s.");
+            $"API at {E2EConfig.ApiBaseUrl}/health did not become healthy within {timeout.TotalSeconds}s.{Environment.NewLine}{finalOutput}");
     }
 
     private void KillApiProcess()
