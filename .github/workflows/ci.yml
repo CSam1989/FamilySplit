@@ -249,6 +249,11 @@ jobs:
         with:
           name: build-output
 
+      # The browser-wasm runtime pack is required for publish (WASM bundling) but is
+      # not downloaded by dotnet build or dotnet restore without the workload installed.
+      - name: Install wasm-tools workload
+        run: dotnet workload install wasm-tools
+
       # Publish the Blazor WASM client so E2EClientServer can serve it.
       - name: Publish Blazor WASM client
         run: |
