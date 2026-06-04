@@ -262,8 +262,8 @@ public sealed class SettlementRowTests : BunitTestContext
     [Fact]
     public void Different_Statuses_Produce_Different_Markup()
     {
-        var proposed  = Render(SettlementStatus.Proposed,  OtherFamilyId);
-        var payerSent = Render(SettlementStatus.PayerSent,  OtherFamilyId);
+        var proposed = Render(SettlementStatus.Proposed, OtherFamilyId);
+        var payerSent = Render(SettlementStatus.PayerSent, OtherFamilyId);
         var completed = Render(SettlementStatus.Completed, OtherFamilyId);
 
         proposed.Markup.Should().NotBe(payerSent.Markup,
