@@ -249,21 +249,19 @@ jobs:
         with:
           name: build-output
 
-      # The browser-wasm runtime pack is required for publish (WASM bundling) but is
-      # not downloaded by dotnet build or dotnet restore without the workload installed.
+      # The browser-wasm runtime pack is required for WASM bundling and is not
+      # included by default — must be installed before publish.
       - name: Install wasm-tools workload
         run: dotnet workload install wasm-tools
 
-      # NuGet packages are not shared between runners — restore them here so the
-      # WASM IL linker can find the DLLs in ~/.nuget/packages/ during publish.
-      - name: Restore NuGet packages (client)
-        run: dotnet restore src/FamilySplit.Client/FamilySplit.Client.csproj
-
       # Publish the Blazor WASM client so E2EClientServer can serve it.
+      # Do NOT use --no-build: the WASM publish pipeline invokes Build on project
+      # references regardless, causing NETSDK1085 when NoBuild=true is set.
+      # Let publish do its own restore + build for the client.
       - name: Publish Blazor WASM client
         run: |
           dotnet publish src/FamilySplit.Client/FamilySplit.Client.csproj \
-            --no-build -c Release \
+            -c Release \
             -o /tmp/fs-client-publish
 
       # Install the Playwright browser binaries that match the NuGet package version.
