@@ -1,5 +1,3 @@
-Mobile UI checks
-
 Automated Tests (good code coverage) (xUnit)
 * unit tests
 * bunit to test blazor components
@@ -14,7 +12,7 @@ All run in CI
  Deploy frequently to Production (should be daily or more frequent)
 
  feature folders or even vertical slice architecture
-*try to not duplicate code - library?
+*do not duplicate code - library?
 *enforce cross-feature consistency
 *corresponding test projects
 

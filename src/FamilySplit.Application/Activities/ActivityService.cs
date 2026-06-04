@@ -247,11 +247,10 @@ public class ActivityService
 
         await RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 
-        if (activity.Status != ActivityStatus.Open)
+        if (!ActivityCloseGuard.CanClose(activity.Status))
             throw Throw422("Status", "Activity is already closed or settled.");
 
-        // Only top-level activities can be closed directly (sub-activities are absorbed by parent close).
-        if (activity.ParentActivityId is not null)
+        if (!ActivityCloseGuard.IsTopLevel(activity.ParentActivityId))
             throw Throw422("Status", "Sub-activities cannot be closed directly. Close the parent activity instead.");
 
         var now = DateTimeOffset.UtcNow;

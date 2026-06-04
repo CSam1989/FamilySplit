@@ -24,13 +24,15 @@
     <MudButton Variant="Variant.Filled"
                Color="Color.Primary"
                StartIcon="@Icons.Material.Filled.GroupAdd"
-               OnClick="OpenCreateDialog">
+               OnClick="OpenCreateDialog"
+               data-testid="btn-create-group">
         @_t.CreateGroup
     </MudButton>
     <MudButton Variant="Variant.Outlined"
                Color="Color.Primary"
                StartIcon="@Icons.Material.Filled.Login"
-               OnClick="OpenJoinDialog">
+               OnClick="OpenJoinDialog"
+               data-testid="btn-join-group">
         @_t.JoinGroup
     </MudButton>
 </MudStack>
@@ -57,7 +59,9 @@ else
             var stat = statsMap.GetValueOrDefault(group.Id);
 
             <MudItem xs="12" sm="6" md="4">
-                <MudCard Elevation="2" Style="cursor:pointer;height:100%" @onclick="() => GoToDetail(group.Id)">
+                <MudCard Elevation="2" Style="cursor:pointer;height:100%" @onclick="() => GoToDetail(group.Id)"
+                         data-testid="@($"group-card-{group.Id}")"
+                         data-group-name="@group.Name">
                     <MudCardHeader>
                         <CardHeaderContent>
                             <MudText Typo="Typo.h6">@group.Name</MudText>

@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace FamilySplit.Client.Helpers;
 
 /// <summary>
@@ -17,7 +19,7 @@ public static class FormatHelper
             "GBP" => "£",
             _ => currency + " "
         };
-        return $"{symbol}{amount:N2}";
+        return $"{symbol}{amount.ToString("N2", CultureInfo.InvariantCulture)}";
     }
 
     /// <summary>

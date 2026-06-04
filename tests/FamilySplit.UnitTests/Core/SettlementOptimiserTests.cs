@@ -175,7 +175,7 @@ public class SettlementOptimiserTests
         result.Should().BeEmpty();
     }
 
-    [Fact(Skip = "ProductionBugSuspected")]
+    [Fact]
     public void Optimise_MidpointRounding_UsesAwayFromZero()
     {
         // 2.225 rounded to 2 decimal places should be 2.23 (away from zero)

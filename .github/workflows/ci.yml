@@ -45,25 +45,25 @@ jobs:
           retention-days: 1
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # 2. UNIT TESTS
+  # 2. SERVER UNIT TESTS — pure logic: calculators, validators, business guards
   # ─────────────────────────────────────────────────────────────────────────────
   unit-tests:
-    name: Unit Tests
+    name: Server Unit Tests
     runs-on: ubuntu-latest
     needs: build
     steps:
       - uses: actions/checkout@v4
- 
+
       - name: Setup .NET ${{ env.DOTNET_VERSION }}
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
- 
+
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
           name: build-output
- 
+
       - name: Restore executable permissions
         run: |
           find . -path "*/bin/Release/net10.0/*" -type f \
@@ -85,22 +85,22 @@ jobs:
               --results-directory ./coverage" \
             -f cobertura \
             -o ./coverage/coverage.cobertura.xml
- 
+
       - name: Publish test results
         uses: dorny/test-reporter@v1
         if: always()
         with:
-          name: Unit Test Results
+          name: Server Unit Test Results
           path: "**/unit-results.trx"
           reporter: dotnet-trx
- 
+
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
         with:
           name: unit-coverage
           path: coverage/
           retention-days: 7
- 
+
       - name: Coverage summary
         run: |
           dotnet tool install --global dotnet-reportgenerator-globaltool
@@ -111,14 +111,12 @@ jobs:
           cat coverage/report/SummaryGithub.md >> $GITHUB_STEP_SUMMARY
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # 3. INTEGRATION TESTS — real Postgres (Neon dev branch)
+  # 3. CLIENT UNIT TESTS — Blazor store reducers/effects + service clients
   # ─────────────────────────────────────────────────────────────────────────────
-  integration-tests:
-    name: Integration Tests
+  client-unit-tests:
+    name: Client Unit Tests
     runs-on: ubuntu-latest
     needs: build
-    if: false                      # temporarily disabled
-    environment: ci                # protects the Neon dev secret
     steps:
       - uses: actions/checkout@v4
 
@@ -139,24 +137,81 @@ jobs:
             ! -name "*.config" ! -name "*.runtimeconfig.*" ! -name "*.deps.*" \
             -exec chmod +x {} \;
 
-      - name: Apply EF Core migrations
-        env:
-          ConnectionStrings__DefaultConnection: ${{ secrets.NEON_DEV_DATABASE_URL }}
-        run: |
-          dotnet tool restore
-          dotnet ef database update \
-            --project src/FamilySplit.Infrastructure \
-            --startup-project src/FamilySplit.Api \
-            --no-build
+      - name: Install dotnet-coverage
+        run: dotnet tool install --global dotnet-coverage
 
+      - name: Run client unit tests with coverage
+        run: |
+          dotnet-coverage collect \
+            "dotnet test tests/FamilySplit.Client.UnitTests/FamilySplit.Client.UnitTests.csproj \
+              --no-build \
+              -c Release \
+              --logger trx;LogFileName=client-unit-results.trx \
+              --logger console;verbosity=normal \
+              --results-directory ./client-coverage" \
+            -f cobertura \
+            -o ./client-coverage/coverage.cobertura.xml
+
+      - name: Publish test results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Client Unit Test Results
+          path: "**/client-unit-results.trx"
+          reporter: dotnet-trx
+
+      - name: Upload client coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-unit-coverage
+          path: client-coverage/
+          retention-days: 7
+
+      - name: Coverage summary
+        run: |
+          dotnet tool install --global dotnet-reportgenerator-globaltool
+          reportgenerator \
+            -reports:"client-coverage/**/coverage.cobertura.xml" \
+            -targetdir:"client-coverage/report" \
+            -reporttypes:"MarkdownSummaryGithub"
+          cat client-coverage/report/SummaryGithub.md >> $GITHUB_STEP_SUMMARY
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 4. INTEGRATION TESTS — Testcontainers spins up postgres:16-alpine in-process.
+  #    No external DB secret needed. Docker is available on ubuntu-latest.
+  # ─────────────────────────────────────────────────────────────────────────────
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET ${{ env.DOTNET_VERSION }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output
+
+      - name: Restore executable permissions
+        run: |
+          find . -path "*/bin/Release/net10.0/*" -type f \
+            ! -name "*.dll" ! -name "*.pdb" ! -name "*.json" ! -name "*.xml" \
+            ! -name "*.config" ! -name "*.runtimeconfig.*" ! -name "*.deps.*" \
+            -exec chmod +x {} \;
+
+      # Testcontainers manages Postgres entirely — no migrations step, no secrets.
+      # The harness applies EF migrations inside PostgresContainerFixture.InitializeAsync.
       - name: Run integration tests
-        env:
-          ConnectionStrings__DefaultConnection: ${{ secrets.NEON_DEV_DATABASE_URL }}
-          JWT_SIGNING_KEY: ${{ secrets.JWT_SIGNING_KEY_CI }}
         run: |
           dotnet test tests/FamilySplit.IntegrationTests/FamilySplit.IntegrationTests.csproj \
             --no-build \
             -c Release \
+            --filter "Category=Integration" \
             --logger "trx;LogFileName=integration-results.trx" \
             --logger "console;verbosity=normal"
 
@@ -169,7 +224,72 @@ jobs:
           reporter: dotnet-trx
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # 4. SAST — CodeQL static analysis
+  # 5. E2E TESTS — Playwright + Testcontainers
+  #
+  # How it works:
+  #   1. Publish the Blazor WASM client so the static file server has something to serve.
+  #   2. Install Playwright's Chromium browser.
+  #   3. Run the E2E suite.  E2EApiServer starts a Postgres container and the API
+  #      subprocess automatically; E2EClientServer serves the published wwwroot in-process.
+  # ─────────────────────────────────────────────────────────────────────────────
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET ${{ env.DOTNET_VERSION }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output
+
+      # Publish the Blazor WASM client so E2EClientServer can serve it.
+      - name: Publish Blazor WASM client
+        run: |
+          dotnet publish src/FamilySplit.Client/FamilySplit.Client.csproj \
+            --no-build -c Release \
+            -o /tmp/fs-client-publish
+
+      # Install the Playwright browser binaries that match the NuGet package version.
+      - name: Install Playwright browsers
+        run: |
+          pwsh tests/FamilySplit.E2ETests/bin/Release/net10.0/playwright.ps1 \
+            install --with-deps chromium
+
+      - name: Run E2E tests
+        env:
+          E2E_CLIENT_WWWROOT: /tmp/fs-client-publish/wwwroot
+        run: |
+          dotnet test tests/FamilySplit.E2ETests/FamilySplit.E2ETests.csproj \
+            --no-build -c Release \
+            --filter "Category=E2E" \
+            --logger "trx;LogFileName=e2e-results.trx" \
+            --logger "console;verbosity=normal"
+
+      - name: Publish test results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: E2E Test Results
+          path: "**/e2e-results.trx"
+          reporter: dotnet-trx
+
+      - name: Upload Playwright traces on failure
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: "**/playwright-traces/**"
+          retention-days: 7
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 6. SAST — CodeQL static analysis
   # ─────────────────────────────────────────────────────────────────────────────
   # codeql:
   #   name: CodeQL SAST
@@ -202,7 +322,7 @@ jobs:
   #         upload: true
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # 5. DEPENDENCY AUDIT — Trivy scans NuGet lock files for known CVEs
+  # 7. DEPENDENCY AUDIT — Trivy scans NuGet lock files for known CVEs
   # ─────────────────────────────────────────────────────────────────────────────
   dependency-audit:
     name: Dependency Audit (Trivy)
@@ -251,7 +371,7 @@ jobs:
           category: trivy-fs
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # 6. SECRET SCANNING — Gitleaks
+  # 8. SECRET SCANNING — Gitleaks
   # ─────────────────────────────────────────────────────────────────────────────
   secret-scan:
     name: Secret Scan (Gitleaks)
@@ -269,7 +389,7 @@ jobs:
           # Organisation. For personal accounts it is not needed and can be omitted.
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # 7. LINT / FORMAT CHECK
+  # 9. LINT / FORMAT CHECK
   # ─────────────────────────────────────────────────────────────────────────────
   format-check:
     name: Format Check
@@ -300,7 +420,9 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - unit-tests
-      # - integration-tests
+      - client-unit-tests
+      - integration-tests
+      - e2e-tests
       # - codeql
       - dependency-audit
       - secret-scan

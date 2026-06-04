@@ -485,6 +485,8 @@ All reusable UI building blocks live in `src/FamilySplit.Client/Components/Share
 | `GroupStatsChips` | `Stat?`, `IsLoading` | Group activity/spend/balance/pending chip row |
 | `MemberRoleChip` | `IsAdmin` | Admin / Member role chip in a member table |
 | `MemberStatusChip` | `IsLinked`, `HasEmail` | Linked / Pending account-link chip in a member table |
+| `SettlementRow` | `SettlementId`, `PayerFamilyId/Name`, `ReceiverFamilyId/Name`, `Amount`, `Currency`, `Status`, `CallerFamilyId`, `OnMarkSent?`, `OnMarkReceived?`, `TrailingActions?` | Single settlement/transfer row with payer→receiver arrow, amount, status chip, and optional action buttons. Used in `ActivityDetail` and `GroupDetail`. |
+| `MemberActionCell` | `MemberId`, `CallerId`, `ShowRemove?`, `OnEdit`, `OnRemove?` | Edit + Remove icon-button pair for a member table row. Remove is hidden when `MemberId == CallerId` (self-guard) or `ShowRemove=false`. Used in `ManageFamily` and `AdminFamilyDetail`. |
 
 ### `FormatHelper` — static helper class (`Helpers/FormatHelper.cs`)
 
@@ -677,31 +679,45 @@ public async Task<Foo> CreateAsync(...)
 
 ## Testing
 
+**Every new feature, endpoint, component, or business-rule change must ship with tests across all relevant projects.** This is not optional — CI gates on all four suites.
+
 ### Test projects and tooling
 
 | Project | Type | Key libraries |
 |---|---|---|
-| `FamilySplit.Tests.Unit` | Unit | xUnit, FluentAssertions, NSubstitute |
-| `FamilySplit.Tests.Unit.Client` | Client unit | xUnit, bUnit, FluentAssertions, NSubstitute |
-| `FamilySplit.Tests.Integration` | Integration | xUnit, FluentAssertions, Testcontainers (PostgreSQL), `WebApplicationFactory` |
-| `FamilySplit.Tests.E2E` | End-to-end | xUnit, Playwright, Testcontainers (PostgreSQL) |
+| `FamilySplit.UnitTests` | Unit (server pure logic) | xUnit, FluentAssertions, Moq |
+| `FamilySplit.Client.UnitTests` | Client unit (bUnit) | xUnit, bUnit, FluentAssertions, Moq |
+| `FamilySplit.IntegrationTests` | Integration | xUnit, FluentAssertions, Testcontainers (PostgreSQL), `WebApplicationFactory`, Npgsql, Respawn |
+| `FamilySplit.E2ETests` | End-to-end | xUnit, Playwright, Testcontainers (PostgreSQL) |
+
+**Mocking library:** **Moq** (not NSubstitute). Use `Mock<T>`, `Setup`, `Verify`.
 
 **Priority:** Integration and E2E tests catch the highest-value bugs. Write them first. Unit tests cover edge cases in pure logic that would be expensive to verify end-to-end.
 
+**DB isolation strategy — integration tests:** each test runs inside a transaction that is rolled back in `DisposeAsync`. A single externally-opened `NpgsqlConnection` (pooling disabled) is shared between the test and every `AppDbContext` the API resolves. Both sides see the same physical connection, so the API's writes live inside the test's `BeginTransaction()` and vanish on rollback. If this proves brittle, fall back to **Respawn** (`Respawner.ResetAsync()`). The base class documents which strategy is active.
+
 ---
 
-### Unit tests — server (FamilySplit.Tests.Unit)
+### What to add for every new feature
 
-Target: pure logic that has no database or HTTP dependency.
+| Change | What to add |
+|---|---|
+| New service method or business rule | Unit test in `FamilySplit.UnitTests` if the logic is pure; integration test in `FamilySplit.IntegrationTests` for the endpoint |
+| New validator | Validator tests in `FamilySplit.UnitTests` — one test per rule + a happy-path test |
+| New shared Blazor component | bUnit tests in `FamilySplit.Client.UnitTests` — render test per prop variant |
+| New page with permission guards | bUnit test in `FamilySplit.Client.UnitTests` verifying hidden controls |
+| New user flow | E2E flow test in `FamilySplit.E2ETests` |
+| New `data-testid` attribute | Use in the corresponding E2E test immediately |
 
-**What to test:**
-- `WeightCalculator` — all tier boundary dates, override tier, edge cases
-- `SplitCalculator` — share distribution, rounding remainder assignment, excluded participants
-- `BalanceCalculator` — net balance per family across various expense/participant combinations
-- `SettlementOptimiser` — minimised transfer count, zero-balance early exit
-- All `AbstractValidator<T>` validators — valid inputs, each individual rule violation
+---
 
-**Design rule:** any logic that needs to be unit-tested **must live in a dedicated method** (static where possible) rather than being inlined in service methods. Service methods call these helpers; tests call the helpers directly.
+### Unit tests — server (FamilySplit.UnitTests)
+
+Target: pure logic with no database or HTTP dependency.
+
+**What to test:** `WeightCalculator`, `SplitCalculator`, `BalanceCalculator`, `SettlementOptimiser`, `ParticipantSeeder`, all `AbstractValidator<T>` validators, extracted business guards (`SettlementStateMachine`, `ExpenseReshuffleRequired`).
+
+**Design rule:** any logic that needs to be unit-tested **must live in a dedicated method** (static where possible). Service methods call these helpers; tests call the helpers directly.
 
 ```csharp
 // Application/Core/WeightCalculator.cs — static, no dependencies
@@ -724,30 +740,22 @@ public class CreateActivityValidatorTests
         var result = await _sut.TestValidateAsync(new CreateActivityRequest { Name = "" });
         result.ShouldHaveValidationErrorFor(x => x.Name);
     }
-
-    [Fact]
-    public async Task Valid_request_passes()
-    {
-        var result = await _sut.TestValidateAsync(new CreateActivityRequest { Name = "Trip" });
-        result.ShouldNotHaveAnyValidationErrors();
-    }
 }
 ```
 
 ---
 
-### Client unit tests — Blazor (FamilySplit.Tests.Unit.Client)
+### Client unit tests — Blazor (FamilySplit.Client.UnitTests)
 
 Target: Blazor components in isolation using **bUnit**.
 
-**What to test:**
-- `FormatHelper` — amount formatting, avatar colour determinism
-- Shared components (`StatCard`, `EmptyState`, `SectionHeader`, …) — rendered output for given props
-- Page components with mocked Fluxor store state — button disabled states, conditional rendering, permission guards
+**What to test:** `FormatHelper`, all shared components in `Components/Shared/`, and page components with mocked Fluxor state for permission-guard and disabled-button assertions.
 
-**bUnit pattern:**
+**Always derive from `BunitTestContext`** (in `Infrastructure/`) — it pre-registers MudBlazor services, an `I18nText` stub that returns a default `AppText` instance, and no-op Fluxor infrastructure (`IActionSubscriber`, `IStore`) so `FluxorComponent`-derived pages render without crashing.
+
 ```csharp
-public class StatCardTests : TestContext
+// ✅ CORRECT — use BunitTestContext, not Bunit.TestContext directly
+public class StatCardTests : BunitTestContext
 {
     [Fact]
     public void Renders_value_and_label()
@@ -758,122 +766,92 @@ public class StatCardTests : TestContext
             .Add(x => x.Icon, Icons.Material.Filled.List)
             .Add(x => x.IconColor, Color.Primary));
 
-        cut.Find(".mud-typography").TextContent.Should().Contain("42");
+        cut.Markup.Should().Contain("42");
     }
 }
 ```
 
-Inject MudBlazor services via `Services.AddMudBlazorServices()` in `TestContext` setup when components use MudBlazor internals.
+For pages that use Fluxor state, register `Mock<IState<TState>>` and `Mock<IDispatcher>` via `Services.AddSingleton(...)`. Also register `Mock<IState<AuthState>>` (with `IsAuthenticated = true`) because `<RequireAuth />` reads it and will redirect away if not provided.
+
+**Do NOT add `global using Bunit;`** — it conflicts with xUnit v3's `TestContext`. Add `using Bunit;` locally in each test file instead.
 
 ---
 
-### Integration tests (FamilySplit.Tests.Integration)
+### Integration tests (FamilySplit.IntegrationTests)
 
-Target: the full server stack — HTTP request → minimal API endpoint → service → real PostgreSQL → HTTP response.
+Target: full server stack — HTTP → minimal API endpoint → service → real PostgreSQL → HTTP response.
 
-**These are the most important tests. Prioritise them.**
+**These are the most important tests.**
 
 **Setup:**
-- Spin up a real PostgreSQL container with **Testcontainers**.
-- Use `WebApplicationFactory<Program>` with the container's connection string overriding the app's.
-- Apply migrations on test startup; roll back or recreate the database between test classes.
-- Authenticate by seeding a `User` + linked `FamilyMember` directly in the DB and generating a JWT with the same signing key used by the test host.
+- Testcontainers starts `postgres:16-alpine` once per `[Collection]`; migrations are applied on container start.
+- `CustomWebApplicationFactory` replaces `AppDbContext` registration to use the shared `NpgsqlConnection`.
+- `IntegrationTestBase` opens the connection, begins a transaction, seeds a `User`+`FamilyMember`, mints a JWT, and sets `Authorization: Bearer`.
+- `DisposeAsync()` rolls back the transaction — every write made by the test and the API vanishes.
 
 ```csharp
-public class IntegrationTestBase : IAsyncLifetime
+// xUnit v3: ValueTask, not Task
+public abstract class IntegrationTestBase : IAsyncLifetime
 {
-    protected PostgreSqlContainer Db { get; } =
-        new PostgreSqlBuilder().WithImage("postgres:16-alpine").Build();
-
     protected HttpClient Client { get; private set; } = null!;
+    protected Guid CallerId      { get; private set; }
+    protected Guid CallerFamilyId { get; private set; }
 
-    public async Task InitializeAsync()
-    {
-        await Db.StartAsync();
-        var factory = new WebApplicationFactory<Program>()
-            .WithWebHostBuilder(b => b.UseSetting(
-                "ConnectionStrings:Default", Db.GetConnectionString()));
-        Client = factory.CreateClient();
-        // apply migrations, seed caller user, set Authorization header
-    }
-
-    public async Task DisposeAsync() => await Db.DisposeAsync();
+    public async ValueTask InitializeAsync() { /* open connection, begin tx, seed, mint JWT */ }
+    public async ValueTask DisposeAsync()    { /* rollback, dispose */ }
 }
 ```
 
-**What to test per feature:**
-- Happy-path CRUD (create → read → update → delete)
-- Permission boundaries (non-member cannot read group; non-admin cannot rename family)
-- Validation rejection (missing required field → 422 with error on the right property)
-- State transitions (close activity → sub-activities absorbed; confirm-received on last settlement → activity Settled)
-- Weight snapshots and split calculations verified against known inputs
+**What to test per feature:** happy-path CRUD · permission boundaries (→ 403) · validation rejection (→ 422 on the right field) · state transitions · calculation/snapshot results.
 
 ---
 
-### E2E tests (FamilySplit.Tests.E2E)
+### E2E tests (FamilySplit.E2ETests)
 
-Target: real browser against a fully running stack (API + client + PostgreSQL in Testcontainers).
+Target: real browser against the full running stack (API subprocess + in-process static client + PostgreSQL Testcontainers).
 
-**These are equally critical. Every important user flow needs an E2E test.**
+**These are equally critical.**
 
 **Setup:**
-- Start a PostgreSQL Testcontainer and apply migrations.
-- Start the API (`WebApplicationFactory` or `dotnet run` process) pointing at the container.
-- Start the Blazor WASM client dev server (or serve the published output).
-- Use **Playwright** (`Microsoft.Playwright`) to drive Chromium.
-- Seed the DB with the minimum data each test needs; clean up after.
+- `E2EApiServer` (collection fixture) starts the Postgres container, applies migrations, and launches the API as a `dotnet run` subprocess with `ConnectionStrings__Postgres` set to the container URL.
+- `E2EClientServer` (collection fixture) serves the published Blazor WASM `wwwroot` from `E2E_CLIENT_WWWROOT`. Browser-dependent tests skip if the env var is not set.
+- `E2ETestBase` seeds a test user, seeds a refresh token, and adds the `fs_refresh` cookie to the Playwright `IBrowserContext` so the WASM app authenticates silently on load (no Google OAuth required).
+- Use `data-testid` selectors everywhere — never rely on text content or MudBlazor CSS classes in E2E tests.
 
 ```csharp
-public class GroupFlowTests : IAsyncLifetime
+// Always derive from E2ETestBase, always [Collection(nameof(E2ECollection))]
+[Trait("Category", "E2E")]
+[Collection(nameof(E2ECollection))]
+public sealed class MyFlowTests : E2ETestBase
 {
-    private IPlaywright _playwright = null!;
-    private IBrowser _browser = null!;
-
-    public async Task InitializeAsync()
-    {
-        _playwright = await Playwright.CreateAsync();
-        _browser = await _playwright.Chromium.LaunchAsync();
-        // start containers and app host
-    }
+    public MyFlowTests(E2EApiServer api, E2EClientServer client) : base(api, client) { }
 
     [Fact]
-    public async Task User_can_create_group_and_see_it_in_list()
+    public async Task MyFlow_HappyPath()
     {
-        var page = await _browser.NewPageAsync();
-        // authenticate (seed JWT cookie or go through login flow)
-        await page.GotoAsync("https://localhost:5001/groups");
-        await page.GetByRole(AriaRole.Button, new() { Name = "Create group" }).ClickAsync();
-        await page.GetByLabel("Name").FillAsync("Holiday 2026");
-        await page.GetByRole(AriaRole.Button, new() { Name = "Create" }).ClickAsync();
-        await Expect(page.GetByText("Holiday 2026")).ToBeVisibleAsync();
-    }
-
-    public async Task DisposeAsync()
-    {
-        await _browser.DisposeAsync();
-        _playwright.Dispose();
+        if (!ClientAvailable) return;  // skips when wwwroot not published
+        await AuthenticateContextAsync();
+        await Page.GotoAsync("/my-route");
+        await Page.ClickAsync("[data-testid='my-button']");
+        await Expect(Page.Locator("[data-testid='expected-result']")).ToBeVisibleAsync();
     }
 }
 ```
 
-**Flows that must have E2E coverage:**
-- Login → redirected to home; unauthenticated redirect to login
-- Create group → join group via invite code (second family)
-- Create activity → add expense → view participant breakdown
-- Close activity → generate settlements → mark sent → mark received → activity shows Settled
-- Family admin: add member → member appears in list; remove member → member gone
-- Permission guard: non-admin cannot see rename/remove controls
+**data-testid convention:** add `data-testid="..."` to every interactive element that an E2E test needs to target. IDs must be stable (not derived from i18n text) and unique within the page. Use `{noun}-{id}` for rows (e.g., `expense-row-{id}`) and `btn-{action}` for buttons (e.g., `btn-add-expense`).
+
+**Covered flows:** group create/join · activity+expense · settlement lifecycle (mark-sent → mark-received → Settled) · family admin add/remove member · permission guards (non-admin controls hidden, unauthenticated redirect).
 
 ---
 
 ### General testing rules
 
-- **Arrange-Act-Assert** structure in every test method.
-- Test method names: `MethodOrFlow_Condition_ExpectedOutcome` (e.g., `CreateExpense_MissingTitle_Returns422`).
+- **Arrange-Act-Assert** in every test method.
+- Names: `Subject_Condition_ExpectedOutcome` (e.g., `CreateExpense_MissingTitle_Returns422`).
 - Never share mutable state between tests. Each test is fully self-contained.
-- No `Thread.Sleep` or fixed delays in E2E tests — use Playwright's built-in `WaitForAsync` / `Expect(...).ToBeVisibleAsync()`.
+- No `Thread.Sleep` — use Playwright's `Expect(...).ToBeVisibleAsync()` with built-in timeout.
 - Integration and E2E tests must pass against a clean database — never assume pre-existing rows.
-- Keep unit tests fast (<1 ms each). Integration and E2E tests may be slow; mark them with `[Trait("Category", "Integration")]` / `[Trait("Category", "E2E")]` so they can be filtered in CI.
+- Unit tests: fast (<1 ms). Slow tests: tag with `[Trait("Category", "Integration")]` or `[Trait("Category", "E2E")]`.
 
 ---
 

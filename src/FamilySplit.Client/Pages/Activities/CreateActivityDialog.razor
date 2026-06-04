@@ -17,7 +17,8 @@
                           RequiredError="@_t.ActivityNameRequired"
                           MaxLength="100"
                           Counter="100"
-                          Class="mb-3" />
+                          Class="mb-3"
+                          data-testid="input-activity-name" />
             <MudTextField @bind-Value="_model.Description"
                           Label="@_t.DescriptionOptional"
                           MaxLength="500"
@@ -28,7 +29,8 @@
     <DialogActions>
         <MudButton OnClick="Cancel">@_t.Cancel</MudButton>
         <MudButton Color="Color.Primary" Variant="Variant.Filled"
-                   OnClick="Submit" Disabled="@(!_isValid)">
+                   OnClick="Submit" Disabled="@(!_isValid)"
+                   data-testid="btn-dialog-submit">
             @_t.Add
         </MudButton>
     </DialogActions>

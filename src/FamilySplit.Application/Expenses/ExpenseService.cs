@@ -251,7 +251,7 @@ public class ExpenseService
         if (expense.Status == ExpenseStatus.Locked)
             throw Throw422("Status", "This expense is locked and cannot be edited.");
 
-        bool amountOrDateChanged = expense.TotalAmount != req.TotalAmount || expense.ExpenseDate != req.ExpenseDate;
+        bool amountOrDateChanged = ExpenseReshuffleRequired.Check(expense.TotalAmount, req.TotalAmount, expense.ExpenseDate, req.ExpenseDate);
 
         // Capture before-state for audit diff.
         var before = new

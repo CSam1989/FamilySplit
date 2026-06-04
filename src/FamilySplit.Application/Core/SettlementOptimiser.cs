@@ -57,8 +57,8 @@ public static class SettlementOptimiser
             debtorBal[di] += transfer;
             creditorBal[ci] -= transfer;
 
-            if (Math.Abs(debtorBal[di]) < Epsilon) di++;
-            if (Math.Abs(creditorBal[ci]) < Epsilon) ci++;
+            if (Math.Abs(debtorBal[di]) <= Epsilon) di++;
+            if (Math.Abs(creditorBal[ci]) <= Epsilon) ci++;
         }
 
         return transfers;

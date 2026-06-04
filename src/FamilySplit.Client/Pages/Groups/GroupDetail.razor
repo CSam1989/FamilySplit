@@ -132,7 +132,8 @@
                    Color="Color.Primary"
                    Size="Size.Medium"
                    StartIcon="@Icons.Material.Filled.Add"
-                   OnClick="OpenCreateActivityDialog">
+                   OnClick="OpenCreateActivityDialog"
+                   data-testid="btn-new-activity">
             @_t.NewActivity
         </MudButton>
     </Actions>
@@ -165,6 +166,7 @@ else
 
         <MudPaper Elevation="2" Class="pa-0 mb-3 overflow-hidden"
                   Style="cursor:pointer"
+                  data-testid="@($"activity-row-{activity.Id}")"
                   @onclick="@(() => Nav.NavigateTo($"/groups/{GroupId}/activities/{activity.Id}"))">
             <MudStack Row="true" AlignItems="AlignItems.Stretch" Spacing="0">
 
@@ -259,75 +261,25 @@ else
 
         @foreach (var s in activityGroup)
         {
-            var isCallerPayer    = callerFamilyId == s.PayerFamilyId;
-            var isCallerReceiver = callerFamilyId == s.ReceiverFamilyId;
-            var payerStyle       = isCallerPayer    ? "font-weight:600" : "font-weight:400";
-            var receiverStyle    = isCallerReceiver ? "font-weight:600" : "font-weight:400";
-            var (chipColor, chipIcon) = s.Status switch
-            {
-                SettlementStatus.Proposed  => (Color.Warning, Icons.Material.Filled.Pending),
-                SettlementStatus.PayerSent => (Color.Info,    Icons.Material.Filled.Send),
-                _                          => (Color.Default, Icons.Material.Filled.Circle),
-            };
-
-            <MudPaper Elevation="1" Class="pa-3 mb-2">
-                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Wrap="Wrap.Wrap">
-
-                    <!-- Payer → Receiver arrow -->
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Style="flex:1;min-width:0">
-                        <MudAvatar Size="Size.Small" Color="@(isCallerPayer ? Color.Primary : Color.Default)">
-                            @s.PayerFamilyName[0]
-                        </MudAvatar>
-                        <MudText Typo="Typo.body2" Style="@payerStyle">@s.PayerFamilyName</MudText>
-                        <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" Color="Color.Secondary" />
-                        <MudAvatar Size="Size.Small" Color="@(isCallerReceiver ? Color.Success : Color.Default)">
-                            @s.ReceiverFamilyName[0]
-                        </MudAvatar>
-                        <MudText Typo="Typo.body2" Style="@receiverStyle">@s.ReceiverFamilyName</MudText>
-                    </MudStack>
-
-                    <!-- Amount -->
-                    <MudText Typo="Typo.subtitle2" Style="font-weight:700">
-                        @FormatHelper.FormatAmount(s.Amount, s.Currency)
-                    </MudText>
-
-                    <!-- Status chip -->
-                    <MudChip T="string" Color="@chipColor" Size="Size.Small" Icon="@chipIcon">
-                        @(s.Status == SettlementStatus.PayerSent ? _t.StatusSent : s.Status.ToString())
-                    </MudChip>
-
-                    <!-- Action buttons -->
-                    @if (s.Status == SettlementStatus.Proposed && isCallerPayer)
-                    {
-                        <MudButton Variant="Variant.Filled"
-                                   Color="Color.Primary"
-                                   Size="Size.Small"
-                                   StartIcon="@Icons.Material.Filled.Send"
-                                   OnClick="@(() => ConfirmGroupSettlementSent(s))">
-                            @_t.MarkSent
-                        </MudButton>
-                    }
-                    @if (s.Status == SettlementStatus.PayerSent && isCallerReceiver)
-                    {
-                        <MudButton Variant="Variant.Filled"
-                                   Color="Color.Success"
-                                   Size="Size.Small"
-                                   StartIcon="@Icons.Material.Filled.CheckCircle"
-                                   OnClick="@(() => ConfirmGroupSettlementReceived(s))">
-                            @_t.MarkReceived
-                        </MudButton>
-                    }
-
-                    <!-- View activity link -->
+            <SettlementRow SettlementId="@s.Id"
+                           PayerFamilyId="@s.PayerFamilyId"
+                           PayerFamilyName="@s.PayerFamilyName"
+                           ReceiverFamilyId="@s.ReceiverFamilyId"
+                           ReceiverFamilyName="@s.ReceiverFamilyName"
+                           Amount="@s.Amount"
+                           Currency="@s.Currency"
+                           Status="@s.Status"
+                           CallerFamilyId="@(callerFamilyId ?? Guid.Empty)"
+                           OnMarkSent="@(() => ConfirmGroupSettlementSent(s))"
+                           OnMarkReceived="@(() => ConfirmGroupSettlementReceived(s))">
+                <TrailingActions>
                     <MudTooltip Text="@_t.ViewActivity">
                         <MudIconButton Icon="@Icons.Material.Filled.OpenInNew"
-                                       Size="Size.Medium"
-                                       Color="Color.Default"
+                                       Size="Size.Medium" Color="Color.Default"
                                        Href="@($"/groups/{GroupId}/activities/{s.ActivityId}")" />
                     </MudTooltip>
-
-                </MudStack>
-            </MudPaper>
+                </TrailingActions>
+            </SettlementRow>
         }
     }
 }
@@ -364,7 +316,8 @@ else
                 <MudIcon Icon="@Icons.Material.Filled.VpnKey" Color="Color.Primary" Size="Size.Small" />
                 <div>
                     <MudText Typo="Typo.caption" Color="Color.Secondary">@_t.InviteCode</MudText>
-                    <MudText Typo="Typo.subtitle2" Style="letter-spacing:0.2em">@group.InviteCode</MudText>
+                    <MudText Typo="Typo.subtitle2" Style="letter-spacing:0.2em"
+                             data-testid="invite-code-value">@group.InviteCode</MudText>
                 </div>
                 <MudTooltip Text="@_t.CopyInviteCode">
                     <MudIconButton Icon="@Icons.Material.Filled.ContentCopy"

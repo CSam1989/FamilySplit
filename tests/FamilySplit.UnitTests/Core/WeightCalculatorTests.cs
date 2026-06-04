@@ -117,4 +117,45 @@ public class WeightCalculatorTests
         // Still 17 on May 21 → MiddelbaarOnderwijs
         WeightCalculator.GetTier(member, ReferenceDate).Should().Be(WeightTier.MiddelbaarOnderwijs);
     }
+
+    [Fact]
+    public void GetWeight_Newborn_IsKleuterschool()
+    {
+        // A child born on the reference date itself is 0 years old → Kleuterschool
+        var member = new FamilyMember
+        {
+            Id = Guid.NewGuid(),
+            DisplayName = "Newborn",
+            DateOfBirth = ReferenceDate   // age 0
+        };
+        WeightCalculator.GetWeight(member, ReferenceDate).Should().Be(0.25m);
+    }
+
+    [Fact]
+    public void GetWeight_DayBeforeKleuterschool_To_LagerOnderwijs_Boundary_StaysKleuterschool()
+    {
+        // Born one day after the 6th-birthday threshold — still 5 years old on reference date
+        // ReferenceDate = 2026-05-21; 6th birthday = 2020-05-21; one day late = 2020-05-22
+        var member = new FamilyMember
+        {
+            Id = Guid.NewGuid(),
+            DisplayName = "Almost 6",
+            DateOfBirth = new DateOnly(2020, 5, 22)
+        };
+        WeightCalculator.GetWeight(member, ReferenceDate).Should().Be(0.25m);
+    }
+
+    [Fact]
+    public void GetWeight_DayBeforeLagerOnderwijs_To_MiddelbaarOnderwijs_Boundary_StaysLagerOnderwijs()
+    {
+        // Born one day after the 12th-birthday threshold — still 11 years old on reference date
+        // ReferenceDate = 2026-05-21; 12th birthday = 2014-05-21; one day late = 2014-05-22
+        var member = new FamilyMember
+        {
+            Id = Guid.NewGuid(),
+            DisplayName = "Almost 12",
+            DateOfBirth = new DateOnly(2014, 5, 22)
+        };
+        WeightCalculator.GetWeight(member, ReferenceDate).Should().Be(0.50m);
+    }
 }

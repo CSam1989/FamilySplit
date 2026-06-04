@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Security.Claims;
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using FamilySplit.Api.Auth;
 using FamilySplit.Api.Endpoints;
@@ -206,6 +207,12 @@ builder.Services
         };
     });
 
+// Serialize enums as strings so API responses are human-readable (e.g. "Open" not 0).
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
+
 // Require authentication globally. Every endpoint is protected by default;
 // public routes (OAuth callbacks, /health) opt out explicitly with .AllowAnonymous().
 builder.Services.AddAuthorization(options =>
@@ -326,6 +333,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.Run();
+
+// Exposed for WebApplicationFactory<Program> in integration tests.
+public partial class Program { }
 
 // Small helper used by future endpoints to pull the caller's UserId from the JWT.
 public static class ClaimsPrincipalExtensions

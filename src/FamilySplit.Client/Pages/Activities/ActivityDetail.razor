@@ -66,7 +66,8 @@
           Class="mb-1" Wrap="Wrap.Wrap">
     <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
         <MudText Typo="Typo.h5">@activity.Name</MudText>
-        <MudChip T="string" Color="@statusColor" Size="Size.Small" Icon="@statusIcon">
+        <MudChip T="string" Color="@statusColor" Size="Size.Small" Icon="@statusIcon"
+                 data-testid="activity-status">
             @activity.Status
         </MudChip>
         @if (!IsTopLevel)
@@ -94,7 +95,8 @@
                 <MudTooltip Text="@_t.CloseActivity">
                     <MudIconButton Icon="@Icons.Material.Filled.Lock"
                                    Size="Size.Medium" Color="Color.Error"
-                                   OnClick="ConfirmClose" />
+                                   OnClick="ConfirmClose"
+                                   data-testid="btn-close-activity" />
                 </MudTooltip>
             }
         </MudStack>
@@ -145,7 +147,8 @@
         {
             <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Medium"
                        StartIcon="@Icons.Material.Filled.Add"
-                       OnClick="OpenAddExpenseDialog">
+                       OnClick="OpenAddExpenseDialog"
+                       data-testid="btn-add-expense">
                 @_t.AddExpense
             </MudButton>
         }
@@ -169,7 +172,8 @@ else
 {
     @foreach (var e in ExpenseState.Value.Expenses)
     {
-        <MudPaper Elevation="2" Class="pa-0 mb-2 overflow-hidden">
+        <MudPaper Elevation="2" Class="pa-0 mb-2 overflow-hidden"
+                  data-testid="@($"expense-row-{e.Id}")">
             <MudStack Row="true" AlignItems="AlignItems.Stretch" Spacing="0">
                 <div style="width:5px;background:var(--mud-palette-primary);flex-shrink:0" />
                 <div style="flex:1;padding:12px 16px">
@@ -323,71 +327,25 @@ else
 
                 @foreach (var s in SettlementState.Value.Settlements)
                 {
-                    var isCallerPayer    = callerFamilyId == s.PayerFamilyId;
-                    var isCallerReceiver = callerFamilyId == s.ReceiverFamilyId;
-                    var payerStyle       = isCallerPayer    ? "font-weight:600" : "font-weight:400";
-                    var receiverStyle    = isCallerReceiver ? "font-weight:600" : "font-weight:400";
-                    var (chipColor, chipIcon) = s.Status switch
-                    {
-                        SettlementStatus.Proposed  => (Color.Warning, Icons.Material.Filled.Pending),
-                        SettlementStatus.PayerSent => (Color.Info,    Icons.Material.Filled.Send),
-                        SettlementStatus.Completed => (Color.Success, Icons.Material.Filled.CheckCircle),
-                        _                          => (Color.Default, Icons.Material.Filled.Circle),
-                    };
-
-                    <MudPaper Elevation="1" Class="pa-3 mb-2">
-                        <MudStack Row="true" AlignItems="AlignItems.Center"
-                                  Spacing="2" Wrap="Wrap.Wrap">
-                            <MudStack Row="true" AlignItems="AlignItems.Center"
-                                      Spacing="1" Style="flex:1;min-width:0">
-                                <MudAvatar Size="Size.Small"
-                                           Color="@(isCallerPayer ? Color.Primary : Color.Default)">
-                                    @s.PayerFamilyName[0]
-                                </MudAvatar>
-                                <MudText Typo="Typo.body2" Style="@payerStyle">
-                                    @s.PayerFamilyName
-                                </MudText>
-                                <MudIcon Icon="@Icons.Material.Filled.ArrowForward"
-                                         Size="Size.Small" Color="Color.Secondary" />
-                                <MudAvatar Size="Size.Small"
-                                           Color="@(isCallerReceiver ? Color.Success : Color.Default)">
-                                    @s.ReceiverFamilyName[0]
-                                </MudAvatar>
-                                <MudText Typo="Typo.body2" Style="@receiverStyle">
-                                    @s.ReceiverFamilyName
-                                </MudText>
-                            </MudStack>
-                            <MudText Typo="Typo.subtitle2" Style="font-weight:700">
-                                @FormatHelper.FormatAmount(s.Amount, s.Currency)
-                            </MudText>
-                            <MudChip T="string" Color="@chipColor" Size="Size.Small" Icon="@chipIcon">
-                                @(s.Status == SettlementStatus.PayerSent ? _t.StatusSent : s.Status.ToString())
-                            </MudChip>
-                            @if (s.Status == SettlementStatus.Proposed && isCallerPayer)
-                            {
-                                <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                                           Size="Size.Small"
-                                           StartIcon="@Icons.Material.Filled.Send"
-                                           OnClick="@(() => ConfirmSent(s))">
-                                    @_t.MarkSent
-                                </MudButton>
-                            }
-                            @if (s.Status == SettlementStatus.PayerSent && isCallerReceiver)
-                            {
-                                <MudButton Variant="Variant.Filled" Color="Color.Success"
-                                           Size="Size.Small"
-                                           StartIcon="@Icons.Material.Filled.CheckCircle"
-                                           OnClick="@(() => ConfirmReceived(s))">
-                                    @_t.MarkReceived
-                                </MudButton>
-                            }
+                    <SettlementRow SettlementId="@s.Id"
+                                   PayerFamilyId="@s.PayerFamilyId"
+                                   PayerFamilyName="@s.PayerFamilyName"
+                                   ReceiverFamilyId="@s.ReceiverFamilyId"
+                                   ReceiverFamilyName="@s.ReceiverFamilyName"
+                                   Amount="@s.Amount"
+                                   Currency="@s.Currency"
+                                   Status="@s.Status"
+                                   CallerFamilyId="@(callerFamilyId ?? Guid.Empty)"
+                                   OnMarkSent="@(() => ConfirmSent(s))"
+                                   OnMarkReceived="@(() => ConfirmReceived(s))">
+                        <TrailingActions>
                             <MudTooltip Text="@_t.ViewDetail">
                                 <MudIconButton Icon="@Icons.Material.Filled.OpenInNew"
                                                Size="Size.Medium" Color="Color.Default"
                                                OnClick="@(() => OpenSettlementDetail(s.Id))" />
                             </MudTooltip>
-                        </MudStack>
-                    </MudPaper>
+                        </TrailingActions>
+                    </SettlementRow>
                 }
             }
         }

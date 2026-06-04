@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <RootNamespace>FamilySplit.Client.UnitTests</RootNamespace>
+    <AssemblyName>FamilySplit.Client.UnitTests</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- bUnit requires the Razor SDK -->
+    <StaticWebAssetBasePath>_content/FamilySplit.Client.UnitTests</StaticWebAssetBasePath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="coverlet.collector">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Moq" />
+    <PackageReference Include="bunit" />
+    <PackageReference Include="xunit.runner.visualstudio">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\FamilySplit.Client\FamilySplit.Client.csproj" />
+    <ProjectReference Include="..\..\src\FamilySplit.Application\FamilySplit.Application.csproj" />
+  </ItemGroup>
+
+</Project>

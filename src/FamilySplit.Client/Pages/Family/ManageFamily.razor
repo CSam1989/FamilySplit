@@ -67,7 +67,8 @@
             <MudButton Variant="Variant.Outlined"
                        Size="Size.Medium"
                        StartIcon="@Icons.Material.Filled.PersonAdd"
-                       OnClick="OpenAddMemberDialog">
+                       OnClick="OpenAddMemberDialog"
+                       data-testid="btn-add-member">
                 @_t.AddMember
             </MudButton>
         }
@@ -116,20 +117,11 @@
         @if (isAdmin)
         {
             <MudTd>
-                <MudStack Row="true" Spacing="0">
-                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
-                                   Size="Size.Medium"
-                                   title="@_t.Edit"
-                                   OnClick="@(() => OpenEditMemberDialog(member))" />
-                    @if (member.Id != ProfileState.Value.MyProfile?.Id)
-                    {
-                        <MudIconButton Icon="@Icons.Material.Filled.PersonRemove"
-                                       Size="Size.Medium"
-                                       Color="Color.Error"
-                                       title="@_t.RemoveMember"
-                                       OnClick="@(() => ConfirmRemoveMember(member))" />
-                    }
-                </MudStack>
+                <MemberActionCell MemberId="@member.Id"
+                                  CallerId="@(ProfileState.Value.MyProfile?.Id ?? Guid.Empty)"
+                                  ShowRemove="@isAdmin"
+                                  OnEdit="@(() => OpenEditMemberDialog(member))"
+                                  OnRemove="@(() => ConfirmRemoveMember(member))" />
             </MudTd>
         }
     </RowTemplate>

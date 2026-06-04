@@ -1,0 +1,55 @@
+@*
+ * Action cell for a family-member table row.
+ *
+ * Renders an Edit icon button (always) and a Remove icon button (only when
+ * ShowRemove is true AND the member is not the currently-logged-in user).
+ * The Remove button carries a data-testid so E2E tests can target it by member ID.
+ *
+ * Used in ManageFamily and AdminFamilyDetail — both pages have an identical
+ * edit/remove pattern that differs only in where CallerId comes from.
+ *@
+@inject I18nText I18nText
+
+<MudStack Row="true" Spacing="0">
+    <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                   Size="Size.Medium"
+                   title="@_t.Edit"
+                   OnClick="OnEdit" />
+    @if (ShowRemove && MemberId != CallerId)
+    {
+        <MudIconButton Icon="@Icons.Material.Filled.PersonRemove"
+                       Size="Size.Medium"
+                       Color="Color.Error"
+                       title="@_t.RemoveMember"
+                       OnClick="OnRemove"
+                       data-testid="@($"btn-remove-member-{MemberId}")" />
+    }
+</MudStack>
+
+@code {
+    /// <summary>The member whose row this cell belongs to.</summary>
+    [Parameter, EditorRequired] public Guid MemberId  { get; set; }
+
+    /// <summary>
+    /// The logged-in user's own member ID.
+    /// The Remove button is hidden when <see cref="MemberId"/> == <see cref="CallerId"/>
+    /// so a user can never remove themselves.
+    /// </summary>
+    [Parameter, EditorRequired] public Guid CallerId  { get; set; }
+
+    /// <summary>
+    /// Whether to show the Remove button at all (pass false for non-admin callers).
+    /// Even when true, the button is hidden when the member is the caller (self-guard).
+    /// </summary>
+    [Parameter] public bool ShowRemove { get; set; } = true;
+
+    [Parameter] public EventCallback OnEdit   { get; set; }
+    [Parameter] public EventCallback OnRemove { get; set; }
+
+    private AppText _t = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _t = await I18nText.GetTextTableAsync<AppText>(this);
+    }
+}

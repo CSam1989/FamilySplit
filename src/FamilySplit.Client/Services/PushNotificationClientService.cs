@@ -115,5 +115,5 @@ public class PushNotificationClientService
 
     // ── Private types ─────────────────────────────────────────────────────────
 
-    private record BrowserSubscription(string Endpoint, string P256dh, string Auth);
+    internal record BrowserSubscription(string Endpoint, string P256dh, string Auth);
 }

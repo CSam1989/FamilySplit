@@ -18,13 +18,15 @@
                           MaxLength="8"
                           Immediate="true"
                           Placeholder="@_t.InviteCodeHint"
-                          Validation="@(new Func<string, IEnumerable<string>>(ValidateInviteCode))" />
+                          Validation="@(new Func<string, IEnumerable<string>>(ValidateInviteCode))"
+                          data-testid="input-invite-code" />
         </MudForm>
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="Cancel">@_t.Cancel</MudButton>
         <MudButton Color="Color.Primary" Variant="Variant.Filled"
-                   OnClick="Submit" Disabled="@(!_isValid)">
+                   OnClick="Submit" Disabled="@(!_isValid)"
+                   data-testid="btn-dialog-submit">
             @_t.Add
         </MudButton>
     </DialogActions>

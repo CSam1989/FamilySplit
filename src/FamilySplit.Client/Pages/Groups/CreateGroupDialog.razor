@@ -15,7 +15,8 @@
                           MaxLength="100"
                           Counter="100"
                           Immediate="true"
-                          Class="mb-3" />
+                          Class="mb-3"
+                          data-testid="input-group-name" />
 
             <MudTextField T="string"
                           Label="@_t.DescriptionOptional"
@@ -29,7 +30,8 @@
     <DialogActions>
         <MudButton OnClick="Cancel">@_t.Cancel</MudButton>
         <MudButton Color="Color.Primary" Variant="Variant.Filled"
-                   OnClick="Submit" Disabled="@(!_isValid)">
+                   OnClick="Submit" Disabled="@(!_isValid)"
+                   data-testid="btn-dialog-submit">
             @_t.Add
         </MudButton>
     </DialogActions>

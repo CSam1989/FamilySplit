@@ -10,14 +10,16 @@
         <MudForm @ref="_form" Model="_model">
             <MudTextField Label="@_t.ExpenseTitle" @bind-Value="_model.Title"
                           Required="true" RequiredError="@_t.ExpenseTitleRequired"
-                          MaxLength="200" Immediate="true" Class="mb-3" />
+                          MaxLength="200" Immediate="true" Class="mb-3"
+                          data-testid="input-expense-title" />
 
             <MudTextField Label="Description" @bind-Value="_model.Description"
                           Lines="2" MaxLength="500" Class="mb-3" />
 
             <MudNumericField T="decimal?" Label="@_t.ExpenseAmount" @bind-Value="_model.TotalAmount"
                              Required="true" RequiredError="@_t.ExpenseAmountRequired"
-                             Min="0.01m" Immediate="true" Class="mb-3" />
+                             Min="0.01m" Immediate="true" Class="mb-3"
+                             data-testid="input-expense-amount" />
 
             <MudDatePicker Label="@_t.ExpenseDate" @bind-Date="_expenseDate"
                            Required="true" RequiredError="@_t.ExpenseDateRequired"
@@ -26,7 +28,8 @@
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="Cancel">@_t.Cancel</MudButton>
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit"
+                   data-testid="btn-dialog-submit">
             @(IsEdit ? _t.Save : _t.Add)
         </MudButton>
     </DialogActions>

@@ -115,6 +115,8 @@ All shared components live in `src/FamilySplit.Client/Components/Shared/` and ar
 | `<GroupStatsChips Stat="..." IsLoading="..." />` | Group activity/spend/balance/pending chip row on group cards |
 | `<MemberRoleChip IsAdmin="..." />` | Admin / Member role chip in a member table |
 | `<MemberStatusChip IsLinked="..." HasEmail="..." />` | Linked / Pending account-link chip in a member table |
+| `<SettlementRow SettlementId="..." PayerFamilyId="..." PayerFamilyName="..." ReceiverFamilyId="..." ReceiverFamilyName="..." Amount="..." Currency="..." Status="..." CallerFamilyId="..." OnMarkSent="..." OnMarkReceived="..."><TrailingActions>...</TrailingActions></SettlementRow>` | Payer→receiver row with amount, status chip, optional Mark sent/received buttons, and a trailing-actions slot |
+| `<MemberActionCell MemberId="..." CallerId="..." ShowRemove="..." OnEdit="..." OnRemove="..." />` | Edit + Remove icon-button pair for a member table row; hides Remove when member is the caller |
 
 ### Helper — `FormatHelper` (static, no inject needed)
 
@@ -168,56 +170,124 @@ This rule applies to: labels, button text, dialog titles, confirmation messages,
 
 ## Testing
 
-**Priority: Integration and E2E tests are most critical. Write them first.**
+**Every new feature, endpoint, validator, component, or user flow must ship with tests. CI gates on all four suites.**
 
-### Test projects
+### Test projects (correct names — do not invent others)
 
 | Project | Type | Stack |
 |---|---|---|
-| `FamilySplit.Tests.Unit` | Unit — server | xUnit, FluentAssertions, NSubstitute |
-| `FamilySplit.Tests.Unit.Client` | Unit — Blazor | xUnit, bUnit, FluentAssertions |
-| `FamilySplit.Tests.Integration` | Integration | xUnit, Testcontainers (PostgreSQL), `WebApplicationFactory` |
-| `FamilySplit.Tests.E2E` | End-to-end | xUnit, Playwright, Testcontainers (PostgreSQL) |
+| `FamilySplit.UnitTests` | Unit — server pure logic | xUnit, FluentAssertions, **Moq** |
+| `FamilySplit.Client.UnitTests` | Unit — Blazor bUnit | xUnit, bUnit, FluentAssertions, **Moq** |
+| `FamilySplit.IntegrationTests` | Integration | xUnit, Testcontainers (PostgreSQL), `WebApplicationFactory`, Npgsql |
+| `FamilySplit.E2ETests` | End-to-end | xUnit, Playwright, Testcontainers (PostgreSQL) |
 
-### Unit tests
+**Mocking library: Moq.** Never NSubstitute.
 
-Cover pure logic only — no DB, no HTTP:
-- `WeightCalculator`, `SplitCalculator`, `BalanceCalculator`, `SettlementOptimiser`
-- All `AbstractValidator<T>` validators (valid input + each individual rule violation)
-- Blazor shared components via bUnit
+### What to add per change
 
-**Design rule:** testable logic must live in dedicated methods (static where possible) — never inlined in service methods.
+| Change | Where to add tests |
+|---|---|
+| New service method / business rule | `FamilySplit.UnitTests` (if pure logic) + `FamilySplit.IntegrationTests` (endpoint) |
+| New validator | `FamilySplit.UnitTests` — one test per rule + happy path |
+| New shared Blazor component | `FamilySplit.Client.UnitTests` — bUnit render tests per prop variant |
+| New page with permission guards | `FamilySplit.Client.UnitTests` — bUnit test with mocked Fluxor state |
+| New user flow | `FamilySplit.E2ETests` — Playwright flow test |
+| New interactive UI element | Add `data-testid` attribute; use it in the E2E test immediately |
+
+### Unit tests — server (`FamilySplit.UnitTests`)
+
+Cover calculators, validators, business guards — **no DB, no HTTP**.
 
 ```csharp
-// ✅ Static helper — trivially unit-testable
-public static class WeightCalculator
+public class CreateActivityValidatorTests
 {
-    public static WeightTier GetTier(FamilyMember member, DateOnly date) { ... }
+    private readonly CreateActivityValidator _sut = new();
+
+    [Fact]
+    public async Task Name_empty_fails()
+    {
+        var result = await _sut.TestValidateAsync(new CreateActivityRequest { Name = "" });
+        result.ShouldHaveValidationErrorFor(x => x.Name);
+    }
 }
 ```
 
-### Integration tests
+### Client unit tests — bUnit (`FamilySplit.Client.UnitTests`)
 
-Spin up a real PostgreSQL container (Testcontainers), apply migrations, drive requests through `WebApplicationFactory`. Authenticate by seeding a `User` + `FamilyMember` in the DB and generating a JWT.
+**Always derive from `BunitTestContext`** (in `Infrastructure/`) — it pre-registers MudBlazor services, a stubbed `I18nText` (returns default `AppText`), and no-op Fluxor infrastructure.
 
-Cover per feature: happy-path CRUD · permission boundaries · validation rejection (→ 422) · state transitions.
+```csharp
+// ✅ Correct base class
+public class SettlementRowTests : BunitTestContext
+{
+    [Fact]
+    public void MarkSent_Button_Shown_To_Payer_When_Proposed()
+    {
+        var cut = RenderComponent<SettlementRow>(p => p
+            /* ... required props ... */
+            .Add(x => x.OnMarkSent, EventCallback.Empty));
 
-### E2E tests
+        cut.Find("[data-testid='btn-mark-sent-...']").Should().NotBeNull();
+    }
+}
+```
 
-Start the full stack (API + WASM client + PostgreSQL Testcontainer). Use Playwright to drive Chromium.
+For pages with `@inherits FluxorComponent`, register `Mock<IState<TState>>()` + `Mock<IDispatcher>()` + `Mock<IState<AuthState>>()` (with `IsAuthenticated = true`) via `Services.AddSingleton(...)`.
 
-Flows that **must** have coverage:
-- Login / unauthenticated redirect
-- Create group → join via invite code
-- Create activity → add expense → view breakdown
-- Close activity → generate settlements → mark sent → mark received → Settled
-- Family admin: add / remove member
-- Permission guards: non-admin controls are hidden
+Do NOT add `global using Bunit;` — it conflicts with xUnit v3's `TestContext`. Add `using Bunit;` locally per file.
+
+### Integration tests (`FamilySplit.IntegrationTests`)
+
+Derive from `IntegrationTestBase` (opens Testcontainers Postgres, starts API in-process via `CustomWebApplicationFactory`, seeds a caller user, mints a JWT). Every test method runs inside a transaction that rolls back on completion.
+
+```csharp
+[Trait("Category", "Integration")]
+[Collection(nameof(IntegrationCollection))]
+public sealed class MyEndpointTests : IntegrationTestBase
+{
+    public MyEndpointTests(PostgresContainerFixture fixture) : base(fixture) { }
+
+    [Fact]
+    public async Task HappyPath_Returns201()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var response = await Client.PostAsync("/my-endpoint", JsonContent.Create(new { ... }), ct);
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+    }
+}
+```
+
+Cover per feature: happy-path CRUD · 403 permission boundaries · 422 validation rejection · state transitions.
+
+### E2E tests (`FamilySplit.E2ETests`)
+
+Derive from `E2ETestBase`, belong to `[Collection(nameof(E2ECollection))]`. Call `AuthenticateContextAsync()` before navigating to set the refresh-token cookie. Use `data-testid` selectors — **never text content or CSS classes**.
+
+```csharp
+[Trait("Category", "E2E")]
+[Collection(nameof(E2ECollection))]
+public sealed class MyFlowTests : E2ETestBase
+{
+    public MyFlowTests(E2EApiServer api, E2EClientServer client) : base(api, client) { }
+
+    [Fact]
+    public async Task MyFlow_HappyPath()
+    {
+        if (!ClientAvailable) return;
+        await AuthenticateContextAsync();
+        await Page.GotoAsync("/my-page");
+        await Page.ClickAsync("[data-testid='btn-my-action']");
+        await Expect(Page.Locator("[data-testid='result-element']")).ToBeVisibleAsync();
+    }
+}
+```
+
+**data-testid convention:** `btn-{action}` for buttons, `{noun}-row-{id}` for table rows, `{noun}-status-{id}` for status chips. Always include the entity `Guid` when there can be multiple instances.
 
 ### General rules
 
 - Arrange-Act-Assert. One concern per test.
-- Names: `Flow_Condition_ExpectedOutcome`
+- Names: `Subject_Condition_ExpectedOutcome`
 - No `Thread.Sleep` — use Playwright's `Expect(...).ToBeVisibleAsync()`
 - Each test seeds its own data; never assumes pre-existing rows
 - Tag slow tests: `[Trait("Category", "Integration")]` / `[Trait("Category", "E2E")]`

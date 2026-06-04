@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>FamilySplit.IntegrationTests</RootNamespace>
+    <AssemblyName>FamilySplit.IntegrationTests</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="coverlet.collector">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Moq" />
+    <PackageReference Include="xunit.runner.visualstudio">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="Respawn" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\FamilySplit.Api\FamilySplit.Api.csproj" />
+    <ProjectReference Include="..\..\src\FamilySplit.Application\FamilySplit.Application.csproj" />
+    <ProjectReference Include="..\..\src\FamilySplit.Domain\FamilySplit.Domain.csproj" />
+    <ProjectReference Include="..\..\src\FamilySplit.Infrastructure\FamilySplit.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

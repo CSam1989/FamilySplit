@@ -104,20 +104,11 @@ else
                 <MemberStatusChip IsLinked="member.IsLinked" HasEmail="member.Email is not null" />
             </MudTd>
             <MudTd>
-                <MudStack Row="true" Spacing="0">
-                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
-                                   Size="Size.Medium"
-                                   title="Edit member"
-                                   OnClick="@(() => OpenEditMemberDialog(member))" />
-                    @if (member.Id != MyMemberId)
-                    {
-                        <MudIconButton Icon="@Icons.Material.Filled.PersonRemove"
-                                       Size="Size.Medium"
-                                       Color="Color.Error"
-                                       title="@_t.RemoveMember"
-                                       OnClick="@(() => ConfirmRemoveMember(member))" />
-                    }
-                </MudStack>
+                <MemberActionCell MemberId="@member.Id"
+                                  CallerId="@(MyMemberId ?? Guid.Empty)"
+                                  ShowRemove="true"
+                                  OnEdit="@(() => OpenEditMemberDialog(member))"
+                                  OnRemove="@(() => ConfirmRemoveMember(member))" />
             </MudTd>
         </RowTemplate>
     </MudTable>

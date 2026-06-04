@@ -1,0 +1,137 @@
+@*
+ * Shared settlement/transfer row used in ActivityDetail, GroupDetail, and the dashboard.
+ *
+ * Renders the payer → receiver arrow, formatted amount, and status chip.
+ * Conditionally renders "Mark sent" and "Mark received" buttons when the caller
+ * is the payer/receiver and the relevant callback is wired up.
+ * Accepts a TrailingActions render fragment for any page-specific icon/link
+ * (e.g. "View detail" in ActivityDetail, "View activity" in GroupDetail).
+ *
+ * All data-testid attributes are set from the SettlementId parameter so E2E tests
+ * can locate specific rows without text-based selectors.
+ *@
+@using FamilySplit.Client.Helpers
+@using FamilySplit.Domain.Enums
+@inject I18nText I18nText
+
+<MudPaper Elevation="1" Class="pa-3 mb-2"
+          data-testid="@($"settlement-row-{SettlementId}")">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Wrap="Wrap.Wrap">
+
+        <!-- Payer → Receiver with bolding for the caller's family -->
+        <MudStack Row="true" AlignItems="AlignItems.Center"
+                  Spacing="1" Style="flex:1;min-width:0">
+            <MudAvatar Size="Size.Small"
+                       Color="@(IsCallerPayer ? Color.Primary : Color.Default)">
+                @PayerFamilyName[0]
+            </MudAvatar>
+            <MudText Typo="Typo.body2"
+                     Style="@(IsCallerPayer ? "font-weight:600" : "font-weight:400")">
+                @PayerFamilyName
+            </MudText>
+            <MudIcon Icon="@Icons.Material.Filled.ArrowForward"
+                     Size="Size.Small" Color="Color.Secondary" />
+            <MudAvatar Size="Size.Small"
+                       Color="@(IsCallerReceiver ? Color.Success : Color.Default)">
+                @ReceiverFamilyName[0]
+            </MudAvatar>
+            <MudText Typo="Typo.body2"
+                     Style="@(IsCallerReceiver ? "font-weight:600" : "font-weight:400")">
+                @ReceiverFamilyName
+            </MudText>
+        </MudStack>
+
+        <!-- Formatted amount -->
+        <MudText Typo="Typo.subtitle2" Style="font-weight:700">
+            @FormatHelper.FormatAmount(Amount, Currency)
+        </MudText>
+
+        <!-- Status chip -->
+        <MudChip T="string" Color="@_chipColor" Size="Size.Small" Icon="@_chipIcon"
+                 data-testid="@($"settlement-status-{SettlementId}")">
+            @(Status == SettlementStatus.PayerSent ? _t.StatusSent : Status.ToString())
+        </MudChip>
+
+        <!-- Mark sent — only shown to the payer when the settlement is Proposed -->
+        @if (Status == SettlementStatus.Proposed && IsCallerPayer && OnMarkSent.HasDelegate)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       Size="Size.Small"
+                       StartIcon="@Icons.Material.Filled.Send"
+                       OnClick="OnMarkSent"
+                       data-testid="@($"btn-mark-sent-{SettlementId}")">
+                @_t.MarkSent
+            </MudButton>
+        }
+
+        <!-- Mark received — only shown to the receiver when the payer has sent -->
+        @if (Status == SettlementStatus.PayerSent && IsCallerReceiver && OnMarkReceived.HasDelegate)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Success"
+                       Size="Size.Small"
+                       StartIcon="@Icons.Material.Filled.CheckCircle"
+                       OnClick="OnMarkReceived"
+                       data-testid="@($"btn-mark-received-{SettlementId}")">
+                @_t.MarkReceived
+            </MudButton>
+        }
+
+        <!-- Page-specific trailing action (view detail, view activity, …) -->
+        @TrailingActions
+    </MudStack>
+</MudPaper>
+
+@code {
+    // ── Required props ────────────────────────────────────────────────────────
+
+    [Parameter, EditorRequired] public Guid   SettlementId       { get; set; }
+    [Parameter, EditorRequired] public Guid   PayerFamilyId      { get; set; }
+    [Parameter, EditorRequired] public string PayerFamilyName    { get; set; } = "";
+    [Parameter, EditorRequired] public Guid   ReceiverFamilyId   { get; set; }
+    [Parameter, EditorRequired] public string ReceiverFamilyName { get; set; } = "";
+    [Parameter, EditorRequired] public decimal Amount            { get; set; }
+    [Parameter, EditorRequired] public string Currency           { get; set; } = "EUR";
+    [Parameter, EditorRequired] public SettlementStatus Status   { get; set; }
+
+    /// <summary>
+    /// The current user's family ID. Used to bold the caller's name and show
+    /// the correct action button (Mark sent for payer, Mark received for receiver).
+    /// </summary>
+    [Parameter, EditorRequired] public Guid CallerFamilyId { get; set; }
+
+    // ── Optional callbacks ────────────────────────────────────────────────────
+
+    /// <summary>Raised when the payer clicks "Mark sent". Wire up only from the payer's view.</summary>
+    [Parameter] public EventCallback OnMarkSent     { get; set; }
+
+    /// <summary>Raised when the receiver clicks "Mark received". Wire up only from the receiver's view.</summary>
+    [Parameter] public EventCallback OnMarkReceived { get; set; }
+
+    /// <summary>Page-specific icon or link rendered at the trailing end of the row.</summary>
+    [Parameter] public RenderFragment? TrailingActions { get; set; }
+
+    // ── Private ───────────────────────────────────────────────────────────────
+
+    private bool IsCallerPayer    => CallerFamilyId == PayerFamilyId;
+    private bool IsCallerReceiver => CallerFamilyId == ReceiverFamilyId;
+
+    private Color _chipColor;
+    private string _chipIcon = Icons.Material.Filled.Circle;
+    private AppText _t = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _t = await I18nText.GetTextTableAsync<AppText>(this);
+    }
+
+    protected override void OnParametersSet()
+    {
+        (_chipColor, _chipIcon) = Status switch
+        {
+            SettlementStatus.Proposed  => (Color.Warning, Icons.Material.Filled.Pending),
+            SettlementStatus.PayerSent => (Color.Primary, Icons.Material.Filled.Send),
+            SettlementStatus.Completed => (Color.Success, Icons.Material.Filled.CheckCircle),
+            _                          => (Color.Default, Icons.Material.Filled.Circle),
+        };
+    }
+}

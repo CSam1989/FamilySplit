@@ -376,7 +376,7 @@ public class SettlementService
         if (callerFamilyId != settlement.PayerFamilyId)
             throw new ForbiddenException("Only a member of the paying family can confirm payment sent.");
 
-        if (settlement.Status != SettlementStatus.Proposed)
+        if (!SettlementStateMachine.CanConfirmSent(settlement.Status))
             throw Throw422("Status", $"Settlement is {settlement.Status}; expected Proposed.");
 
         var now = DateTimeOffset.UtcNow;
@@ -441,7 +441,7 @@ public class SettlementService
         if (callerFamilyId != settlement.ReceiverFamilyId)
             throw new ForbiddenException("Only a member of the receiving family can confirm payment received.");
 
-        if (settlement.Status != SettlementStatus.PayerSent)
+        if (!SettlementStateMachine.CanConfirmReceived(settlement.Status))
             throw Throw422("Status", $"Settlement is {settlement.Status}; expected PayerSent.");
 
         var now = DateTimeOffset.UtcNow;
