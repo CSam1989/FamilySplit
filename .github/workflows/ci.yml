@@ -254,6 +254,11 @@ jobs:
       - name: Install wasm-tools workload
         run: dotnet workload install wasm-tools
 
+      # NuGet packages are not shared between runners — restore them here so the
+      # WASM IL linker can find the DLLs in ~/.nuget/packages/ during publish.
+      - name: Restore NuGet packages (client)
+        run: dotnet restore src/FamilySplit.Client/FamilySplit.Client.csproj
+
       # Publish the Blazor WASM client so E2EClientServer can serve it.
       - name: Publish Blazor WASM client
         run: |
