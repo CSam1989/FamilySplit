@@ -91,14 +91,17 @@ public sealed class PermissionGuardTests : E2ETestBase
         await Page.GotoAsync($"/groups/{outsiderGroupId}");
         await WaitForNetworkIdleAsync(Page);
 
-        // The app should show an error or redirect — not render the group detail.
-        // At minimum the group name must not be visible; there may be an error banner.
-        // text= is a Playwright pseudo-selector and cannot be mixed with CSS in a single Locator call.
-        var errorVisible =
-            await Page.Locator(".mud-alert").First.IsVisibleAsync()
-            || await Page.Locator(".mud-snackbar").First.IsVisibleAsync()
-            || await Page.GetByText("Forbidden").First.IsVisibleAsync()
-            || await Page.GetByText("403").First.IsVisibleAsync();
+        // The app should show an error banner — not render the group detail.
+        // Use a retrying Expect so Blazor has time to re-render after the 403 response.
+        bool errorVisible = false;
+        try
+        {
+            await Expect(Page.Locator(".mud-alert").First)
+                .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 5_000 });
+            errorVisible = true;
+        }
+        catch { /* no alert appeared */ }
+
         var redirected = !Page.Url.Contains(outsiderGroupId.ToString());
 
         (errorVisible || redirected).Should().BeTrue(

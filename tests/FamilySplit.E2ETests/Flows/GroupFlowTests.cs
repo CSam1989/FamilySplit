@@ -29,7 +29,12 @@ public sealed class GroupFlowTests : E2ETestBase
         await Page.FillAsync("[data-testid='input-group-name']", "Holiday 2026");
         await Page.ClickAsync("[data-testid='btn-dialog-submit']");
 
-        // The dialog closes and the new group card appears
+        // After creation the app navigates to the new group's detail page.
+        // Navigate back to the list and verify the card is present.
+        await Page.WaitForURLAsync(
+            url => url.Contains("/groups/"),
+            new PageWaitForURLOptions { Timeout = 10_000 });
+        await Page.GotoAsync("/groups");
         await Expect(Page.Locator("[data-group-name='Holiday 2026']")).ToBeVisibleAsync();
     }
 
@@ -49,9 +54,11 @@ public sealed class GroupFlowTests : E2ETestBase
         await Page.FillAsync("[data-testid='input-group-name']", "Joint Trip");
         await Page.ClickAsync("[data-testid='btn-dialog-submit']");
 
-        // Navigate into the group and capture the invite code
-        await Expect(Page.Locator("[data-group-name='Joint Trip']")).ToBeVisibleAsync();
-        await Page.ClickAsync("[data-group-name='Joint Trip']");
+        // After creation the app navigates directly to the group detail page.
+        // Wait for that navigation then read the invite code.
+        await Page.WaitForURLAsync(
+            url => url.Contains("/groups/"),
+            new PageWaitForURLOptions { Timeout = 10_000 });
         await Page.WaitForSelectorAsync("[data-testid='invite-code-value']");
 
         var inviteCode = await Page.TextContentAsync("[data-testid='invite-code-value']");
@@ -69,9 +76,10 @@ public sealed class GroupFlowTests : E2ETestBase
         await client2.FillAsync("[data-testid='input-invite-code']", inviteCode);
         await client2.ClickAsync("[data-testid='btn-dialog-submit']");
 
-        // The group now shows both families
-        await client2.WaitForSelectorAsync("[data-group-name='Joint Trip']");
-        await client2.ClickAsync("[data-group-name='Joint Trip']");
+        // After joining the app navigates directly to the group detail page.
+        await client2.WaitForURLAsync(
+            url => url.Contains("/groups/"),
+            new PageWaitForURLOptions { Timeout = 10_000 });
 
         // Both family names must appear in the group detail
         await Expect(client2.Locator("text=E2E Test Family")).ToBeVisibleAsync();
