@@ -26,6 +26,12 @@ public sealed class PermissionGuardTests : E2ETestBase
         await Page.GotoAsync("/groups");
         await WaitForNetworkIdleAsync(Page);
 
+        // RequireAuth redirects client-side (no network), so wait for the URL to change.
+        // The redirect fires after IsLoading transitions false and IsAuthenticated is false.
+        await Page.WaitForURLAsync(
+            url => !url.EndsWith("/groups", StringComparison.OrdinalIgnoreCase),
+            new PageWaitForURLOptions { Timeout = 5_000 });
+
         // The app must redirect away from /groups (login page, root, or not-registered)
         var url = Page.Url;
         url.Should().NotEndWith("/groups",
@@ -87,8 +93,12 @@ public sealed class PermissionGuardTests : E2ETestBase
 
         // The app should show an error or redirect — not render the group detail.
         // At minimum the group name must not be visible; there may be an error banner.
-        var errorVisible = await Page.Locator(".mud-alert, .mud-snackbar, text=Forbidden, text=403")
-            .IsVisibleAsync();
+        // text= is a Playwright pseudo-selector and cannot be mixed with CSS in a single Locator call.
+        var errorVisible =
+            await Page.Locator(".mud-alert").First.IsVisibleAsync()
+            || await Page.Locator(".mud-snackbar").First.IsVisibleAsync()
+            || await Page.GetByText("Forbidden").First.IsVisibleAsync()
+            || await Page.GetByText("403").First.IsVisibleAsync();
         var redirected = !Page.Url.Contains(outsiderGroupId.ToString());
 
         (errorVisible || redirected).Should().BeTrue(

@@ -104,8 +104,8 @@ public sealed class SettlementFlowTests : E2ETestBase
             ("id", Guid.NewGuid()), ("gid", groupId), ("fid", TestFamilyId));
 
         await Exec(conn, ct,
-            "INSERT INTO activities (id, group_id, name, status, created_at, updated_at) VALUES (@id, @gid, @name, 'Open', now(), now())",
-            ("id", activityId), ("gid", groupId), ("name", activityName));
+            "INSERT INTO activities (id, group_id, name, status, created_by_user_id, created_at, updated_at) VALUES (@id, @gid, @name, 'Open', @uid, now(), now())",
+            ("id", activityId), ("gid", groupId), ("name", activityName), ("uid", TestUserId));
 
         await Exec(conn, ct,
             "INSERT INTO activity_participants (id, activity_id, family_member_id, weight_snapshot, created_at) VALUES (@id, @aid, @mid, 1.0, now())",
@@ -163,8 +163,8 @@ public sealed class SettlementFlowTests : E2ETestBase
 
         // Closed activity
         await Exec(conn, ct,
-            "INSERT INTO activities (id, group_id, name, status, closed_at, created_at, updated_at) VALUES (@id, @gid, 'Shared Dinner', 'Closed', now(), now(), now())",
-            ("id", activityId), ("gid", groupId));
+            "INSERT INTO activities (id, group_id, name, status, created_by_user_id, closed_at, created_at, updated_at) VALUES (@id, @gid, 'Shared Dinner', 'Closed', @uid, now(), now(), now())",
+            ("id", activityId), ("gid", groupId), ("uid", TestUserId));
 
         // Participants (both members, equal weight)
         await Exec(conn, ct,

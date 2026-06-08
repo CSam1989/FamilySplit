@@ -139,12 +139,13 @@ public sealed class ActivityExpenseFlowTests : E2ETestBase
         await using (var cmd = conn.CreateCommand())
         {
             cmd.CommandText = """
-                INSERT INTO activities (id, group_id, name, status, created_at, updated_at)
-                VALUES (@id, @gid, @name, 'Open', now(), now())
+                INSERT INTO activities (id, group_id, name, status, created_by_user_id, created_at, updated_at)
+                VALUES (@id, @gid, @name, 'Open', @uid, now(), now())
                 """;
             cmd.Parameters.AddWithValue("id", activityId);
             cmd.Parameters.AddWithValue("gid", groupId);
             cmd.Parameters.AddWithValue("name", activityName);
+            cmd.Parameters.AddWithValue("uid", TestUserId);
             await cmd.ExecuteNonQueryAsync(ct);
         }
 

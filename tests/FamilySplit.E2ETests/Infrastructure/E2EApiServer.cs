@@ -126,7 +126,7 @@ public sealed class E2EApiServer : IAsyncLifetime
         // Capture stdout/stderr so a startup crash is visible in test output.
         var outputLines = new System.Collections.Concurrent.ConcurrentBag<string>();
         _apiProcess.OutputDataReceived += (_, e) => { if (e.Data != null) outputLines.Add(e.Data); };
-        _apiProcess.ErrorDataReceived  += (_, e) => { if (e.Data != null) outputLines.Add($"ERR: {e.Data}"); };
+        _apiProcess.ErrorDataReceived += (_, e) => { if (e.Data != null) outputLines.Add($"ERR: {e.Data}"); };
         _apiProcess.BeginOutputReadLine();
         _apiProcess.BeginErrorReadLine();
 

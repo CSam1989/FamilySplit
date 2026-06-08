@@ -74,7 +74,7 @@ public sealed class GroupFlowTests : E2ETestBase
         await client2.ClickAsync("[data-group-name='Joint Trip']");
 
         // Both family names must appear in the group detail
-        await Expect(client2.Locator("text=Integration Test Family")).ToBeVisibleAsync();
+        await Expect(client2.Locator("text=E2E Test Family")).ToBeVisibleAsync();
         await Expect(client2.Locator("text=Second Family")).ToBeVisibleAsync();
 
         await client2.CloseAsync();
