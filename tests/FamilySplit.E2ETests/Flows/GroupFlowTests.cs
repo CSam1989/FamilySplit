@@ -82,6 +82,9 @@ public sealed class GroupFlowTests : E2ETestBase
             url => url.Contains("/groups/"),
             new PageWaitForURLOptions { Timeout = 10_000 });
 
+        // Expand the families panel so the family names become visible.
+        await client2.ClickAsync("[data-testid='families-expansion-panel'] .mud-expand-panel-header");
+
         // Both family names must appear in the group detail
         await Expect(client2.Locator("text=E2E Test Family")).ToBeVisibleAsync();
         await Expect(client2.Locator("text=Second Family")).ToBeVisibleAsync();

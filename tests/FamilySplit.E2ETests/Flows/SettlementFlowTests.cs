@@ -181,12 +181,12 @@ public sealed class SettlementFlowTests : E2ETestBase
             ("id", expenseId), ("aid", activityId), ("uid", TestUserId));
 
         await Exec(conn, ct,
-            "INSERT INTO expense_participants (id, expense_id, family_member_id, family_id, weight_snapshot, share_amount, is_excluded, created_at) VALUES (@id, @eid, @mid, @fid, 1.0, 50, false, now())",
-            ("id", Guid.NewGuid()), ("eid", expenseId), ("mid", TestMemberId), ("fid", TestFamilyId));
+            "INSERT INTO expense_participants (id, expense_id, family_member_id, weight_snapshot, calculated_amount, is_excluded) VALUES (@id, @eid, @mid, 1.0, 50, false)",
+            ("id", Guid.NewGuid()), ("eid", expenseId), ("mid", TestMemberId));
 
         await Exec(conn, ct,
-            "INSERT INTO expense_participants (id, expense_id, family_member_id, family_id, weight_snapshot, share_amount, is_excluded, created_at) VALUES (@id, @eid, @mid, @fid, 1.0, 50, false, now())",
-            ("id", Guid.NewGuid()), ("eid", expenseId), ("mid", member2Id), ("fid", family2Id));
+            "INSERT INTO expense_participants (id, expense_id, family_member_id, weight_snapshot, calculated_amount, is_excluded) VALUES (@id, @eid, @mid, 1.0, 50, false)",
+            ("id", Guid.NewGuid()), ("eid", expenseId), ("mid", member2Id));
 
         return (groupId, activityId, new ReceiverSeed(user2Id, family2Id, member2Id));
     }
