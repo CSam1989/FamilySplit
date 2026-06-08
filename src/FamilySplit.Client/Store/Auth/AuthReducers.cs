@@ -13,6 +13,7 @@ public static class AuthReducers
         state with
         {
             IsLoading = false,
+            HasChecked = true,
             IsAuthenticated = true,
             IsGlobalAdmin = action.User.IsGlobalAdmin,
             CurrentUser = action.User
@@ -20,7 +21,7 @@ public static class AuthReducers
 
     [ReducerMethod(typeof(CheckAuthNotAuthenticatedAction))]
     public static AuthState OnNotAuthenticated(AuthState state) =>
-        state with { IsLoading = false, IsAuthenticated = false, CurrentUser = null, IsGlobalAdmin = false };
+        state with { IsLoading = false, HasChecked = true, IsAuthenticated = false, CurrentUser = null, IsGlobalAdmin = false };
 
     [ReducerMethod(typeof(SignOutAction))]
     public static AuthState OnSignOut(AuthState state) =>

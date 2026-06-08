@@ -787,7 +787,7 @@ namespace FamilySplit.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("DataProtectionKeys");
+                    b.ToTable("DataProtectionKeys", (string)null);
                 });
 
             modelBuilder.Entity("FamilySplit.Domain.Entities.Activity", b =>

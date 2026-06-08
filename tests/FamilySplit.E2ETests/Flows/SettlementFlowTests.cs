@@ -108,7 +108,7 @@ public sealed class SettlementFlowTests : E2ETestBase
             ("id", activityId), ("gid", groupId), ("name", activityName), ("uid", TestUserId));
 
         await Exec(conn, ct,
-            "INSERT INTO activity_participants (id, activity_id, family_member_id, weight_snapshot, created_at) VALUES (@id, @aid, @mid, 1.0, now())",
+            "INSERT INTO activity_participants (id, activity_id, family_member_id) VALUES (@id, @aid, @mid)",
             ("id", Guid.NewGuid()), ("aid", activityId), ("mid", TestMemberId));
 
         return (groupId, activityId);
@@ -168,11 +168,11 @@ public sealed class SettlementFlowTests : E2ETestBase
 
         // Participants (both members, equal weight)
         await Exec(conn, ct,
-            "INSERT INTO activity_participants (id, activity_id, family_member_id, weight_snapshot, created_at) VALUES (@id, @aid, @mid, 1.0, now())",
+            "INSERT INTO activity_participants (id, activity_id, family_member_id) VALUES (@id, @aid, @mid)",
             ("id", Guid.NewGuid()), ("aid", activityId), ("mid", TestMemberId));
 
         await Exec(conn, ct,
-            "INSERT INTO activity_participants (id, activity_id, family_member_id, weight_snapshot, created_at) VALUES (@id, @aid, @mid, 1.0, now())",
+            "INSERT INTO activity_participants (id, activity_id, family_member_id) VALUES (@id, @aid, @mid)",
             ("id", Guid.NewGuid()), ("aid", activityId), ("mid", member2Id));
 
         // Expense paid by caller (€100), split evenly → each family owes €50

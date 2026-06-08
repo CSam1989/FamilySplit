@@ -1,16 +1,27 @@
 @*
     Drop <RequireAuth /> at the top of any page that needs a logged-in user.
-    Redirects to the home page (which shows the sign-in button) if no JWT is present.
+    Redirects to the home page (which shows the sign-in button) if, after the
+    silent-refresh auth check has completed, no authenticated session exists.
+
+    Inherits FluxorComponent so it re-renders when AuthState changes, and the
+    redirect decision is deferred until HasChecked == true. This prevents the
+    race where a page guard fires on the initial (unchecked) state and bounces
+    an authenticated-but-not-yet-resolved user back to home.
 *@
+@inherits Fluxor.Blazor.Web.Components.FluxorComponent
 @using FamilySplit.Client.Store.Auth
 @inject IState<AuthState> AuthState
 @inject NavigationManager Nav
 
 @code {
-    protected override void OnParametersSet()
+    protected override void OnAfterRender(bool firstRender)
     {
-        // Once the auth check has completed and the user is not authenticated, redirect.
-        if (!AuthState.Value.IsLoading && !AuthState.Value.IsAuthenticated)
+        base.OnAfterRender(firstRender);
+
+        // Only redirect once the auth check has definitively completed and the
+        // user is not authenticated. While HasChecked is false the session is
+        // still resolving, so we wait.
+        if (AuthState.Value.HasChecked && !AuthState.Value.IsAuthenticated)
             Nav.NavigateTo("/", replace: true);
     }
 }

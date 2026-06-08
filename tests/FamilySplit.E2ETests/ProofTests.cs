@@ -80,26 +80,17 @@ public sealed class BrowserProofTests : E2ETestBase
 
         var ct = TestContext.Current.CancellationToken;
 
-        // Navigate to the root — no refresh cookie is set, so the app should redirect
-        // or render the "not logged in" state / login prompt.
+        // Navigate to the root — no refresh cookie is set, so once the silent-refresh
+        // auth check completes the app renders the inline sign-in screen (it does not
+        // redirect to a separate login page).
         await Page.GotoAsync("/");
         await WaitForNetworkIdleAsync(Page);
 
-        // The Blazor client either navigates to a login page or shows a login button.
-        // We assert that the URL or page content indicates an unauthenticated state.
-        // Adjust the assertion below once the actual login flow is confirmed in the browser.
-        var currentUrl = Page.Url;
-        var pageContent = await Page.ContentAsync();
-
-        var isOnLoginOrNotAuthed =
-            currentUrl.Contains("login", StringComparison.OrdinalIgnoreCase)
-            || currentUrl.Contains("not-registered", StringComparison.OrdinalIgnoreCase)
-            || pageContent.Contains("Sign in", StringComparison.OrdinalIgnoreCase)
-            || pageContent.Contains("Log in", StringComparison.OrdinalIgnoreCase);
-
-        isOnLoginOrNotAuthed.Should().BeTrue(
-            $"unauthenticated navigation to '/' should show a login prompt, " +
-            $"but page URL was '{currentUrl}'");
+        // The Google sign-in button only renders in the unauthenticated state, so its
+        // presence is a stable signal that the user was not silently logged in. Using
+        // the data-testid avoids depending on i18n text that may not be loaded yet.
+        await Expect(Page.Locator("[data-testid='btn-signin-google']"))
+            .ToBeVisibleAsync(new() { Timeout = 15_000 });
     }
 
     [Fact]

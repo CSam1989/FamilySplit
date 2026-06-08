@@ -152,8 +152,8 @@ public sealed class ActivityExpenseFlowTests : E2ETestBase
         await using (var cmd = conn.CreateCommand())
         {
             cmd.CommandText = """
-                INSERT INTO activity_participants (id, activity_id, family_member_id, weight_snapshot, created_at)
-                VALUES (@id, @aid, @mid, 1.0, now())
+                INSERT INTO activity_participants (id, activity_id, family_member_id)
+                VALUES (@id, @aid, @mid)
                 """;
             cmd.Parameters.AddWithValue("id", Guid.NewGuid());
             cmd.Parameters.AddWithValue("aid", activityId);
