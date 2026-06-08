@@ -177,7 +177,7 @@ public sealed class SettlementFlowTests : E2ETestBase
 
         // Expense paid by caller (€100), split evenly → each family owes €50
         await Exec(conn, ct,
-            "INSERT INTO expenses (id, activity_id, title, total_amount, expense_date, paid_by_user_id, currency, created_at, updated_at) VALUES (@id, @aid, 'Dinner', 100, now(), @uid, 'EUR', now(), now())",
+            "INSERT INTO expenses (id, activity_id, title, total_amount, expense_date, paid_by_user_id, currency, status, created_at, updated_at) VALUES (@id, @aid, 'Dinner', 100, now(), @uid, 'EUR', 'Active', now(), now())",
             ("id", expenseId), ("aid", activityId), ("uid", TestUserId));
 
         await Exec(conn, ct,

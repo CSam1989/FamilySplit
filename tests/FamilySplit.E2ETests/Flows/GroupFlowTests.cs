@@ -55,10 +55,11 @@ public sealed class GroupFlowTests : E2ETestBase
         await Page.ClickAsync("[data-testid='btn-dialog-submit']");
 
         // After creation the app navigates directly to the group detail page.
-        // Wait for that navigation then read the invite code.
+        // Expand the families panel so the invite code becomes visible.
         await Page.WaitForURLAsync(
             url => url.Contains("/groups/"),
             new PageWaitForURLOptions { Timeout = 10_000 });
+        await Page.ClickAsync("[data-testid='families-expansion-panel'] .mud-expand-panel-header");
         await Page.WaitForSelectorAsync("[data-testid='invite-code-value']");
 
         var inviteCode = await Page.TextContentAsync("[data-testid='invite-code-value']");
