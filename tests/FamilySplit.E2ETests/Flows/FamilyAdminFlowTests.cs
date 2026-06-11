@@ -45,9 +45,11 @@ public sealed class FamilyAdminFlowTests : E2ETestBase
         await AuthenticateContextAsync();
         await Page.GotoAsync("/families/mine");
 
-        // Wait for the remove button for the seeded member
+        // Wait for the remove button for the seeded member. It renders only after
+        // the caller's profile has loaded (admin guard), so allow for a cold WASM
+        // boot — the default 5s Expect timeout flakes here.
         var removeBtn = Page.Locator($"[data-testid='btn-remove-member-{extraMemberId}']");
-        await Expect(removeBtn).ToBeVisibleAsync();
+        await Expect(removeBtn).ToBeVisibleAsync(new() { Timeout = 15_000 });
         await removeBtn.ClickAsync();
 
         // Confirm removal in MudMessageBox (yesText = "Remove")

@@ -175,10 +175,12 @@ public sealed class SettlementFlowTests : E2ETestBase
             "INSERT INTO activity_participants (id, activity_id, family_member_id) VALUES (@id, @aid, @mid)",
             ("id", Guid.NewGuid()), ("aid", activityId), ("mid", member2Id));
 
-        // Expense paid by caller (€100), split evenly → each family owes €50
+        // Expense paid by the second family's user (€100), split evenly → the
+        // caller's family owes €50 and is the settlement payer; the second
+        // family ("Receiver Family") receives the transfer.
         await Exec(conn, ct,
             "INSERT INTO expenses (id, activity_id, title, total_amount, expense_date, paid_by_user_id, currency, status, created_at, updated_at) VALUES (@id, @aid, 'Dinner', 100, now(), @uid, 'EUR', 'Active', now(), now())",
-            ("id", expenseId), ("aid", activityId), ("uid", TestUserId));
+            ("id", expenseId), ("aid", activityId), ("uid", user2Id));
 
         await Exec(conn, ct,
             "INSERT INTO expense_participants (id, expense_id, family_member_id, weight_snapshot, calculated_amount, is_excluded) VALUES (@id, @eid, @mid, 1.0, 50, false)",

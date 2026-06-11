@@ -85,9 +85,11 @@ public sealed class GroupFlowTests : E2ETestBase
         // Expand the families panel so the family names become visible.
         await client2.ClickAsync("[data-testid='families-expansion-panel'] .mud-expand-panel-header");
 
-        // Both family names must appear in the group detail
-        await Expect(client2.Locator("text=E2E Test Family")).ToBeVisibleAsync();
-        await Expect(client2.Locator("text=Second Family")).ToBeVisibleAsync();
+        // Both family names must appear in the group detail.
+        // Attribute selectors avoid strict-mode clashes with the user display
+        // names ("Second Family User") shown in the toolbar and nav drawer.
+        await Expect(client2.Locator("[data-family-name='E2E Test Family']")).ToBeVisibleAsync();
+        await Expect(client2.Locator("[data-family-name='Second Family']")).ToBeVisibleAsync();
 
         await client2.CloseAsync();
     }

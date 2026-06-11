@@ -337,7 +337,8 @@ else
 
             @foreach (var family in group.Families)
             {
-                <MudPaper Elevation="1" Class="pa-3 mb-3">
+                <MudPaper Elevation="1" Class="pa-3 mb-3"
+                          data-family-name="@family.FamilyName">
                     <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-2" Spacing="2">
                         <MudAvatar Color="Color.Primary" Size="Size.Small">@family.FamilyName[0]</MudAvatar>
                         <MudText Typo="Typo.subtitle2">@family.FamilyName</MudText>
