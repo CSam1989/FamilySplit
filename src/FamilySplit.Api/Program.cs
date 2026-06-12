@@ -10,6 +10,7 @@ using FamilySplit.Application;
 using FamilySplit.Common;
 using FamilySplit.Common.Modules;
 using FamilySplit.Common.Notifications;
+using FamilySplit.Features.Dashboard;
 using FamilySplit.Features.Expenses;
 using FamilySplit.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -159,7 +160,7 @@ builder.Services.AddFamilySplitApplication();
 builder.Services.AddFamilySplitInfrastructure(builder.Configuration, builder.Environment);
 
 // Feature modules (populated slice by slice).
-IFeatureModule[] modules = [ new ExpensesModule() ];
+IFeatureModule[] modules = [ new ExpensesModule(), new DashboardModule() ];
 foreach (var m in modules) m.RegisterServices(builder.Services, builder.Configuration);
 
 // --- Auth: JwtBearer + OAuth handler placeholders ---------------------------------
@@ -327,7 +328,7 @@ app.MapGroupMemberEndpoints();    // no-op stub (members managed via Family endp
 app.MapActivityEndpoints();       // /groups/{groupId}/activities — CRUD + participants + close
 // Expenses: /groups/{groupId}/activities/{activityId}/expenses — migrated to ExpensesModule (vertical slice)
 app.MapSettlementEndpoints();     // /groups/{groupId}/activities/{activityId}/settlements — Phase 6
-app.MapDashboardEndpoints();      // /dashboard/stats — per-group statistics
+// Dashboard: /dashboard/stats — migrated to DashboardModule (vertical slice)
 app.MapPushEndpoints();           // /push — VAPID subscription management
 
 // SignalR hub — Blazor WASM passes JWT as ?access_token query param because

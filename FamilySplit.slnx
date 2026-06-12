@@ -8,6 +8,7 @@
     <Project Path="src/FamilySplit.Infrastructure/FamilySplit.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/src/Features/">
+    <Project Path="src/Features/FamilySplit.Features.Dashboard/FamilySplit.Features.Dashboard.csproj" />
     <Project Path="src/Features/FamilySplit.Features.Expenses/FamilySplit.Features.Expenses.csproj" />
   </Folder>
   <Folder Name="/tests/">

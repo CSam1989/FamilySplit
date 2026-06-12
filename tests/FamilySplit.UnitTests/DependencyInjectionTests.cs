@@ -3,7 +3,6 @@ using FamilySplit.Application.Activities;
 using FamilySplit.Application.Admin;
 using FamilySplit.Application.Auth;
 using FamilySplit.Application.Core;
-using FamilySplit.Application.Dashboard;
 using FamilySplit.Application.Families;
 using FamilySplit.Application.Groups;
 using FamilySplit.Application.Push;
@@ -42,7 +41,8 @@ public class DependencyInjectionTests
         // Expenses migrated to FamilySplit.Features.Expenses (ExpensesModule) — its DI
         // registration is covered by ExpenseEndpointsTests.RegisterServices_RegistersAllHandlersAsScoped.
         services.Should().Contain(sd => sd.ServiceType == typeof(SettlementService) && sd.Lifetime == ServiceLifetime.Scoped);
-        services.Should().Contain(sd => sd.ServiceType == typeof(DashboardService) && sd.Lifetime == ServiceLifetime.Scoped);
+        // Dashboard migrated to FamilySplit.Features.Dashboard (DashboardModule) — its DI
+        // registration is covered by DashboardEndpointsTests.RegisterServices_RegistersHandlerAsScoped.
         services.Should().Contain(sd => sd.ServiceType == typeof(RefreshTokenService) && sd.Lifetime == ServiceLifetime.Scoped);
         services.Should().Contain(sd => sd.ServiceType == typeof(PushNotificationService) && sd.Lifetime == ServiceLifetime.Scoped);
     }

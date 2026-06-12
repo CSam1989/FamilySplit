@@ -1,35 +1,43 @@
-using FamilySplit.Application.Dashboard.Dtos;
 using FamilySplit.Common.Security;
 using FamilySplit.Domain.Enums;
 using FamilySplit.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
-namespace FamilySplit.Application.Dashboard;
+namespace FamilySplit.Features.Dashboard.GetStats;
 
 /// <summary>
-/// Returns per-group statistics for the authenticated user's dashboard.
-/// All queries use explicit joins (no navigation-property access) to avoid
-/// EF Core 10 NavigationExpandingExpressionVisitor cycle errors.
+/// Query — returns per-group statistics for the authenticated user's dashboard.
+/// Pure data access: authorization guard then <c>AsNoTracking</c> projections, no mutation.
+/// All queries use explicit joins (no navigation-property access) to avoid EF Core 10
+/// NavigationExpandingExpressionVisitor cycle errors.
 /// </summary>
-public class DashboardService
+public sealed class GetStatsQueryHandler
 {
     private readonly AppDbContext _db;
     private readonly GroupMembershipGuard _guard;
+    private readonly ILogger<GetStatsQueryHandler> _logger;
 
-    public DashboardService(AppDbContext db, GroupMembershipGuard guard)
+    public GetStatsQueryHandler(
+        AppDbContext db,
+        GroupMembershipGuard guard,
+        ILogger<GetStatsQueryHandler> logger)
     {
         _db = db;
         _guard = guard;
+        _logger = logger;
     }
 
-    public async Task<List<DashboardGroupStatDto>> GetStatsAsync(Guid callerId, CancellationToken ct = default)
+    public async Task<List<DashboardGroupStatDto>> HandleAsync(Guid callerId, CancellationToken ct)
     {
+        _logger.LogDebug("Fetching dashboard stats for user {UserId}", callerId);
+
         // ── 1. Resolve caller's family ────────────────────────────────────────
         var callerFamilyId = await _guard.GetCallerFamilyIdAsync(callerId, ct);
 
         // ── 2. Groups the caller's family belongs to ──────────────────────────
         var groupInfos = await (
-            from gf in _db.GroupFamilies
+            from gf in _db.GroupFamilies.AsNoTracking()
             join g in _db.Groups on gf.GroupId equals g.Id
             where gf.FamilyId == callerFamilyId
             orderby g.Name
@@ -42,6 +50,7 @@ public class DashboardService
 
         // ── 3. Top-level activities (flat scalars, no navigation props) ───────
         var activityRows = await _db.Activities
+            .AsNoTracking()
             .Where(a => groupIds.Contains(a.GroupId) && a.ParentActivityId == null)
             .Select(a => new { a.GroupId, a.Id, a.Name, a.Status, a.CreatedAt })
             .ToListAsync(ct);
@@ -52,6 +61,7 @@ public class DashboardService
         // SettlementService.GetActivityAndSubIdsAsync). They carry the same GroupId
         // as the parent, so grouping by a.GroupId still attributes them correctly.
         var subActivityRows = await _db.Activities
+            .AsNoTracking()
             .Where(a => a.ParentActivityId != null && activityIds.Contains(a.ParentActivityId!.Value))
             .Select(a => new { a.Id, ParentId = a.ParentActivityId!.Value })
             .ToListAsync(ct);
@@ -65,7 +75,7 @@ public class DashboardService
         if (allExpenseActivityIds.Count > 0)
         {
             var rawExpenses = await (
-                from e in _db.Expenses
+                from e in _db.Expenses.AsNoTracking()
                 join a in _db.Activities on e.ActivityId equals a.Id
                 where allExpenseActivityIds.Contains(e.ActivityId)
                 select new { a.GroupId, e.TotalAmount, e.Currency }
@@ -89,7 +99,7 @@ public class DashboardService
         if (allExpenseActivityIds.Count > 0)
         {
             var rawShare = await (
-                from ep in _db.ExpenseParticipants
+                from ep in _db.ExpenseParticipants.AsNoTracking()
                 join e in _db.Expenses on ep.ExpenseId equals e.Id
                 join a in _db.Activities on e.ActivityId equals a.Id
                 join fm in _db.FamilyMembers on ep.FamilyMemberId equals fm.Id
@@ -121,7 +131,7 @@ public class DashboardService
         if (balanceActivityIds.Count > 0)
         {
             var rawActiveExpenses = await (
-                from e in _db.Expenses
+                from e in _db.Expenses.AsNoTracking()
                 join a in _db.Activities on e.ActivityId equals a.Id
                 where balanceActivityIds.Contains(e.ActivityId)
                 select new { a.GroupId, e.TotalAmount }
@@ -132,7 +142,7 @@ public class DashboardService
                 .ToDictionary(g => g.Key, g => g.Sum(r => r.TotalAmount));
 
             var rawActiveShare = await (
-                from ep in _db.ExpenseParticipants
+                from ep in _db.ExpenseParticipants.AsNoTracking()
                 join e in _db.Expenses on ep.ExpenseId equals e.Id
                 join a in _db.Activities on e.ActivityId equals a.Id
                 join fm in _db.FamilyMembers on ep.FamilyMemberId equals fm.Id
@@ -162,7 +172,7 @@ public class DashboardService
             // The family that fronted the money keeps the credit even if the member
             // who paid has since been deactivated (preserves the zero-sum invariant).
             var rawPaid = await (
-                from e in _db.Expenses
+                from e in _db.Expenses.AsNoTracking()
                 from fm in _db.FamilyMembers
                 join a in _db.Activities on e.ActivityId equals a.Id
                 where balanceActivityIds.Contains(e.ActivityId)
@@ -178,7 +188,7 @@ public class DashboardService
 
             // What my family owes: each member's CalculatedAmount across those activities.
             var rawOwed = await (
-                from ep in _db.ExpenseParticipants
+                from ep in _db.ExpenseParticipants.AsNoTracking()
                 join e in _db.Expenses on ep.ExpenseId equals e.Id
                 join a in _db.Activities on e.ActivityId equals a.Id
                 join fm in _db.FamilyMembers on ep.FamilyMemberId equals fm.Id
@@ -201,7 +211,7 @@ public class DashboardService
         if (activityIds.Count > 0)
         {
             var rawPending = await (
-                from s in _db.Settlements
+                from s in _db.Settlements.AsNoTracking()
                 join a in _db.Activities on s.ActivityId equals a.Id
                 where activityIds.Contains(s.ActivityId)
                    && (

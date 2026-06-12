@@ -1,38 +1,39 @@
-using FamilySplit.Application.Dashboard;
 using FamilySplit.Common.Exceptions;
 using FamilySplit.Common.Security;
 using FamilySplit.Domain.Entities;
 using FamilySplit.Domain.Enums;
+using FamilySplit.Features.Dashboard.GetStats;
 using FamilySplit.Infrastructure;
-using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 
-namespace FamilySplit.UnitTests.Dashboard;
+namespace FamilySplit.UnitTests.Features.Dashboard.GetStats;
 
-public class DashboardServiceTests : IDisposable
+public class GetStatsQueryHandlerTests : IDisposable
 {
     private readonly AppDbContext _db;
-    private readonly DashboardService _sut;
+    private readonly GetStatsQueryHandler _sut;
 
-    private CancellationToken CT => TestContext.Current.CancellationToken;
+    private static CancellationToken CT => TestContext.Current.CancellationToken;
 
     // Shared IDs
     private readonly Guid _callerId = Guid.NewGuid();
     private readonly Guid _familyId = Guid.NewGuid();
     private readonly Guid _groupId = Guid.NewGuid();
 
-    public DashboardServiceTests()
+    public GetStatsQueryHandlerTests()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         _db = new AppDbContext(options);
-        _sut = new DashboardService(_db, new GroupMembershipGuard(_db));
+        _sut = new GetStatsQueryHandler(_db, new GroupMembershipGuard(_db), NullLogger<GetStatsQueryHandler>.Instance);
     }
 
     public void Dispose()
     {
         _db.Dispose();
+        GC.SuppressFinalize(this);
     }
 
     private async Task SeedCallerAsync()
@@ -68,30 +69,30 @@ public class DashboardServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetStatsAsync_NoFamilyMembership_ThrowsForbidden()
+    public async Task Handle_NoFamilyMembership_ThrowsForbidden()
     {
-        var act = () => _sut.GetStatsAsync(Guid.NewGuid(), CT);
+        var act = () => _sut.HandleAsync(Guid.NewGuid(), CT);
 
         await act.Should().ThrowAsync<ForbiddenException>();
     }
 
     [Fact]
-    public async Task GetStatsAsync_NoGroups_ReturnsEmptyList()
+    public async Task Handle_NoGroups_ReturnsEmptyList()
     {
         await SeedCallerAsync();
 
-        var result = await _sut.GetStatsAsync(_callerId, CT);
+        var result = await _sut.HandleAsync(_callerId, CT);
 
         result.Should().BeEmpty();
     }
 
     [Fact]
-    public async Task GetStatsAsync_GroupWithNoActivities_ReturnsZeroStats()
+    public async Task Handle_GroupWithNoActivities_ReturnsZeroStats()
     {
         await SeedCallerAsync();
         await SeedGroupAsync();
 
-        var result = await _sut.GetStatsAsync(_callerId, CT);
+        var result = await _sut.HandleAsync(_callerId, CT);
 
         result.Should().HaveCount(1);
         var stat = result[0];
@@ -106,7 +107,7 @@ public class DashboardServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetStatsAsync_WithActivities_ReturnsCorrectCounts()
+    public async Task Handle_WithActivities_ReturnsCorrectCounts()
     {
         await SeedCallerAsync();
         await SeedGroupAsync();
@@ -117,7 +118,7 @@ public class DashboardServiceTests : IDisposable
             new Activity { Id = Guid.NewGuid(), GroupId = _groupId, Name = "A3", Status = ActivityStatus.Settled, CreatedByUserId = _callerId, CreatedAt = DateTimeOffset.UtcNow });
         await _db.SaveChangesAsync(CT);
 
-        var result = await _sut.GetStatsAsync(_callerId, CT);
+        var result = await _sut.HandleAsync(_callerId, CT);
 
         var stat = result.Single();
         stat.TotalActivities.Should().Be(3);
@@ -129,7 +130,7 @@ public class DashboardServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetStatsAsync_WithExpenses_ReturnsTotalSpendAndShare()
+    public async Task Handle_WithExpenses_ReturnsTotalSpendAndShare()
     {
         await SeedCallerAsync();
         await SeedGroupAsync();
@@ -143,7 +144,7 @@ public class DashboardServiceTests : IDisposable
         _db.ExpenseParticipants.Add(new ExpenseParticipant { Id = Guid.NewGuid(), ExpenseId = expId, FamilyMemberId = memberId, CalculatedAmount = 50m, WeightSnapshot = 1m });
         await _db.SaveChangesAsync(CT);
 
-        var result = await _sut.GetStatsAsync(_callerId, CT);
+        var result = await _sut.HandleAsync(_callerId, CT);
 
         var stat = result.Single();
         stat.TotalGroupSpend.Should().Be(100m);
@@ -154,7 +155,7 @@ public class DashboardServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetStatsAsync_NetBalance_PaidMinusOwed()
+    public async Task Handle_NetBalance_PaidMinusOwed()
     {
         await SeedCallerAsync();
         await SeedGroupAsync();
@@ -168,14 +169,14 @@ public class DashboardServiceTests : IDisposable
         _db.ExpenseParticipants.Add(new ExpenseParticipant { Id = Guid.NewGuid(), ExpenseId = expId, FamilyMemberId = memberId, CalculatedAmount = 80m, WeightSnapshot = 1m });
         await _db.SaveChangesAsync(CT);
 
-        var result = await _sut.GetStatsAsync(_callerId, CT);
+        var result = await _sut.HandleAsync(_callerId, CT);
 
         // paid=200, owed=80, balance=120
         result.Single().NetBalance.Should().Be(120m);
     }
 
     [Fact]
-    public async Task GetStatsAsync_SettledActivities_ExcludedFromActiveSpendAndBalance()
+    public async Task Handle_SettledActivities_ExcludedFromActiveSpendAndBalance()
     {
         await SeedCallerAsync();
         await SeedGroupAsync();
@@ -189,7 +190,7 @@ public class DashboardServiceTests : IDisposable
         _db.ExpenseParticipants.Add(new ExpenseParticipant { Id = Guid.NewGuid(), ExpenseId = expId, FamilyMemberId = memberId, CalculatedAmount = 250m, WeightSnapshot = 1m });
         await _db.SaveChangesAsync(CT);
 
-        var result = await _sut.GetStatsAsync(_callerId, CT);
+        var result = await _sut.HandleAsync(_callerId, CT);
 
         var stat = result.Single();
         stat.TotalGroupSpend.Should().Be(500m); // historical includes settled
@@ -198,7 +199,7 @@ public class DashboardServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetStatsAsync_PendingSettlements_CountsCorrectly()
+    public async Task Handle_PendingSettlements_CountsCorrectly()
     {
         await SeedCallerAsync();
         await SeedGroupAsync();
@@ -215,13 +216,13 @@ public class DashboardServiceTests : IDisposable
         _db.Settlements.Add(new Settlement { Id = Guid.NewGuid(), ActivityId = actId, PayerFamilyId = _familyId, ReceiverFamilyId = otherFamilyId, Amount = 10m, Status = SettlementStatus.Completed });
         await _db.SaveChangesAsync(CT);
 
-        var result = await _sut.GetStatsAsync(_callerId, CT);
+        var result = await _sut.HandleAsync(_callerId, CT);
 
         result.Single().PendingSettlements.Should().Be(2);
     }
 
     [Fact]
-    public async Task GetStatsAsync_ExcludedParticipant_NotCountedInShare()
+    public async Task Handle_ExcludedParticipant_NotCountedInShare()
     {
         await SeedCallerAsync();
         await SeedGroupAsync();
@@ -235,13 +236,13 @@ public class DashboardServiceTests : IDisposable
         _db.ExpenseParticipants.Add(new ExpenseParticipant { Id = Guid.NewGuid(), ExpenseId = expId, FamilyMemberId = memberId, CalculatedAmount = 50m, WeightSnapshot = 1m, IsExcluded = true });
         await _db.SaveChangesAsync(CT);
 
-        var result = await _sut.GetStatsAsync(_callerId, CT);
+        var result = await _sut.HandleAsync(_callerId, CT);
 
         result.Single().MyFamilyShare.Should().Be(0m);
     }
 
     [Fact]
-    public async Task GetStatsAsync_InactiveMembership_ThrowsForbidden()
+    public async Task Handle_InactiveMembership_ThrowsForbidden()
     {
         _db.FamilyMembers.Add(new FamilyMember
         {
@@ -253,13 +254,13 @@ public class DashboardServiceTests : IDisposable
         });
         await _db.SaveChangesAsync(CT);
 
-        var act = () => _sut.GetStatsAsync(_callerId, CT);
+        var act = () => _sut.HandleAsync(_callerId, CT);
 
         await act.Should().ThrowAsync<ForbiddenException>();
     }
 
     [Fact]
-    public async Task GetStatsAsync_SubActivities_ExcludedFromTopLevel()
+    public async Task Handle_SubActivities_ExcludedFromTopLevel()
     {
         await SeedCallerAsync();
         await SeedGroupAsync();
@@ -269,13 +270,13 @@ public class DashboardServiceTests : IDisposable
         _db.Activities.Add(new Activity { Id = Guid.NewGuid(), GroupId = _groupId, Name = "Child", Status = ActivityStatus.Open, CreatedByUserId = _callerId, ParentActivityId = parentId });
         await _db.SaveChangesAsync(CT);
 
-        var result = await _sut.GetStatsAsync(_callerId, CT);
+        var result = await _sut.HandleAsync(_callerId, CT);
 
         result.Single().TotalActivities.Should().Be(1);
     }
 
     [Fact]
-    public async Task GetStatsAsync_MultipleGroups_ReturnsStatsForEach()
+    public async Task Handle_MultipleGroups_ReturnsStatsForEach()
     {
         await SeedCallerAsync();
         var g1 = Guid.NewGuid();
@@ -283,7 +284,7 @@ public class DashboardServiceTests : IDisposable
         await SeedGroupAsync(g1, "Alpha");
         await SeedGroupAsync(g2, "Beta");
 
-        var result = await _sut.GetStatsAsync(_callerId, CT);
+        var result = await _sut.HandleAsync(_callerId, CT);
 
         result.Should().HaveCount(2);
         result.Select(r => r.GroupName).Should().BeEquivalentTo(["Alpha", "Beta"]);

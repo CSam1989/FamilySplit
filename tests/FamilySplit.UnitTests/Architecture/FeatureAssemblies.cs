@@ -11,5 +11,6 @@ internal static class FeatureAssemblies
     internal static readonly Assembly[] All =
     [
         typeof(FamilySplit.Features.Expenses.ExpensesModule).Assembly,
+        typeof(FamilySplit.Features.Dashboard.DashboardModule).Assembly,
     ];
 }

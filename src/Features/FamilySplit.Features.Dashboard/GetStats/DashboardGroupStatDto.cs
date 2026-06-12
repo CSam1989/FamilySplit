@@ -1,4 +1,4 @@
-namespace FamilySplit.Application.Dashboard.Dtos;
+namespace FamilySplit.Features.Dashboard.GetStats;
 
 /// <summary>
 /// Per-group statistics shown on the dashboard home page.

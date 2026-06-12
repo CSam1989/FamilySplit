@@ -31,7 +31,8 @@ public static class DependencyInjection
         services.AddScoped<Settlements.SettlementService>();
 
         // ── Dashboard stats ───────────────────────────────────────────────────
-        services.AddScoped<Dashboard.DashboardService>();
+        // Migrated to FamilySplit.Features.Dashboard (vertical slice) — registered
+        // via DashboardModule in the API host.
 
         // ── Auth: refresh token rotation / revocation ─────────────────────────
         services.AddScoped<Auth.RefreshTokenService>();
