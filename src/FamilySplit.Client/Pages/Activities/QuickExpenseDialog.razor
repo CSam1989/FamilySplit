@@ -14,7 +14,7 @@
             @if (_step == Step.ExpenseForm)
             {
                 <MudIconButton Icon="@Icons.Material.Rounded.ArrowBack"
-                               Size="Size.Small" OnClick="GoBack" Edge="Edge.Start"
+                               Size="Size.Medium" OnClick="GoBack" Edge="Edge.Start"
                                Style="margin-left:-4px" />
             }
             <MudText Typo="Typo.h6" Style="font-weight:600;letter-spacing:-0.01em">
@@ -173,16 +173,16 @@
                 </MudAlert>
             }
 
-            <MudForm @ref="_expenseForm" Model="_expense">
+            <MudForm @ref="_expenseForm" @bind-IsValid="_expenseValid" Model="_expense">
                 <MudTextField Label="@_t.WhatWasIt" @bind-Value="_expense.Title"
                               Required="true" RequiredError="@_t.ExpenseTitleRequired"
                               MaxLength="200" Immediate="true" Class="mb-3"
                               Variant="Variant.Outlined" AutoFocus="true" />
 
-                <MudNumericField T="decimal?" Label="@_t.ExpenseAmount" @bind-Value="_expense.TotalAmount"
-                                 Required="true" RequiredError="@_t.ExpenseAmountRequired"
-                                 Min="0.01m" Immediate="true"
-                                 Variant="Variant.Outlined" Class="mb-3" />
+                <MoneyField Label="@_t.ExpenseAmount" @bind-Value="_expense.TotalAmount"
+                            Required="true" RequiredError="@_t.ExpenseAmountRequired"
+                            Variant="Variant.Outlined" Class="mb-3"
+                            DataTestId="input-expense-amount" />
 
                 <MudDatePicker Label="@_t.ExpenseDate" @bind-Date="_expenseDate"
                                Required="true" RequiredError="@_t.ExpenseDateRequired"
@@ -210,7 +210,7 @@
         else
         {
             <MudButton Color="Color.Primary" Variant="Variant.Filled"
-                       Disabled="_submitting"
+                       Disabled="@(_submitting || !_expenseValid)"
                        OnClick="SubmitExpenseAsync">
                 @if (_submitting)
                 {
@@ -252,6 +252,7 @@
 
     // ── Expense form ───────────────────────────────────────────────────────────
     private MudForm _expenseForm = default!;
+    private bool _expenseValid;
     private readonly ExpenseFormModel _expense = new() { Currency = "EUR" };
     private DateTime? _expenseDate = DateTime.Today;
     private bool _submitting;
@@ -312,7 +313,7 @@
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to load activities for group {GroupId}", groupId);
-            _activityError = "Could not load activities. Please try again.";
+            _activityError = ErrorHelper.GetMessage(ex);
         }
         finally
         {
@@ -368,7 +369,7 @@
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to create activity");
-            _activityError = "Could not create activity. Please try again.";
+            _activityError = ErrorHelper.GetMessage(ex);
         }
         finally
         {

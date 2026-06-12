@@ -1,4 +1,4 @@
-﻿{
+{
   "Cancel": "Annuler",
   "Save": "Enregistrer",
   "Add": "Ajouter",
@@ -89,6 +89,8 @@
   "AddSubActivity": "Ajouter une sous-activité",
   "CloseActivity": "Clôturer l'activité",
   "CloseActivityConfirm": "Cette action est irréversible.",
+  "CloseActivityBody": "Clôturer « {0} » ? Cette action est irréversible.",
+  "CloseActivityWithSubsBody": "Clôturer « {0} » ? {1} sous-activité(s) ouverte(s) seront absorbées.",
   "CloseActivityYes": "Clôturer",
   "ActivityName": "Nom",
   "ActivityNameRequired": "Le nom est obligatoire.",
@@ -127,6 +129,7 @@
   "ExpenseAmountRequired": "Le montant est obligatoire.",
   "ExpenseAmountMin": "Le montant doit être supérieur à 0.",
   "ExpenseAmountMax": "Le montant ne peut pas dépasser 1 000 000.",
+  "ExpenseAmountInvalid": "Saisissez un montant valide avec 2 décimales maximum, p. ex. 12,50.",
   "ExpenseDate": "Date",
   "ExpenseDateRequired": "La date est obligatoire.",
   "AddExpenseTitle": "Ajouter une dépense",
@@ -139,6 +142,11 @@
   "ColWeight": "Pondération",
   "ColShare": "Part",
   "ColAmount": "Montant",
+  "Total": "Total",
+  "ParticipantsExcluded": "{0} participant(s) exclu(s) de cette répartition.",
+  "PushBannerText": "Activez les notifications pour être alerté lorsqu'un paiement est envoyé ou confirmé.",
+  "PushBannerEnable": "Activer",
+  "PushBannerEnabled": "Notifications activées",
   "Expense": "dépense",
   "ExpensesPlural": "dépenses",
 
@@ -193,6 +201,7 @@
   "DateOfBirthPlaceholder": "Laisser vide si inconnue",
   "CustomWeightToggle": "Définir une pondération personnalisée (remplace la tranche d'âge)",
   "CustomWeightLabel": "Pondération personnalisée",
+  "CustomWeightHelper": "1,00 = une part adulte complète",
   "CustomWeightValidation": "La pondération doit être comprise entre 0,01 et 10.",
   "FamilyAdminToggle": "Admin de la famille (peut gérer les membres)",
   "EditMemberTitle": "Modifier le membre",
@@ -278,4 +287,3 @@
   "ConfirmReceivedBody": "Confirmer que {0} a reçu {1} de {2} ?",
 "AdminFamiliesSubtitle": "Vue administrateur global — créez et gérez toutes les familles et leurs membres."
 }
-                                                                                                                                                       

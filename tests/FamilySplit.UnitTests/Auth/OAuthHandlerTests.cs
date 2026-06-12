@@ -64,12 +64,12 @@ public class OAuthHandlerTests : IDisposable
         HttpStatusCode userInfoStatus = HttpStatusCode.OK, object? userInfoBody = null)
         => new(tokenStatus, tokenBody, userInfoStatus, userInfoBody);
 
-    private static FakeHandler MakeSuccessHandler(string sub, string email, string? name = "Test User", string? picture = "https://pic.url")
+    private static FakeHandler MakeSuccessHandler(string sub, string email, string? name = "Test User", string? picture = "https://pic.url", bool emailVerified = true)
         => MakeHandler(
             HttpStatusCode.OK,
             new { access_token = "at", expires_in = 3600, token_type = "Bearer" },
             HttpStatusCode.OK,
-            new { sub, email, name, picture });
+            new { sub, email, email_verified = emailVerified, name, picture });
 
     [Fact]
     public void Constructor_AssignsAllDependencies()
@@ -175,6 +175,7 @@ public class OAuthHandlerTests : IDisposable
         {
             Id = Guid.NewGuid(),
             FamilyId = Guid.NewGuid(),
+            IsActive = true,
             Email = "test@example.com",
             DisplayName = "Test",
             CreatedAt = DateTimeOffset.UtcNow,
@@ -215,6 +216,7 @@ public class OAuthHandlerTests : IDisposable
         {
             Id = Guid.NewGuid(),
             FamilyId = Guid.NewGuid(),
+            IsActive = true,
             Email = "new@example.com",
             UserId = userId,
             DisplayName = "Member",
@@ -240,6 +242,7 @@ public class OAuthHandlerTests : IDisposable
         {
             Id = Guid.NewGuid(),
             FamilyId = Guid.NewGuid(),
+            IsActive = true,
             Email = "test@example.com",
             UserId = Guid.NewGuid(), // linked to someone else
             DisplayName = "Member",
@@ -262,6 +265,7 @@ public class OAuthHandlerTests : IDisposable
         {
             Id = Guid.NewGuid(),
             FamilyId = Guid.NewGuid(),
+            IsActive = true,
             Email = "test@example.com",
             DisplayName = "Test",
             CreatedAt = DateTimeOffset.UtcNow,
@@ -278,12 +282,57 @@ public class OAuthHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task HandleGoogleCallbackAsync_EmailNotVerified_ThrowsNotRegistered()
+    {
+        _db.FamilyMembers.Add(new FamilyMember
+        {
+            Id = Guid.NewGuid(),
+            FamilyId = Guid.NewGuid(),
+            IsActive = true,
+            Email = "test@example.com",
+            DisplayName = "Test",
+            CreatedAt = DateTimeOffset.UtcNow,
+        });
+        await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var handler = MakeSuccessHandler(sub: "sub-unverified", email: "Test@Example.com", emailVerified: false);
+        var sut = CreateSut(handler);
+
+        var act = () => sut.HandleGoogleCallbackAsync("code", "verifier", "https://redirect", TestContext.Current.CancellationToken);
+
+        await act.Should().ThrowAsync<NotRegisteredException>();
+    }
+
+    [Fact]
+    public async Task HandleGoogleCallbackAsync_InactiveMember_ThrowsNotRegistered()
+    {
+        _db.FamilyMembers.Add(new FamilyMember
+        {
+            Id = Guid.NewGuid(),
+            FamilyId = Guid.NewGuid(),
+            IsActive = false, // soft-deleted member must not be able to log back in
+            Email = "test@example.com",
+            DisplayName = "Test",
+            CreatedAt = DateTimeOffset.UtcNow,
+        });
+        await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var handler = MakeSuccessHandler(sub: "sub-inactive", email: "Test@Example.com");
+        var sut = CreateSut(handler);
+
+        var act = () => sut.HandleGoogleCallbackAsync("code", "verifier", "https://redirect", TestContext.Current.CancellationToken);
+
+        await act.Should().ThrowAsync<NotRegisteredException>();
+    }
+
+    [Fact]
     public async Task HandleGoogleCallbackAsync_EmailWithWhitespace_IsNormalizedToLowerTrimmed()
     {
         _db.FamilyMembers.Add(new FamilyMember
         {
             Id = Guid.NewGuid(),
             FamilyId = Guid.NewGuid(),
+            IsActive = true,
             Email = "spaced@example.com",
             DisplayName = "Test",
             CreatedAt = DateTimeOffset.UtcNow,

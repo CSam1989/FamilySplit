@@ -88,7 +88,18 @@
     {
         await base.OnInitializedAsync();
         _t = await I18nText.GetTextTableAsync<AppText>(this);
-        Nav.LocationChanged += (_, _) => StateHasChanged();
+        Nav.LocationChanged += OnLocationChanged;
+    }
+
+    // Named handler (not a lambda) so it can be unsubscribed — NavigationManager is a
+    // singleton, so an un-removed handler on a disposed component leaks and can throw.
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e) => InvokeAsync(StateHasChanged);
+
+    protected override ValueTask DisposeAsyncCore(bool disposing)
+    {
+        if (disposing)
+            Nav.LocationChanged -= OnLocationChanged;
+        return base.DisposeAsyncCore(disposing);
     }
 
     private string IsActive(string segment, bool exact = false)

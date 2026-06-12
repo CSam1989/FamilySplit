@@ -110,13 +110,25 @@ else
         Nav.NavigateTo($"/groups/{groupId}");
 
     private bool _pendingNavigation;
+    private Guid? _navBaselineGroupId;
 
     protected override void OnAfterRender(bool firstRender)
     {
-        if (_pendingNavigation && State.Value.SelectedGroup is not null && !State.Value.IsLoading)
+        if (!_pendingNavigation || State.Value.IsLoading) return;
+
+        // The create/join failed — stop pending so the error banner is shown
+        // instead of silently navigating into a stale previously-selected group.
+        if (State.Value.ErrorMessage is not null)
         {
             _pendingNavigation = false;
-            Nav.NavigateTo($"/groups/{State.Value.SelectedGroup.Id}");
+            return;
+        }
+
+        // Navigate only when a genuinely NEW group was selected by the success reducer.
+        if (State.Value.SelectedGroup is { } g && g.Id != _navBaselineGroupId)
+        {
+            _pendingNavigation = false;
+            Nav.NavigateTo($"/groups/{g.Id}");
         }
     }
 
@@ -127,6 +139,7 @@ else
 
         if (result is { Canceled: false, Data: CreateGroupFormModel form })
         {
+            _navBaselineGroupId = State.Value.SelectedGroup?.Id;
             _pendingNavigation = true;
             Dispatcher.Dispatch(new CreateGroupAction(
                 new CreateGroupRequest(form.Name, form.Description)));
@@ -140,6 +153,7 @@ else
 
         if (result is { Canceled: false, Data: string inviteCode })
         {
+            _navBaselineGroupId = State.Value.SelectedGroup?.Id;
             _pendingNavigation = true;
             Dispatcher.Dispatch(new JoinGroupAction(new JoinGroupRequest(inviteCode)));
         }

@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using FamilySplit.Application.Core;
 using FamilySplit.Application.Exceptions;
 using FamilySplit.Application.Families;
@@ -65,14 +66,19 @@ public class GroupService
         var callerRoleByGroup = callerGroupFamilies.ToDictionary(gf => gf.GroupId, gf => gf.Role);
 
         return groups
-            .Select(g => new GroupSummaryDto(
-                g.Id,
-                g.Name,
-                g.Description,
-                g.InviteCode,
-                familyCounts.GetValueOrDefault(g.Id, 0),
-                callerRoleByGroup[g.Id],
-                g.CreatedAt))
+            .Select(g =>
+            {
+                var role = callerRoleByGroup[g.Id];
+                return new GroupSummaryDto(
+                    g.Id,
+                    g.Name,
+                    g.Description,
+                    // The invite code controls who can join — expose it only to admins.
+                    role == MemberRole.Admin ? g.InviteCode : null,
+                    familyCounts.GetValueOrDefault(g.Id, 0),
+                    role,
+                    g.CreatedAt);
+            })
             .ToList();
     }
 
@@ -93,7 +99,7 @@ public class GroupService
 
     public async Task<GroupDetailDto> CreateAsync(CreateGroupRequest req, Guid callerId, CancellationToken ct = default)
     {
-        _logger.LogDebug("CreateAsync called. {UserId} Name={Name}", callerId, req.Name);
+        _logger.LogDebug("CreateAsync called. {UserId}", callerId);
         await _createValidator.ValidateAndThrowAsync(req, ct);
         await RequireCallerIsFamilyAdminAsync(callerId, ct);
 
@@ -104,7 +110,7 @@ public class GroupService
             Id = Guid.NewGuid(),
             Name = req.Name.Trim(),
             Description = req.Description?.Trim(),
-            InviteCode = GenerateInviteCode(),
+            InviteCode = await GenerateUniqueInviteCodeAsync(ct),
             CreatedByUserId = callerId,
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow,
@@ -165,8 +171,14 @@ public class GroupService
         var group = await _db.Groups
             .Where(g => g.InviteCode == req.InviteCode.ToUpperInvariant())
             .Select(g => new { g.Id })
-            .FirstOrDefaultAsync(ct)
-            ?? throw Throw422("InviteCode", "Invite code is invalid or has expired.");
+            .FirstOrDefaultAsync(ct);
+
+        if (group is null)
+        {
+            // Log invalid attempts so brute-force probing is visible in the logs.
+            _logger.LogWarning("Invalid invite-code join attempt by user {UserId}", callerId);
+            throw Throw422("InviteCode", "Invite code is invalid or has expired.");
+        }
 
         var alreadyMember = await _db.GroupFamilies
             .AnyAsync(gf => gf.GroupId == group.Id && gf.FamilyId == callerFamilyId, ct);
@@ -234,7 +246,7 @@ public class GroupService
         var group = await _db.Groups.FindAsync([groupId], ct)
             ?? throw NotFound();
 
-        group.InviteCode = GenerateInviteCode();
+        group.InviteCode = await GenerateUniqueInviteCodeAsync(ct);
         group.UpdatedAt = DateTimeOffset.UtcNow;
 
         await _db.SaveChangesAsync(ct);
@@ -343,23 +355,41 @@ public class GroupService
             group.Id,
             group.Name,
             group.Description,
-            group.InviteCode,
+            // The invite code controls who can join — expose it only to admins.
+            callerRole == MemberRole.Admin ? group.InviteCode : null,
             callerRole,
             families,
             group.CreatedAt,
             group.UpdatedAt);
     }
 
-    private static string GenerateInviteCode()
+    /// <summary>
+    /// Generates a cryptographically-random 8-char invite code (≈40 bits) and retries
+    /// on the off chance of a collision with the unique index on groups.invite_code.
+    /// </summary>
+    private async Task<string> GenerateUniqueInviteCodeAsync(CancellationToken ct)
     {
         const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I
-        return new string(Enumerable.Range(0, 8)
-            .Select(_ => chars[Random.Shared.Next(chars.Length)])
-            .ToArray());
+
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            var code = string.Create(8, chars, static (span, alphabet) =>
+            {
+                for (var i = 0; i < span.Length; i++)
+                    span[i] = alphabet[RandomNumberGenerator.GetInt32(alphabet.Length)];
+            });
+
+            var taken = await _db.Groups.AnyAsync(g => g.InviteCode == code, ct);
+            if (!taken)
+                return code;
+        }
+
+        throw new InvalidOperationException("Unable to generate a unique invite code after several attempts.");
     }
 
     private static ForbiddenException Forbidden() => new();
-    private static ValidationException NotFound() => new("Group not found.");
+    private static ValidationException NotFound() =>
+        new(new[] { new FluentValidation.Results.ValidationFailure("Id", "Group not found.") });
     private static ValidationException Throw422(string field, string message) =>
         new(new[] { new FluentValidation.Results.ValidationFailure(field, message) });
 }

@@ -1,18 +1,25 @@
 @*
     Drop <RequireAdmin /> at the top of any page that needs IsGlobalAdmin = true.
     Redirects to / if the user is not authenticated or not a global admin.
+
+    Inherits FluxorComponent (like RequireAuth) so it re-renders on AuthState
+    changes, and defers the redirect until HasChecked == true. This prevents both
+    failure modes of the old one-shot guard: bouncing a legitimate admin on a hard
+    refresh (check not yet complete) and leaving a non-admin on the page shell while
+    the check is still in flight.
 *@
+@inherits Fluxor.Blazor.Web.Components.FluxorComponent
 @using FamilySplit.Client.Store.Auth
 @inject IState<AuthState> AuthState
 @inject NavigationManager Nav
 
 @code {
-    protected override void OnParametersSet()
+    protected override void OnAfterRender(bool firstRender)
     {
-        if (!AuthState.Value.IsLoading &&
+        base.OnAfterRender(firstRender);
+
+        if (AuthState.Value.HasChecked &&
             (!AuthState.Value.IsAuthenticated || !AuthState.Value.IsGlobalAdmin))
-        {
             Nav.NavigateTo("/", replace: true);
-        }
     }
 }

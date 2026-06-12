@@ -149,7 +149,7 @@ public class ActivityService
         };
 
         _db.Activities.Add(activity);
-        await _seeder.SeedForActivityAsync(activity);
+        await _seeder.SeedForActivityAsync(activity, ct);
         await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("Activity {ActivityId} created in group {GroupId} by {UserId}", activity.Id, groupId, callerId);
@@ -195,7 +195,7 @@ public class ActivityService
         };
 
         _db.Activities.Add(sub);
-        await _seeder.SeedForSubActivityAsync(sub, parentActivityId);
+        await _seeder.SeedForSubActivityAsync(sub, parentActivityId, ct);
         await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("Sub-activity {ActivityId} created under parent {ParentActivityId} by {UserId}", sub.Id, parentActivityId, callerId);
@@ -490,8 +490,10 @@ public class ActivityService
             parentActivityId, participantDtos, subDtos, createdAt, closedAt);
     }
 
-    private static ForbiddenException Forbidden() => new();
-    private static ValidationException NotFound() => new("Activity not found.");
+    // Build through a ValidationFailure so the message survives the middleware
+    // (which serializes ex.Errors, not ex.Message).
+    private static ValidationException NotFound() =>
+        new(new[] { new FluentValidation.Results.ValidationFailure("Id", "Activity not found.") });
     private static ValidationException Throw422(string field, string message) =>
         new(new[] { new FluentValidation.Results.ValidationFailure(field, message) });
 }

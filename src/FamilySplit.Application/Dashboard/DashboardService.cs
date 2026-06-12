@@ -47,15 +47,26 @@ public class DashboardService
 
         var activityIds = activityRows.Select(a => a.Id).ToList();
 
+        // Sub-activities roll up into their parent for spend/balance (mirrors
+        // SettlementService.GetActivityAndSubIdsAsync). They carry the same GroupId
+        // as the parent, so grouping by a.GroupId still attributes them correctly.
+        var subActivityRows = await _db.Activities
+            .Where(a => a.ParentActivityId != null && activityIds.Contains(a.ParentActivityId!.Value))
+            .Select(a => new { a.Id, ParentId = a.ParentActivityId!.Value })
+            .ToListAsync(ct);
+
+        // All activity IDs (top-level + subs) for the historical expense/share scope.
+        var allExpenseActivityIds = activityIds.Concat(subActivityRows.Select(s => s.Id)).ToList();
+
         // ── 4. Expense totals per group (all activities, historical view) ─────
         var expensesByGroup = new Dictionary<Guid, (decimal Total, string Currency)>();
 
-        if (activityIds.Count > 0)
+        if (allExpenseActivityIds.Count > 0)
         {
             var rawExpenses = await (
                 from e in _db.Expenses
                 join a in _db.Activities on e.ActivityId equals a.Id
-                where activityIds.Contains(e.ActivityId)
+                where allExpenseActivityIds.Contains(e.ActivityId)
                 select new { a.GroupId, e.TotalAmount, e.Currency }
             ).ToListAsync(ct);
 
@@ -74,14 +85,14 @@ public class DashboardService
         // ── 5. My family's total share across ALL activities (matches TotalGroupSpend scope) ──
         var shareByGroup = new Dictionary<Guid, decimal>();
 
-        if (activityIds.Count > 0)
+        if (allExpenseActivityIds.Count > 0)
         {
             var rawShare = await (
                 from ep in _db.ExpenseParticipants
                 join e in _db.Expenses on ep.ExpenseId equals e.Id
                 join a in _db.Activities on e.ActivityId equals a.Id
                 join fm in _db.FamilyMembers on ep.FamilyMemberId equals fm.Id
-                where activityIds.Contains(e.ActivityId)
+                where allExpenseActivityIds.Contains(e.ActivityId)
                    && fm.FamilyId == callerFamilyId
                    && !ep.IsExcluded
                 select new { a.GroupId, ep.CalculatedAmount }
@@ -93,9 +104,14 @@ public class DashboardService
         }
 
         // ── 7. Active spend (Open + Closed only) — same scope as net balance ────
-        var balanceActivityIds = activityRows
+        var balanceParentIds = activityRows
             .Where(a => a.Status is ActivityStatus.Open or ActivityStatus.Closed)
             .Select(a => a.Id)
+            .ToHashSet();
+
+        // Include sub-activities of the in-scope parents so spend/balance roll up.
+        var balanceActivityIds = balanceParentIds
+            .Concat(subActivityRows.Where(s => balanceParentIds.Contains(s.ParentId)).Select(s => s.Id))
             .ToList();
 
         var activeExpensesByGroup = new Dictionary<Guid, decimal>();
@@ -141,6 +157,9 @@ public class DashboardService
             // What my family paid: expenses whose PaidByUser is a member of my family.
             // Cross-join pattern (fm.UserId == e.PaidByUserId) matching
             // SettlementService.LoadExpenseDataAsync — approved in CLAUDE.md.
+            // NOTE: no fm.IsActive filter on the payer side — see SettlementService.
+            // The family that fronted the money keeps the credit even if the member
+            // who paid has since been deactivated (preserves the zero-sum invariant).
             var rawPaid = await (
                 from e in _db.Expenses
                 from fm in _db.FamilyMembers
@@ -149,7 +168,6 @@ public class DashboardService
                    && fm.UserId != null
                    && fm.UserId == e.PaidByUserId
                    && fm.FamilyId == callerFamilyId
-                   && fm.IsActive
                 select new { a.GroupId, e.TotalAmount }
             ).ToListAsync(ct);
 

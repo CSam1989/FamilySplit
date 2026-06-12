@@ -21,7 +21,7 @@ public record GroupSummaryDto(
     Guid Id,
     string Name,
     string? Description,
-    string InviteCode,
+    string? InviteCode, // null for non-admin families — the code controls who can join
     int FamilyCount,
     MemberRole CallerFamilyRole,
     DateTimeOffset CreatedAt);
@@ -33,7 +33,7 @@ public record GroupDetailDto(
     Guid Id,
     string Name,
     string? Description,
-    string InviteCode,
+    string? InviteCode, // null for non-admin families — the code controls who can join
     MemberRole CallerFamilyRole,
     IReadOnlyList<GroupFamilyDto> Families,
     DateTimeOffset CreatedAt,

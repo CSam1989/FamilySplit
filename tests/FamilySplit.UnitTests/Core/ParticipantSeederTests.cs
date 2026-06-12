@@ -36,7 +36,7 @@ public class ParticipantSeederTests : IDisposable
     {
         var activity = new Activity { Id = Guid.NewGuid(), GroupId = Guid.NewGuid(), Name = "Test" };
 
-        await _sut.SeedForActivityAsync(activity);
+        await _sut.SeedForActivityAsync(activity, TestContext.Current.CancellationToken);
 
         _db.ChangeTracker.Entries<ActivityParticipant>().Should().BeEmpty();
     }
@@ -55,7 +55,7 @@ public class ParticipantSeederTests : IDisposable
 
         var activity = new Activity { Id = Guid.NewGuid(), GroupId = groupId, Name = "Test" };
 
-        await _sut.SeedForActivityAsync(activity);
+        await _sut.SeedForActivityAsync(activity, TestContext.Current.CancellationToken);
 
         var participants = _db.ChangeTracker.Entries<ActivityParticipant>()
             .Where(e => e.State == EntityState.Added)
@@ -80,7 +80,7 @@ public class ParticipantSeederTests : IDisposable
         await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var activity = new Activity { Id = Guid.NewGuid(), GroupId = groupId, Name = "Test" };
-        await _sut.SeedForActivityAsync(activity);
+        await _sut.SeedForActivityAsync(activity, TestContext.Current.CancellationToken);
 
         var participants = _db.ChangeTracker.Entries<ActivityParticipant>()
             .Where(e => e.State == EntityState.Added)
@@ -106,7 +106,7 @@ public class ParticipantSeederTests : IDisposable
         await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var activity = new Activity { Id = Guid.NewGuid(), GroupId = groupId, Name = "Test" };
-        await _sut.SeedForActivityAsync(activity);
+        await _sut.SeedForActivityAsync(activity, TestContext.Current.CancellationToken);
 
         var added = _db.ChangeTracker.Entries<ActivityParticipant>()
             .Where(e => e.State == EntityState.Added)
@@ -129,7 +129,7 @@ public class ParticipantSeederTests : IDisposable
         await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var activity = new Activity { Id = Guid.NewGuid(), GroupId = groupId, Name = "Test" };
-        await _sut.SeedForActivityAsync(activity);
+        await _sut.SeedForActivityAsync(activity, TestContext.Current.CancellationToken);
 
         _db.ChangeTracker.Entries<ActivityParticipant>()
             .Where(e => e.State == EntityState.Added)
@@ -149,7 +149,7 @@ public class ParticipantSeederTests : IDisposable
         _db.ChangeTracker.Clear();
 
         var subActivity = new Activity { Id = Guid.NewGuid(), GroupId = Guid.NewGuid(), Name = "Sub" };
-        await _sut.SeedForSubActivityAsync(subActivity, parentActivityId);
+        await _sut.SeedForSubActivityAsync(subActivity, parentActivityId, TestContext.Current.CancellationToken);
 
         var added = _db.ChangeTracker.Entries<ActivityParticipant>()
             .Where(e => e.State == EntityState.Added)
@@ -166,7 +166,7 @@ public class ParticipantSeederTests : IDisposable
     {
         var subActivity = new Activity { Id = Guid.NewGuid(), GroupId = Guid.NewGuid(), Name = "Sub" };
 
-        await _sut.SeedForSubActivityAsync(subActivity, Guid.NewGuid());
+        await _sut.SeedForSubActivityAsync(subActivity, Guid.NewGuid(), TestContext.Current.CancellationToken);
 
         _db.ChangeTracker.Entries<ActivityParticipant>()
             .Where(e => e.State == EntityState.Added)
@@ -187,7 +187,7 @@ public class ParticipantSeederTests : IDisposable
         _db.ChangeTracker.Clear();
 
         var subActivity = new Activity { Id = Guid.NewGuid(), GroupId = Guid.NewGuid(), Name = "Sub" };
-        await _sut.SeedForSubActivityAsync(subActivity, parentId);
+        await _sut.SeedForSubActivityAsync(subActivity, parentId, TestContext.Current.CancellationToken);
 
         var added = _db.ChangeTracker.Entries<ActivityParticipant>()
             .Where(e => e.State == EntityState.Added)

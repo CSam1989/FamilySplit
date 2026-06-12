@@ -132,8 +132,8 @@ public class ExpenseService
     public async Task<ExpenseDetailDto> CreateAsync(Guid activityId, CreateExpenseRequest req, Guid callerId, CancellationToken ct = default)
     {
         _logger.LogDebug(
-            "Creating expense on activity {ActivityId} by user {UserId} — title: {ExpenseTitle}, amount: {Amount}",
-            activityId, callerId, req.Title, req.TotalAmount);
+            "Creating expense on activity {ActivityId} by user {UserId}",
+            activityId, callerId);
 
         await _createValidator.ValidateAndThrowAsync(req, ct);
 
@@ -145,8 +145,12 @@ public class ExpenseService
 
         await RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 
-        if (activity.Status == ActivityStatus.Settled)
-            throw Throw422("Status", "Cannot add expenses to a settled activity.");
+        if (activity.Status is ActivityStatus.Settled or ActivityStatus.Closed)
+            throw Throw422("Status", "Cannot add expenses to a closed or settled activity.");
+
+        var currency = (req.Currency ?? "EUR").ToUpperInvariant();
+        await EnsureCurrencyConsistentAsync(activityId, currency, excludeExpenseId: null, ct);
+        await EnsureCategoryValidAsync(req.CategoryId, activity.GroupId, ct);
 
         var now = DateTimeOffset.UtcNow;
         var expenseDate = req.ExpenseDate;
@@ -170,7 +174,7 @@ public class ExpenseService
             Title = req.Title.Trim(),
             Description = req.Description?.Trim(),
             TotalAmount = req.TotalAmount,
-            Currency = (req.Currency ?? "EUR").ToUpperInvariant(),
+            Currency = currency,
             ExpenseDate = expenseDate,
             CategoryId = req.CategoryId,
             Status = ExpenseStatus.Active,
@@ -244,12 +248,17 @@ public class ExpenseService
             ?? throw NotFound("Activity not found.");
 
         await RequireGroupMemberAsync(activity.GroupId, callerId, ct);
+        await RequireSameFamilyAsPayerOrGlobalAdminAsync(expense.PaidByUserId, callerId, ct);
 
-        if (activity.Status == ActivityStatus.Settled)
-            throw Throw422("Status", "Cannot edit expenses on a settled activity.");
+        if (activity.Status is ActivityStatus.Settled or ActivityStatus.Closed)
+            throw Throw422("Status", "Cannot edit expenses on a closed or settled activity.");
 
         if (expense.Status == ExpenseStatus.Locked)
             throw Throw422("Status", "This expense is locked and cannot be edited.");
+
+        var currency = (req.Currency ?? expense.Currency).ToUpperInvariant();
+        await EnsureCurrencyConsistentAsync(expense.ActivityId, currency, excludeExpenseId: expenseId, ct);
+        await EnsureCategoryValidAsync(req.CategoryId, activity.GroupId, ct);
 
         bool amountOrDateChanged = ExpenseReshuffleRequired.Check(expense.TotalAmount, req.TotalAmount, expense.ExpenseDate, req.ExpenseDate);
 
@@ -265,7 +274,7 @@ public class ExpenseService
         expense.Title = req.Title.Trim();
         expense.Description = req.Description?.Trim();
         expense.TotalAmount = req.TotalAmount;
-        expense.Currency = (req.Currency ?? expense.Currency).ToUpperInvariant();
+        expense.Currency = currency;
         expense.ExpenseDate = req.ExpenseDate;
         expense.CategoryId = req.CategoryId;
         expense.UpdatedAt = DateTimeOffset.UtcNow;
@@ -274,8 +283,8 @@ public class ExpenseService
         if (amountOrDateChanged)
         {
             _logger.LogDebug(
-                "Amount or date changed on expense {ExpenseId} — re-snapshotting weights (old amount: {OldAmount}, new: {NewAmount})",
-                expenseId, before.amount, req.TotalAmount);
+                "Amount or date changed on expense {ExpenseId} — re-snapshotting weights",
+                expenseId);
 
             var existingParticipants = await _db.ExpenseParticipants
                 .Where(ep => ep.ExpenseId == expenseId)
@@ -348,9 +357,10 @@ public class ExpenseService
             ?? throw NotFound("Activity not found.");
 
         await RequireGroupMemberAsync(activity.GroupId, callerId, ct);
+        await RequireSameFamilyAsPayerOrGlobalAdminAsync(expense.PaidByUserId, callerId, ct);
 
-        if (activity.Status == ActivityStatus.Settled)
-            throw Throw422("Status", "Cannot delete expenses from a settled activity.");
+        if (activity.Status is ActivityStatus.Settled or ActivityStatus.Closed)
+            throw Throw422("Status", "Cannot delete expenses from a closed or settled activity.");
 
         if (expense.Status == ExpenseStatus.Locked)
             throw Throw422("Status", "This expense is locked and cannot be deleted.");
@@ -388,6 +398,69 @@ public class ExpenseService
 
         if (!isMember)
             throw new ForbiddenException();
+    }
+
+    /// <summary>
+    /// Only a member of the family that posted the expense (the payer's family) may
+    /// modify or delete it. Global admins bypass this check. The payer lookup is not
+    /// filtered by IsActive — the family that fronted the money is the same regardless
+    /// of whether that member has since been deactivated.
+    /// </summary>
+    private async Task RequireSameFamilyAsPayerOrGlobalAdminAsync(Guid payerUserId, Guid callerId, CancellationToken ct)
+    {
+        var isGlobalAdmin = await _db.Users
+            .Where(u => u.Id == callerId)
+            .Select(u => u.IsGlobalAdmin)
+            .FirstOrDefaultAsync(ct);
+
+        if (isGlobalAdmin)
+            return;
+
+        var callerFamilyId = await _db.FamilyMembers
+            .Where(m => m.UserId == callerId && m.IsActive)
+            .Select(m => (Guid?)m.FamilyId)
+            .FirstOrDefaultAsync(ct);
+
+        var payerFamilyId = await _db.FamilyMembers
+            .Where(m => m.UserId == payerUserId)
+            .Select(m => (Guid?)m.FamilyId)
+            .FirstOrDefaultAsync(ct);
+
+        if (callerFamilyId is null || payerFamilyId is null || callerFamilyId.Value != payerFamilyId.Value)
+            throw new ForbiddenException("Only a member of the family that posted this expense can modify it.");
+    }
+
+    /// <summary>
+    /// Settlement balances are computed by summing amounts without FX conversion, so
+    /// every expense on an activity must share one currency. Reject a mismatch up front.
+    /// </summary>
+    private async Task EnsureCurrencyConsistentAsync(Guid activityId, string currency, Guid? excludeExpenseId, CancellationToken ct)
+    {
+        var existingCurrency = await _db.Expenses
+            .Where(e => e.ActivityId == activityId && (excludeExpenseId == null || e.Id != excludeExpenseId))
+            .Select(e => e.Currency)
+            .FirstOrDefaultAsync(ct);
+
+        if (existingCurrency is not null && !string.Equals(existingCurrency, currency, StringComparison.OrdinalIgnoreCase))
+            throw Throw422("Currency",
+                $"All expenses on an activity must use the same currency ({existingCurrency}).");
+    }
+
+    /// <summary>
+    /// A category must exist and be either system-wide or scoped to the activity's group.
+    /// Prevents attaching another group's custom category and turns a bad id into a 422
+    /// instead of an unhandled FK violation.
+    /// </summary>
+    private async Task EnsureCategoryValidAsync(Guid? categoryId, Guid groupId, CancellationToken ct)
+    {
+        if (categoryId is null)
+            return;
+
+        var ok = await _db.Categories
+            .AnyAsync(c => c.Id == categoryId.Value && (c.GroupId == null || c.GroupId == groupId), ct);
+
+        if (!ok)
+            throw Throw422("CategoryId", "Category not found or not available in this group.");
     }
 
     private async Task<ExpenseDetailDto> BuildDetailDtoAsync(
@@ -452,7 +525,10 @@ public class ExpenseService
             updatedAt);
     }
 
-    private static ValidationException NotFound(string message) => new(message);
+    // Build the failure through a ValidationFailure so the message survives the
+    // ValidationExceptionMiddleware (which serializes ex.Errors, not ex.Message).
+    private static ValidationException NotFound(string message) =>
+        new(new[] { new FluentValidation.Results.ValidationFailure("Id", message) });
     private static ValidationException Throw422(string field, string message) =>
         new(new[] { new FluentValidation.Results.ValidationFailure(field, message) });
 }

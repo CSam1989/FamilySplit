@@ -91,6 +91,14 @@ public class OAuthHandler
         if (string.IsNullOrWhiteSpace(profile.Sub) || string.IsNullOrWhiteSpace(profile.Email))
             throw new InvalidOperationException("Google userinfo missing sub or email.");
 
+        // The email is the sole key linking a login to a FamilyMember slot. Refuse to
+        // honour an unverified email, which an attacker could set on a throwaway account.
+        if (!profile.EmailVerified)
+        {
+            _logger.LogWarning("Login rejected: Google email {Email} is not verified", profile.Email);
+            throw new NotRegisteredException(profile.Email);
+        }
+
         // Normalize the email up-front so we both store the canonical form on
         // the User row and use the same form for the FamilyMember lookup. This
         // lets Postgres use the unique index on family_members.email (which
@@ -123,16 +131,17 @@ public class OAuthHandler
             user.AvatarUrl = profile.Picture;
         }
 
-        // 4. Find the FamilyMember whose email matches this login email.
+        // 4. Find the active FamilyMember whose email matches this login email.
         //    Both columns now store lowercase, so a direct equality predicate
-        //    uses the existing unique index.
+        //    uses the existing unique index. Soft-deleted (IsActive == false)
+        //    members must not be able to log back in.
         var member = await _db.FamilyMembers
-            .FirstOrDefaultAsync(m => m.Email == emailLower, ct);
+            .FirstOrDefaultAsync(m => m.Email == emailLower && m.IsActive, ct);
 
         if (member is null)
         {
-            // No family member registered for this email — block login.
-            _logger.LogWarning("Login rejected: no FamilyMember registered for email {Email}", profile.Email);
+            // No active family member registered for this email — block login.
+            _logger.LogWarning("Login rejected: no active FamilyMember registered for email {Email}", profile.Email);
             throw new NotRegisteredException(profile.Email);
         }
 

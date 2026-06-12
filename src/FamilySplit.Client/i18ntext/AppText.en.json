@@ -1,4 +1,4 @@
-﻿{
+{
   "Cancel": "Cancel",
   "Save": "Save",
   "Add": "Add",
@@ -88,6 +88,8 @@
   "AddSubActivity": "Add sub-activity",
   "CloseActivity": "Close activity",
   "CloseActivityConfirm": "This cannot be undone.",
+  "CloseActivityBody": "Close \"{0}\"? This cannot be undone.",
+  "CloseActivityWithSubsBody": "Close \"{0}\"? {1} open sub-activities will be absorbed.",
   "CloseActivityYes": "Close",
   "ActivityName": "Name",
   "ActivityNameRequired": "Name is required.",
@@ -126,6 +128,7 @@
   "ExpenseAmountRequired": "Amount is required.",
   "ExpenseAmountMin": "Amount must be greater than 0.",
   "ExpenseAmountMax": "Amount cannot exceed 1,000,000.",
+  "ExpenseAmountInvalid": "Enter a valid amount with up to 2 decimals, e.g. 12.50.",
   "ExpenseDate": "Date",
   "ExpenseDateRequired": "Date is required.",
   "AddExpenseTitle": "Add expense",
@@ -138,6 +141,11 @@
   "ColWeight": "Weight",
   "ColShare": "Share",
   "ColAmount": "Amount",
+  "Total": "Total",
+  "ParticipantsExcluded": "{0} participant(s) excluded from this split.",
+  "PushBannerText": "Enable notifications to be alerted when a payment is sent or confirmed.",
+  "PushBannerEnable": "Turn on",
+  "PushBannerEnabled": "Notifications enabled",
   "Expense": "expense",
   "ExpensesPlural": "expenses",
 
@@ -192,6 +200,7 @@
   "DateOfBirthPlaceholder": "Leave blank if unknown",
   "CustomWeightToggle": "Set a custom weight (overrides age tier)",
   "CustomWeightLabel": "Custom weight",
+  "CustomWeightHelper": "1.00 = one full adult share",
   "CustomWeightValidation": "Weight override must be between 0.01 and 10.",
   "FamilyAdminToggle": "Family admin (can manage members)",
   "EditMemberTitle": "Edit member",
@@ -278,4 +287,3 @@
   "ConfirmReceivedBody": "Confirm that {0} has received {1} from {2}?",
 "AdminFamiliesSubtitle": "Global admin view — create and manage all families and their members."
 }
-                                                                                                                                    

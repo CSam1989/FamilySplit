@@ -35,7 +35,9 @@ public class FamilyMemberConfiguration : IEntityTypeConfiguration<FamilyMember>
             .IsRequired(false)
             .OnDelete(DeleteBehavior.SetNull);
 
-        // Email is unique when present (nulls excluded from uniqueness).
-        b.HasIndex(x => x.Email).IsUnique().HasFilter("email IS NOT NULL");
+        // Email is unique among ACTIVE members only. Soft-deleted members are excluded
+        // so their email can be reused when re-adding a member (matches the app-level
+        // IsActive checks; otherwise re-adding would hit the index and 500).
+        b.HasIndex(x => x.Email).IsUnique().HasFilter("email IS NOT NULL AND is_active");
     }
 }

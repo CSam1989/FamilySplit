@@ -50,6 +50,11 @@ public class PushNotificationService
     {
         _logger.LogDebug("Saving push subscription for user {UserId}", userId);
 
+        // Bound the attacker-supplied strings persisted to the database.
+        ValidatePushField(endpoint, nameof(endpoint), 2048, requireAbsoluteUri: true);
+        ValidatePushField(p256dh, nameof(p256dh), 512, requireAbsoluteUri: false);
+        ValidatePushField(auth, nameof(auth), 512, requireAbsoluteUri: false);
+
         var existing = await _db.PushSubscriptions
             .Where(ps => ps.Endpoint == endpoint)
             .FirstOrDefaultAsync(ct);
@@ -90,6 +95,23 @@ public class PushNotificationService
             _logger.LogInformation("Push subscription removed for user {UserId}", userId);
         }
     }
+
+    private static void ValidatePushField(string value, string field, int maxLength, bool requireAbsoluteUri)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length > maxLength)
+            throw Invalid(field, $"{field} is required and must be at most {maxLength} characters.");
+
+        if (requireAbsoluteUri)
+        {
+            var validHttps = Uri.TryCreate(value, UriKind.Absolute, out var uri)
+                && uri.Scheme == Uri.UriSchemeHttps;
+            if (!validHttps)
+                throw Invalid(field, $"{field} must be a valid https URL.");
+        }
+    }
+
+    private static FluentValidation.ValidationException Invalid(string field, string message) =>
+        new(new[] { new FluentValidation.Results.ValidationFailure(field, message) });
 
     // ── Send to a whole family ────────────────────────────────────────────────
 

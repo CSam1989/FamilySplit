@@ -118,6 +118,7 @@
     private ErrorBoundary? _drawerBoundary;
     private bool _hubConnected;
     private bool _themeInitialized;
+    private bool _swListenerRegistered;
     private DotNetObjectReference<MainLayout>? _selfRef;
 
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
@@ -125,9 +126,15 @@
     protected override void OnInitialized()
     {
         ThemeService.OnChanged += OnThemeChanged;
+        // LayoutComponentBase does not subscribe to Fluxor state. Re-render the layout
+        // when auth changes so the app-bar user info and the hub connect/disconnect in
+        // OnAfterRenderAsync run on sign-in/out without waiting for an unrelated render.
+        AuthState.StateChanged += OnAuthStateChanged;
     }
 
     private void OnThemeChanged() => InvokeAsync(StateHasChanged);
+
+    private void OnAuthStateChanged(object? sender, EventArgs e) => InvokeAsync(StateHasChanged);
 
     [JSInvokable]
     public void OnSwUpdated()
@@ -163,7 +170,20 @@
         if (firstRender)
         {
             _selfRef = DotNetObjectReference.Create(this);
-            await JS.InvokeVoidAsync("FamilySplitSw.registerUpdateListener", _selfRef);
+        }
+
+        if (_selfRef is not null && !_swListenerRegistered)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("FamilySplitSw.registerUpdateListener", _selfRef);
+                _swListenerRegistered = true;
+            }
+            catch (JSException)
+            {
+                // FamilySplitSw is not yet available on the first WASM render due to a JS
+                // race condition; the listener registration will be retried on the next render.
+            }
         }
 
         // Recover the ErrorBoundary so the drawer re-renders after the transient
@@ -214,6 +234,7 @@
     public async ValueTask DisposeAsync()
     {
         ThemeService.OnChanged -= OnThemeChanged;
+        AuthState.StateChanged -= OnAuthStateChanged;
         HubConnection.OnNotificationReceived -= ShowNotificationToast;
         await HubConnection.DisconnectAsync();
         _selfRef?.Dispose();

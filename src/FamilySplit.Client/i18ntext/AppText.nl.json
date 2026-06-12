@@ -1,4 +1,4 @@
-﻿{
+{
   "Cancel": "Annuleren",
   "Save": "Opslaan",
   "Add": "Toevoegen",
@@ -89,6 +89,8 @@
   "AddSubActivity": "Subactiviteit toevoegen",
   "CloseActivity": "Activiteit afsluiten",
   "CloseActivityConfirm": "Dit kan niet ongedaan worden gemaakt.",
+  "CloseActivityBody": "\"{0}\" sluiten? Dit kan niet ongedaan worden gemaakt.",
+  "CloseActivityWithSubsBody": "\"{0}\" sluiten? {1} open subactiviteit(en) worden samengevoegd.",
   "CloseActivityYes": "Afsluiten",
   "ActivityName": "Naam",
   "ActivityNameRequired": "Naam is verplicht.",
@@ -127,6 +129,7 @@
   "ExpenseAmountRequired": "Bedrag is verplicht.",
   "ExpenseAmountMin": "Bedrag moet groter zijn dan 0.",
   "ExpenseAmountMax": "Bedrag mag niet groter zijn dan 1.000.000.",
+  "ExpenseAmountInvalid": "Voer een geldig bedrag in met maximaal 2 decimalen, bv. 12,50.",
   "ExpenseDate": "Datum",
   "ExpenseDateRequired": "Datum is verplicht.",
   "AddExpenseTitle": "Uitgave toevoegen",
@@ -139,6 +142,11 @@
   "ColWeight": "Gewicht",
   "ColShare": "Aandeel",
   "ColAmount": "Bedrag",
+  "Total": "Totaal",
+  "ParticipantsExcluded": "{0} deelnemer(s) uitgesloten van deze verdeling.",
+  "PushBannerText": "Schakel meldingen in om gewaarschuwd te worden wanneer een betaling wordt verzonden of bevestigd.",
+  "PushBannerEnable": "Inschakelen",
+  "PushBannerEnabled": "Meldingen ingeschakeld",
   "Expense": "uitgave",
   "ExpensesPlural": "uitgaven",
 
@@ -193,6 +201,7 @@
   "DateOfBirthPlaceholder": "Laat leeg als onbekend",
   "CustomWeightToggle": "Aangepast gewicht instellen (overschrijft leeftijdsgroep)",
   "CustomWeightLabel": "Aangepast gewicht",
+  "CustomWeightHelper": "1,00 = één volledig volwassen aandeel",
   "CustomWeightValidation": "Gewichtsoverschrijving moet tussen 0,01 en 10 zijn.",
   "FamilyAdminToggle": "Familiebeheerder (kan leden beheren)",
   "EditMemberTitle": "Lid bewerken",
@@ -278,4 +287,3 @@
   "ConfirmReceivedBody": "Bevestig dat {0} {1} heeft ontvangen van {2}?",
 "AdminFamiliesSubtitle": "Globale beheerdersweergave — maak families aan en beheer hun leden."
 }
-                                                                                                                                                

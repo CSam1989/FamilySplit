@@ -91,7 +91,7 @@ public class ExpenseServiceTests : IDisposable
 
         Func<Task> act = () => _sut.ListAsync(Guid.NewGuid(), _callerId, CT);
 
-        await act.Should().ThrowAsync<ValidationException>().WithMessage("Activity not found.");
+        await act.Should().ThrowAsync<ValidationException>().WithMessage("*Activity not found.*");
     }
 
     [Fact]
@@ -204,7 +204,7 @@ public class ExpenseServiceTests : IDisposable
     {
         Func<Task> act = () => _sut.GetDetailAsync(Guid.NewGuid(), _callerId, CT);
 
-        await act.Should().ThrowAsync<ValidationException>().WithMessage("Expense not found.");
+        await act.Should().ThrowAsync<ValidationException>().WithMessage("*Expense not found.*");
     }
 
     [Fact]
@@ -225,7 +225,7 @@ public class ExpenseServiceTests : IDisposable
         var expenseId = _db.Expenses.First().Id;
         Func<Task> act = () => _sut.GetDetailAsync(expenseId, _callerId, CT);
 
-        await act.Should().ThrowAsync<ValidationException>().WithMessage("Activity not found.");
+        await act.Should().ThrowAsync<ValidationException>().WithMessage("*Activity not found.*");
     }
 
     [Fact]
@@ -384,7 +384,7 @@ public class ExpenseServiceTests : IDisposable
         var req = new UpdateExpenseRequest("Test", null, 100, "EUR", DateOnly.FromDateTime(DateTime.Today), null);
         Func<Task> act = () => _sut.UpdateAsync(Guid.NewGuid(), req, _callerId, CT);
 
-        await act.Should().ThrowAsync<ValidationException>().WithMessage("Expense not found.");
+        await act.Should().ThrowAsync<ValidationException>().WithMessage("*Expense not found.*");
     }
 
     [Fact]
@@ -631,7 +631,7 @@ public class ExpenseServiceTests : IDisposable
     {
         Func<Task> act = () => _sut.DeleteAsync(Guid.NewGuid(), _callerId, CT);
 
-        await act.Should().ThrowAsync<ValidationException>().WithMessage("Expense not found.");
+        await act.Should().ThrowAsync<ValidationException>().WithMessage("*Expense not found.*");
     }
 
     [Fact]
@@ -652,7 +652,7 @@ public class ExpenseServiceTests : IDisposable
 
         Func<Task> act = () => _sut.DeleteAsync(expenseId, _callerId, CT);
 
-        await act.Should().ThrowAsync<ValidationException>().WithMessage("Activity not found.");
+        await act.Should().ThrowAsync<ValidationException>().WithMessage("*Activity not found.*");
     }
 
     [Fact]
@@ -722,6 +722,113 @@ public class ExpenseServiceTests : IDisposable
         Func<Task> act = () => _sut.DeleteAsync(expenseId, _callerId, CT);
 
         await act.Should().ThrowAsync<ValidationException>().WithMessage("*locked*");
+    }
+
+    // ── Ownership: only the payer's family (or a global admin) may mutate ──
+
+    /// <summary>
+    /// Seeds a second family + member in the same group, paid an expense by the
+    /// original caller. Returns (otherCallerId, expenseId) where otherCallerId is a
+    /// member of a DIFFERENT family than the expense's payer.
+    /// </summary>
+    private async Task<(Guid OtherCallerId, Guid ExpenseId)> SeedExpenseByCallerWithOutsiderAsync(bool outsiderIsGlobalAdmin = false)
+    {
+        await SeedGroupMembershipAsync();
+        await SeedActivityAsync();
+
+        var otherFamilyId = Guid.NewGuid();
+        var otherCallerId = Guid.NewGuid();
+        _db.Families.Add(new Family { Id = otherFamilyId, Name = "OtherFamily" });
+        _db.FamilyMembers.Add(new FamilyMember
+        {
+            Id = Guid.NewGuid(),
+            FamilyId = otherFamilyId,
+            UserId = otherCallerId,
+            DisplayName = "Outsider",
+            IsActive = true,
+        });
+        _db.GroupFamilies.Add(new GroupFamily { Id = Guid.NewGuid(), GroupId = _groupId, FamilyId = otherFamilyId });
+        _db.Users.Add(new User
+        {
+            Id = otherCallerId,
+            Provider = Provider.Google,
+            ExternalId = $"ext-{otherCallerId}",
+            Email = "outsider@example.com",
+            DisplayName = "Outsider",
+            IsGlobalAdmin = outsiderIsGlobalAdmin,
+            CreatedAt = DateTimeOffset.UtcNow,
+        });
+
+        var expenseId = Guid.NewGuid();
+        _db.Expenses.Add(new Expense
+        {
+            Id = expenseId,
+            ActivityId = _activityId,
+            PaidByUserId = _callerId, // paid by the ORIGINAL family
+            Title = "Theirs",
+            TotalAmount = 50,
+            Currency = "EUR",
+            ExpenseDate = DateOnly.FromDateTime(DateTime.Today),
+        });
+        await _db.SaveChangesAsync(CT);
+
+        return (otherCallerId, expenseId);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_CallerFromDifferentFamily_ThrowsForbidden()
+    {
+        var (outsiderId, expenseId) = await SeedExpenseByCallerWithOutsiderAsync();
+
+        var req = new UpdateExpenseRequest("Hacked", null, 999, "EUR", DateOnly.FromDateTime(DateTime.Today), null);
+        Func<Task> act = () => _sut.UpdateAsync(expenseId, req, outsiderId, CT);
+
+        await act.Should().ThrowAsync<ForbiddenException>();
+    }
+
+    [Fact]
+    public async Task DeleteAsync_CallerFromDifferentFamily_ThrowsForbidden()
+    {
+        var (outsiderId, expenseId) = await SeedExpenseByCallerWithOutsiderAsync();
+
+        Func<Task> act = () => _sut.DeleteAsync(expenseId, outsiderId, CT);
+
+        await act.Should().ThrowAsync<ForbiddenException>();
+    }
+
+    [Fact]
+    public async Task UpdateAsync_GlobalAdminFromDifferentFamily_Succeeds()
+    {
+        var (adminId, expenseId) = await SeedExpenseByCallerWithOutsiderAsync(outsiderIsGlobalAdmin: true);
+
+        var req = new UpdateExpenseRequest("Admin edit", null, 60, "EUR", DateOnly.FromDateTime(DateTime.Today), null);
+        var result = await _sut.UpdateAsync(expenseId, req, adminId, CT);
+
+        result.Title.Should().Be("Admin edit");
+        result.TotalAmount.Should().Be(60);
+    }
+
+    [Fact]
+    public async Task CreateAsync_CurrencyDiffersFromExistingExpense_ThrowsValidation()
+    {
+        await SeedGroupMembershipAsync();
+        await SeedActivityAsync();
+        _db.Expenses.Add(new Expense
+        {
+            Id = Guid.NewGuid(),
+            ActivityId = _activityId,
+            PaidByUserId = _callerId,
+            Title = "First",
+            TotalAmount = 10,
+            Currency = "EUR",
+            ExpenseDate = DateOnly.FromDateTime(DateTime.Today),
+        });
+        await _db.SaveChangesAsync(CT);
+
+        var req = new CreateExpenseRequest("Second", null, 20, "USD", DateOnly.FromDateTime(DateTime.Today), null);
+        Func<Task> act = () => _sut.CreateAsync(_activityId, req, _callerId, CT);
+
+        await act.Should().ThrowAsync<ValidationException>().WithMessage("*same currency*");
     }
 
     [Fact]

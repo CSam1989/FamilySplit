@@ -81,6 +81,11 @@ else
     var statsLoading = DashboardState.Value.IsLoading;
     var firstName    = user.DisplayName.Split(' ')[0];
 
+    <PageErrorBanner ErrorMessage="@DashboardState.Value.ErrorMessage"
+                     OnDismiss="@(() => Dispatcher.Dispatch(new ClearDashboardErrorAction()))" />
+    <PageErrorBanner ErrorMessage="@SettlementState.Value.ErrorMessage"
+                     OnDismiss="@(() => Dispatcher.Dispatch(new ClearSettlementErrorAction()))" />
+
     <div class="fs-hero fs-fade-in" style="margin-bottom:24px">
         <div style="position:relative;z-index:1">
             <MudText Style="font-size:0.8125rem;font-weight:500;color:rgba(255,255,255,0.7);margin-bottom:4px;letter-spacing:0.01em">
@@ -256,8 +261,9 @@ else
                         var isCallerPayer    = callerFamilyId == s.PayerFamilyId;
                         var isCallerReceiver = callerFamilyId == s.ReceiverFamilyId;
                         var groupName        = GroupState.Value.Groups.FirstOrDefault(g => g.Id == s.GroupId)?.Name ?? "Group";
-                        var payerStyle       = isCallerPayer    ? "font-weight:600" : "font-weight:400";
-                        var receiverStyle    = isCallerReceiver ? "font-weight:600" : "font-weight:400";
+                        var truncate         = "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0";
+                        var payerStyle       = (isCallerPayer    ? "font-weight:600;" : "font-weight:400;") + truncate;
+                        var receiverStyle    = (isCallerReceiver ? "font-weight:600;" : "font-weight:400;") + truncate;
                         var (chipColor, chipIcon) = s.Status switch
                         {
                             SettlementStatus.Proposed  => (Color.Warning, Icons.Material.Rounded.Pending),
@@ -280,12 +286,12 @@ else
                             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
                                 <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:0">
                                     <div style="width:28px;height:28px;border-radius:8px;background:@FormatHelper.AvatarColor(s.PayerFamilyName);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-                                        <span style="font-size:0.75rem;font-weight:700;color:white">@s.PayerFamilyName[0]</span>
+                                        <span style="font-size:0.75rem;font-weight:700;color:white">@Initial(s.PayerFamilyName)</span>
                                     </div>
                                     <span style="font-size:0.875rem;@payerStyle;color:var(--fs-text-primary)">@s.PayerFamilyName</span>
-                                    <MudIcon Icon="@Icons.Material.Rounded.ArrowForward" Style="font-size:16px;color:var(--fs-text-tertiary)" />
+                                    <MudIcon Icon="@Icons.Material.Rounded.ArrowForward" Style="font-size:16px;color:var(--fs-text-tertiary);flex-shrink:0" />
                                     <div style="width:28px;height:28px;border-radius:8px;background:@FormatHelper.AvatarColor(s.ReceiverFamilyName);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-                                        <span style="font-size:0.75rem;font-weight:700;color:white">@s.ReceiverFamilyName[0]</span>
+                                        <span style="font-size:0.75rem;font-weight:700;color:white">@Initial(s.ReceiverFamilyName)</span>
                                     </div>
                                     <span style="font-size:0.875rem;@receiverStyle;color:var(--fs-text-primary)">@s.ReceiverFamilyName</span>
                                 </div>
@@ -305,7 +311,7 @@ else
                                 <div style="margin-top:10px">
                                     <MudButton Variant="Variant.Filled"
                                                Color="Color.Primary"
-                                               Size="Size.Small"
+                                               Size="Size.Medium"
                                                StartIcon="@Icons.Material.Rounded.Send"
                                                OnClick="@(() => DashboardConfirmSent(s))">
                                         @_t.MarkSent
@@ -317,7 +323,7 @@ else
                                 <div style="margin-top:10px">
                                     <MudButton Variant="Variant.Filled"
                                                Color="Color.Success"
-                                               Size="Size.Small"
+                                               Size="Size.Medium"
                                                StartIcon="@Icons.Material.Rounded.CheckCircle"
                                                OnClick="@(() => DashboardConfirmReceived(s))">
                                         @_t.MarkReceived
@@ -370,6 +376,10 @@ else
 
 @code {
     private AppText _t = new();
+
+    // Safe first-letter avatar initial — guards against an empty family name.
+    private static string Initial(string? name) =>
+        string.IsNullOrEmpty(name) ? "?" : name[0].ToString();
 
     protected override async Task OnInitializedAsync()
     {

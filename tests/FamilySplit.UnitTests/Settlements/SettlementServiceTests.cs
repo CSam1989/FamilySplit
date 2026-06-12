@@ -142,7 +142,7 @@ public class SettlementServiceTests : IDisposable
 
         Func<Task> act = () => _sut.GetBalancesAsync(Guid.NewGuid(), _callerId, CT);
 
-        await act.Should().ThrowAsync<ValidationException>().WithMessage("Activity not found.");
+        await act.Should().ThrowAsync<ValidationException>().WithMessage("*Activity not found.*");
     }
 
     [Fact]
@@ -189,7 +189,7 @@ public class SettlementServiceTests : IDisposable
 
         Func<Task> act = () => _sut.GenerateAsync(Guid.NewGuid(), _callerId, CT);
 
-        await act.Should().ThrowAsync<ValidationException>().WithMessage("Activity not found.");
+        await act.Should().ThrowAsync<ValidationException>().WithMessage("*Activity not found.*");
     }
 
     [Fact]
@@ -204,14 +204,40 @@ public class SettlementServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GenerateAsync_ActivitySettled_ThrowsValidationException()
+    public async Task GenerateAsync_ActivitySettledNoSettlements_ReturnsEmptyIdempotently()
     {
+        // A Settled activity with no settlement rows was an all-balances-even settle.
+        // Re-generating is now an idempotent no-op (returns empty), not an error —
+        // this prevents the spurious "already settled" banner on a zero-balance close.
         await SeedGroupMembershipAsync();
         await SeedActivityAsync(ActivityStatus.Settled);
 
-        Func<Task> act = () => _sut.GenerateAsync(_activityId, _callerId, CT);
+        var result = await _sut.GenerateAsync(_activityId, _callerId, CT);
 
-        await act.Should().ThrowAsync<ValidationException>().WithMessage("*already settled*");
+        result.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GenerateAsync_ActivitySettledWithSettlements_ReturnsExisting()
+    {
+        await SeedGroupMembershipAsync();
+        await SeedActivityAsync(ActivityStatus.Settled);
+        _db.Settlements.Add(new Settlement
+        {
+            Id = Guid.NewGuid(),
+            ActivityId = _activityId,
+            PayerFamilyId = _family2Id,
+            ReceiverFamilyId = _familyId,
+            Amount = 50,
+            Currency = "EUR",
+            Status = SettlementStatus.Completed,
+            ProposedAt = DateTimeOffset.UtcNow,
+        });
+        await _db.SaveChangesAsync(CT);
+
+        var result = await _sut.GenerateAsync(_activityId, _callerId, CT);
+
+        result.Should().HaveCount(1);
     }
 
     [Fact]
@@ -540,7 +566,7 @@ public class SettlementServiceTests : IDisposable
 
         Func<Task> act = () => _sut.ListAsync(Guid.NewGuid(), _callerId, CT);
 
-        await act.Should().ThrowAsync<ValidationException>().WithMessage("Activity not found.");
+        await act.Should().ThrowAsync<ValidationException>().WithMessage("*Activity not found.*");
     }
 
     [Fact]
@@ -595,7 +621,7 @@ public class SettlementServiceTests : IDisposable
     {
         Func<Task> act = () => _sut.GetDetailAsync(Guid.NewGuid(), _callerId, CT);
 
-        await act.Should().ThrowAsync<ValidationException>().WithMessage("Settlement not found.");
+        await act.Should().ThrowAsync<ValidationException>().WithMessage("*Settlement not found.*");
     }
 
     [Fact]
@@ -617,7 +643,7 @@ public class SettlementServiceTests : IDisposable
 
         Func<Task> act = () => _sut.GetDetailAsync(settlementId, _callerId, CT);
 
-        await act.Should().ThrowAsync<ValidationException>().WithMessage("Activity not found.");
+        await act.Should().ThrowAsync<ValidationException>().WithMessage("*Activity not found.*");
     }
 
     [Fact]
@@ -676,7 +702,7 @@ public class SettlementServiceTests : IDisposable
     {
         Func<Task> act = () => _sut.ConfirmSentAsync(Guid.NewGuid(), _callerId, CT);
 
-        await act.Should().ThrowAsync<ValidationException>().WithMessage("Settlement not found.");
+        await act.Should().ThrowAsync<ValidationException>().WithMessage("*Settlement not found.*");
     }
 
     [Fact]
@@ -769,7 +795,7 @@ public class SettlementServiceTests : IDisposable
     {
         Func<Task> act = () => _sut.ConfirmReceivedAsync(Guid.NewGuid(), _callerId, CT);
 
-        await act.Should().ThrowAsync<ValidationException>().WithMessage("Settlement not found.");
+        await act.Should().ThrowAsync<ValidationException>().WithMessage("*Settlement not found.*");
     }
 
     [Fact]

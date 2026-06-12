@@ -23,7 +23,7 @@ public class AuthEffectsTests
     public AuthEffectsTests()
     {
         _authService = new AuthService(_authApi.Object, Mock.Of<ILogger<AuthService>>());
-        _sut = new AuthEffects(_authService, _whoAmIApi.Object, _nav);
+        _sut = new AuthEffects(_authService, _whoAmIApi.Object, _nav, Mock.Of<ILogger<AuthEffects>>());
     }
 
     [Fact]
@@ -51,10 +51,29 @@ public class AuthEffectsTests
     }
 
     [Fact]
-    public async Task HandleCheckAuth_AuthenticatedButWhoAmIFails_LogsOutAndDispatchesNotAuthenticated()
+    public async Task HandleCheckAuth_WhoAmITransientFailure_DoesNotLogOut()
     {
+        // A non-401 failure (5xx / network) must NOT revoke the session — a transient
+        // blip should not permanently sign the user out.
         _authApi.Setup(x => x.RefreshAsync()).ReturnsAsync(new RefreshResponse("token", 3600));
         _whoAmIApi.Setup(x => x.GetAsync()).ThrowsAsync(new HttpRequestException());
+
+        await _sut.HandleCheckAuth(_dispatcher.Object);
+
+        _authApi.Verify(a => a.LogoutAsync(), Times.Never);
+        _dispatcher.Verify(d => d.Dispatch(It.IsAny<CheckAuthNotAuthenticatedAction>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleCheckAuth_WhoAmIReturns401_LogsOutAndDispatchesNotAuthenticated()
+    {
+        _authApi.Setup(x => x.RefreshAsync()).ReturnsAsync(new RefreshResponse("token", 3600));
+        var apiEx = await ApiException.Create(
+            new HttpRequestMessage(HttpMethod.Get, "http://localhost/users/me"),
+            HttpMethod.Get,
+            new HttpResponseMessage(HttpStatusCode.Unauthorized),
+            new RefitSettings());
+        _whoAmIApi.Setup(x => x.GetAsync()).ThrowsAsync(apiEx);
 
         await _sut.HandleCheckAuth(_dispatcher.Object);
 

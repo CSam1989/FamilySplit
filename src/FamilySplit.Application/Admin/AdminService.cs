@@ -280,9 +280,26 @@ public class AdminService
     {
         await RequireGlobalAdminAsync(callerId, ct);
 
-        var deleted = await _db.Groups
-            .Where(g => g.Id == groupId)
-            .ExecuteDeleteAsync(ct);
+        // Activity.ParentActivityId is a RESTRICT self-FK, so the group→activities
+        // cascade can fail if a parent is deleted before its sub-activities. Delete
+        // sub-activities first, then the group (whose cascade removes the parents).
+        // Both run in one transaction via the retrying execution strategy.
+        var strategy = _db.Database.CreateExecutionStrategy();
+        var deleted = await strategy.ExecuteAsync(async () =>
+        {
+            await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
+            await _db.Activities
+                .Where(a => a.GroupId == groupId && a.ParentActivityId != null)
+                .ExecuteDeleteAsync(ct);
+
+            var rows = await _db.Groups
+                .Where(g => g.Id == groupId)
+                .ExecuteDeleteAsync(ct);
+
+            await tx.CommitAsync(ct);
+            return rows;
+        });
 
         if (deleted == 0)
             throw Throw422("GroupId", "Group not found.");

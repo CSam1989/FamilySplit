@@ -23,7 +23,7 @@ public class ParticipantSeeder
     /// Seeds participants for a new top-level activity from all active members
     /// of every family that belongs to the group.
     /// </summary>
-    public async Task SeedForActivityAsync(Activity activity)
+    public async Task SeedForActivityAsync(Activity activity, CancellationToken ct = default)
     {
         // Explicit join to avoid EF navigation cycle issues.
         var memberIds = await (
@@ -31,7 +31,7 @@ public class ParticipantSeeder
             join fm in _db.FamilyMembers on gf.FamilyId equals fm.FamilyId
             where gf.GroupId == activity.GroupId && fm.IsActive
             select fm.Id
-        ).Distinct().ToListAsync();
+        ).Distinct().ToListAsync(ct);
 
         foreach (var memberId in memberIds)
         {
@@ -48,12 +48,12 @@ public class ParticipantSeeder
     /// Seeds participants for a new sub-activity from the parent activity's
     /// existing participant list.
     /// </summary>
-    public async Task SeedForSubActivityAsync(Activity subActivity, Guid parentActivityId)
+    public async Task SeedForSubActivityAsync(Activity subActivity, Guid parentActivityId, CancellationToken ct = default)
     {
         var parentMemberIds = await _db.ActivityParticipants
             .Where(ap => ap.ActivityId == parentActivityId)
             .Select(ap => ap.FamilyMemberId)
-            .ToListAsync();
+            .ToListAsync(ct);
 
         foreach (var memberId in parentMemberIds)
         {

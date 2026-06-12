@@ -1,4 +1,5 @@
 @using FamilySplit.Client.Services
+@using FamilySplit.Client.Helpers
 @inject I18nText I18nText
 
 <MudDialog>
@@ -39,36 +40,36 @@
                 <MudTh Style="text-align:right">@_t.ColAmount</MudTh>
             </HeaderContent>
             <RowTemplate Context="p">
-                <MudTd DataLabel="Participant">
+                <MudTd DataLabel="@_t.ColParticipant">
                     <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-                        <MudAvatar Size="Size.Small" Color="Color.Primary">@p.DisplayName[0]</MudAvatar>
+                        <MudAvatar Size="Size.Small" Color="Color.Primary">@Initial(p.DisplayName)</MudAvatar>
                         <MudText Typo="Typo.body2">@p.DisplayName</MudText>
                     </MudStack>
                 </MudTd>
-                <MudTd DataLabel="Family">
+                <MudTd DataLabel="@_t.ColFamily">
                     <MudText Typo="Typo.body2">@p.FamilyName</MudText>
                 </MudTd>
-                <MudTd DataLabel="Weight" Style="text-align:right">
+                <MudTd DataLabel="@_t.ColWeight" Style="text-align:right">
                     <MudText Typo="Typo.body2">@p.WeightSnapshot.ToString("0.##")×</MudText>
                 </MudTd>
-                <MudTd DataLabel="Share" Style="text-align:right">
+                <MudTd DataLabel="@_t.ColShare" Style="text-align:right">
                     @{
                         var pct = totalWeight > 0 ? p.WeightSnapshot / totalWeight * 100 : 0;
                     }
                     <MudText Typo="Typo.body2" Color="Color.Secondary">@pct.ToString("0.#")%</MudText>
                 </MudTd>
-                <MudTd DataLabel="Amount" Style="text-align:right">
-                    <MudText Typo="Typo.body2"><strong>@p.CalculatedAmount.ToString("F2") @Expense.Currency</strong></MudText>
+                <MudTd DataLabel="@_t.ColAmount" Style="text-align:right">
+                    <MudText Typo="Typo.body2"><strong>@FormatHelper.FormatAmount(p.CalculatedAmount, Expense.Currency)</strong></MudText>
                 </MudTd>
             </RowTemplate>
             <FooterContent>
                 <MudTd colspan="3" />
                 <MudTd Style="text-align:right">
-                    <MudText Typo="Typo.body2" Color="Color.Secondary">Total</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">@_t.Total</MudText>
                 </MudTd>
                 <MudTd Style="text-align:right">
                     <MudText Typo="Typo.subtitle2">
-                        <strong>@Expense.TotalAmount.ToString("F2") @Expense.Currency</strong>
+                        <strong>@FormatHelper.FormatAmount(Expense.TotalAmount, Expense.Currency)</strong>
                     </MudText>
                 </MudTd>
             </FooterContent>
@@ -77,12 +78,12 @@
         @if (Expense.Participants.Any(p => p.IsExcluded))
         {
             <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
-                @Expense.Participants.Count(p => p.IsExcluded) participant(s) excluded from this split.
+                @string.Format(_t.ParticipantsExcluded, Expense.Participants.Count(p => p.IsExcluded))
             </MudText>
         }
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="@(() => MudDialog.Close())">Close</MudButton>
+        <MudButton OnClick="@(() => MudDialog.Close())">@_t.Close</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -91,6 +92,9 @@
     [Parameter] public ExpenseDetailDto Expense { get; set; } = default!;
 
     private AppText _t = new();
+
+    private static string Initial(string? name) =>
+        string.IsNullOrEmpty(name) ? "?" : name[0].ToString();
 
     protected override async Task OnInitializedAsync()
     {

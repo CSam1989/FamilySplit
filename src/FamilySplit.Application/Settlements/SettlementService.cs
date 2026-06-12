@@ -89,12 +89,6 @@ public class SettlementService
 
         await RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 
-        if (activity.Status == ActivityStatus.Open)
-            throw Throw422("Status", "Activity must be closed before generating settlements.");
-
-        if (activity.Status == ActivityStatus.Settled)
-            throw Throw422("Status", "Activity is already settled.");
-
         if (activity.Status == ActivityStatus.AbsorbedByParent)
             throw Throw422("Status", "Cannot settle a sub-activity that was absorbed by its parent.");
 
@@ -105,17 +99,25 @@ public class SettlementService
         if (parentId is not null)
             throw Throw422("Status", "Sub-activities cannot be settled independently. Generate settlements from the parent activity instead.");
 
-        // Idempotency: if settlements already exist, return them.
-        var existing = await _db.Settlements
-            .Where(s => s.ActivityId == activityId)
-            .ToListAsync(ct);
+        // Idempotency: if settlements already exist, return them. This is also the
+        // fast path that absorbs a concurrent second request (e.g. double-dispatch).
+        var existingCount = await _db.Settlements
+            .CountAsync(s => s.ActivityId == activityId, ct);
 
-        if (existing.Count > 0)
+        if (existingCount > 0)
         {
             _logger.LogDebug("Settlements already exist for activity {ActivityId} ({Count} rows) — returning existing",
-                activityId, existing.Count);
+                activityId, existingCount);
             return await BuildSummaryListAsync(activityId, ct);
         }
+
+        // A Settled activity with no settlement rows was an all-balances-even settle —
+        // treat a repeat call as an idempotent no-op rather than an error.
+        if (activity.Status == ActivityStatus.Settled)
+            return [];
+
+        if (activity.Status == ActivityStatus.Open)
+            throw Throw422("Status", "Activity must be closed before generating settlements.");
 
         var currency = await GetActivityCurrencyAsync(activityId, ct);
         var (expenses, participants) = await LoadExpenseDataAsync(activityId, ct);
@@ -163,7 +165,28 @@ public class SettlementService
             });
         }
 
-        await _db.SaveChangesAsync(ct);
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException)
+        {
+            // A concurrent generation won the race and inserted rows first; the unique
+            // index on (activity, payer, receiver) rejected ours. Detach our duplicates
+            // and return the winner's settlements — the operation is idempotent.
+            var raced = await _db.Settlements.AnyAsync(s => s.ActivityId == activityId, ct);
+            if (!raced)
+                throw;
+
+            foreach (var s in settlements)
+                _db.Entry(s).State = EntityState.Detached;
+
+            _logger.LogInformation(
+                "Concurrent settlement generation detected for activity {ActivityId} — returning the rows persisted by the other request",
+                activityId);
+
+            return await BuildSummaryListAsync(activityId, ct);
+        }
 
         _logger.LogInformation(
             "Generated {Count} settlement(s) for activity {ActivityId} by user {UserId} — total transfers: {Total} {Currency}",
@@ -409,8 +432,10 @@ public class SettlementService
             "Settlement {SettlementId} marked as sent by user {UserId} (payer family {PayerFamilyId}) — {Amount} {Currency}",
             settlementId, callerId, settlement.PayerFamilyId, settlement.Amount, settlement.Currency);
 
-        // Notify receiver family that payment is on its way (fire-and-forget).
-        _ = _notifications.NotifyFamilyAsync(
+        // Notify the receiver family that payment is on its way. Awaited (not fire-and-forget):
+        // the notification path uses the same request-scoped DbContext, which must not be
+        // accessed concurrently or after the scope is disposed.
+        await _notifications.NotifyFamilyAsync(
             settlement.ReceiverFamilyId,
             "Payment incoming",
             $"{settlement.Amount:F2} {settlement.Currency} is on its way to you.",
@@ -469,26 +494,14 @@ public class SettlementService
             currency = settlement.Currency,
         });
 
-        await _db.SaveChangesAsync(ct);
-
-        _logger.LogInformation(
-            "Settlement {SettlementId} marked as received by user {UserId} (receiver family {ReceiverFamilyId}) — {Amount} {Currency}",
-            settlementId, callerId, settlement.ReceiverFamilyId, settlement.Amount, settlement.Currency);
-
-        // Notify payer family that their payment was confirmed (fire-and-forget).
-        _ = _notifications.NotifyFamilyAsync(
-            settlement.PayerFamilyId,
-            "Payment confirmed",
-            $"Your payment of {settlement.Amount:F2} {settlement.Currency} was confirmed as received.",
-            $"/groups/{activity.GroupId}/activities/{settlement.ActivityId}",
-            ct);
-
-        // If all settlements for this activity are now Completed, mark activity Settled.
-        var allDone = await _db.Settlements
-            .Where(s => s.ActivityId == settlement.ActivityId)
+        // If every OTHER settlement on this activity is already Completed, this one
+        // completing means the whole activity is settled. Compute it before saving so
+        // the status flip and the activity transition commit in a single atomic save.
+        var othersAllDone = await _db.Settlements
+            .Where(s => s.ActivityId == settlement.ActivityId && s.Id != settlementId)
             .AllAsync(s => s.Status == SettlementStatus.Completed, ct);
 
-        if (allDone)
+        if (othersAllDone)
         {
             _logger.LogInformation(
                 "All settlements for activity {ActivityId} are completed — transitioning activity to Settled",
@@ -496,8 +509,21 @@ public class SettlementService
 
             var activityEntity = await _db.Activities.FindAsync([settlement.ActivityId], ct);
             activityEntity!.Status = ActivityStatus.Settled;
-            await _db.SaveChangesAsync(ct);
         }
+
+        await _db.SaveChangesAsync(ct);
+
+        _logger.LogInformation(
+            "Settlement {SettlementId} marked as received by user {UserId} (receiver family {ReceiverFamilyId}) — {Amount} {Currency}",
+            settlementId, callerId, settlement.ReceiverFamilyId, settlement.Amount, settlement.Currency);
+
+        // Notify the payer family that their payment was confirmed. Awaited — see ConfirmSentAsync.
+        await _notifications.NotifyFamilyAsync(
+            settlement.PayerFamilyId,
+            "Payment confirmed",
+            $"Your payment of {settlement.Amount:F2} {settlement.Currency} was confirmed as received.",
+            $"/groups/{activity.GroupId}/activities/{settlement.ActivityId}",
+            ct);
 
         return await BuildDetailDtoAsync(settlementId, ct);
     }
@@ -547,13 +573,16 @@ public class SettlementService
     {
         var allIds = await GetActivityAndSubIdsAsync(activityId, ct);
 
+        // NOTE: the payer join is deliberately NOT filtered by fm.IsActive — the family
+        // that fronted the money is the same regardless of whether that member has since
+        // been deactivated. Filtering here would drop the credit while debits remain,
+        // breaking the zero-sum balance invariant.
         var expenseData = await (
             from e in _db.Expenses
             from fm in _db.FamilyMembers
             where allIds.Contains(e.ActivityId)
                 && fm.UserId != null
                 && fm.UserId == e.PaidByUserId
-                && fm.IsActive
             select new BalanceCalculator.ExpenseData(fm.FamilyId, e.TotalAmount)
         ).ToListAsync(ct);
 
@@ -673,7 +702,10 @@ public class SettlementService
             s.CompletedAt);
     }
 
-    private static ValidationException NotFound(string message) => new(message);
+    // Build the failure through a ValidationFailure so the message survives the
+    // ValidationExceptionMiddleware (which serializes ex.Errors, not ex.Message).
+    private static ValidationException NotFound(string message) =>
+        new(new[] { new FluentValidation.Results.ValidationFailure("Id", message) });
 
     private static ValidationException Throw422(string field, string message) =>
         new(new[] { new FluentValidation.Results.ValidationFailure(field, message) });

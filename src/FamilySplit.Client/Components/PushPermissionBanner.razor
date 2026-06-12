@@ -3,6 +3,7 @@
 @inject PushNotificationClientService PushService
 @inject IState<AuthState> AuthState
 @inject ISnackbar Snackbar
+@inject I18nText I18nText
 
 @* Prompts the user to enable notifications the first time they see it.
    Shown only while signed in and only when permission is still "default".
@@ -17,10 +18,10 @@
               Style="margin-bottom:8px;border-radius:12px;">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
             <MudText Typo="Typo.body2">
-                Enable notifications to be alerted when a payment is sent or confirmed.
+                @_t.PushBannerText
             </MudText>
             <MudButton Variant="Variant.Text"
-                       Size="Size.Small"
+                       Size="Size.Medium"
                        Color="Color.Primary"
                        OnClick="EnableAsync"
                        Disabled="_busy">
@@ -28,7 +29,7 @@
                 {
                     <MudProgressCircular Size="Size.Small" Indeterminate="true" Style="margin-right:4px" />
                 }
-                Turn on
+                @_t.PushBannerEnable
             </MudButton>
         </div>
     </MudAlert>
@@ -37,6 +38,12 @@
 @code {
     private bool _showBanner;
     private bool _busy;
+    private AppText _t = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _t = await I18nText.GetTextTableAsync<AppText>(this);
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -67,7 +74,7 @@
         _showBanner = false; // hide regardless — if denied, don't nag again this session
 
         if (success)
-            Snackbar.Add("Notifications enabled", Severity.Success);
+            Snackbar.Add(_t.PushBannerEnabled, Severity.Success);
 
         StateHasChanged();
     }

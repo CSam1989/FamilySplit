@@ -1,4 +1,4 @@
-﻿{
+{
   "Cancel": "Abbrechen",
   "Save": "Speichern",
   "Add": "Hinzufügen",
@@ -89,6 +89,8 @@
   "AddSubActivity": "Unteraktivität hinzufügen",
   "CloseActivity": "Aktivität abschließen",
   "CloseActivityConfirm": "Dies kann nicht rückgängig gemacht werden.",
+  "CloseActivityBody": "„{0}“ schließen? Dies kann nicht rückgängig gemacht werden.",
+  "CloseActivityWithSubsBody": "„{0}“ schließen? {1} offene Unteraktivität(en) werden zusammengeführt.",
   "CloseActivityYes": "Abschließen",
   "ActivityName": "Name",
   "ActivityNameRequired": "Name ist erforderlich.",
@@ -127,6 +129,7 @@
   "ExpenseAmountRequired": "Betrag ist erforderlich.",
   "ExpenseAmountMin": "Betrag muss größer als 0 sein.",
   "ExpenseAmountMax": "Betrag darf 1.000.000 nicht überschreiten.",
+  "ExpenseAmountInvalid": "Geben Sie einen gültigen Betrag mit maximal 2 Dezimalstellen ein, z. B. 12,50.",
   "ExpenseDate": "Datum",
   "ExpenseDateRequired": "Datum ist erforderlich.",
   "AddExpenseTitle": "Ausgabe hinzufügen",
@@ -139,6 +142,11 @@
   "ColWeight": "Gewicht",
   "ColShare": "Anteil",
   "ColAmount": "Betrag",
+  "Total": "Gesamt",
+  "ParticipantsExcluded": "{0} Teilnehmer von dieser Aufteilung ausgeschlossen.",
+  "PushBannerText": "Aktiviere Benachrichtigungen, um informiert zu werden, wenn eine Zahlung gesendet oder bestätigt wird.",
+  "PushBannerEnable": "Aktivieren",
+  "PushBannerEnabled": "Benachrichtigungen aktiviert",
   "Expense": "Ausgabe",
   "ExpensesPlural": "Ausgaben",
 
@@ -193,6 +201,7 @@
   "DateOfBirthPlaceholder": "Leer lassen, wenn unbekannt",
   "CustomWeightToggle": "Benutzerdefiniertes Gewicht festlegen (überschreibt Altersgruppe)",
   "CustomWeightLabel": "Benutzerdefiniertes Gewicht",
+  "CustomWeightHelper": "1,00 = ein voller Erwachsenenanteil",
   "CustomWeightValidation": "Gewichtsüberschreibung muss zwischen 0,01 und 10 liegen.",
   "FamilyAdminToggle": "Familienadmin (kann Mitglieder verwalten)",
   "EditMemberTitle": "Mitglied bearbeiten",
@@ -278,4 +287,3 @@
   "ConfirmReceivedBody": "Bestätigen, dass {0} {1} von {2} empfangen hat?",
 "AdminFamiliesSubtitle": "Globale Admin-Ansicht — Familien erstellen und ihre Mitglieder verwalten."
 }
-                                                                                                                                               

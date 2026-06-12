@@ -69,6 +69,14 @@ public class RefreshTokenService
         }
     }
 
+    /// <summary>
+    /// How long after a token is revoked a replay of it is still treated as a benign
+    /// concurrent-retry race rather than theft. A genuine double-submit resolves in
+    /// milliseconds; a stolen cookie replayed minutes/hours later (after the thief has
+    /// rotated) must be caught and trigger a full session revocation.
+    /// </summary>
+    private static readonly TimeSpan ConcurrentRetryWindow = TimeSpan.FromSeconds(30);
+
     // ── Issue a fresh token (first login) ─────────────────────────────────
 
     public async Task<IssuedToken> IssueAsync(
@@ -145,7 +153,9 @@ public class RefreshTokenService
             // already holds the replacement cookie from the winning response, so
             // we must NOT clear the cookie here — doing so would remove the only
             // valid cookie the browser has.
-            if (existing.ReplacedByTokenId is not null)
+            if (existing.ReplacedByTokenId is not null
+                && existing.RevokedAt is { } revokedAt
+                && DateTimeOffset.UtcNow - revokedAt < ConcurrentRetryWindow)
             {
                 var replacementActive = await _db.RefreshTokens
                     .AnyAsync(t => t.Id == existing.ReplacedByTokenId && t.RevokedAt == null, ct);
@@ -154,8 +164,9 @@ public class RefreshTokenService
                 {
                     _logger.LogInformation(
                         "Concurrent refresh detected for user {UserId} — stale token {OldTokenId} " +
-                        "reused while replacement is still active; ignoring (not treated as theft).",
-                        existing.UserId, existing.Id);
+                        "reused within {WindowSeconds}s of revocation while replacement is still active; " +
+                        "ignoring (not treated as theft).",
+                        existing.UserId, existing.Id, (int)ConcurrentRetryWindow.TotalSeconds);
                     return RotateResult.ConcurrentRetryInstance;
                 }
             }

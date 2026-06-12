@@ -39,6 +39,10 @@ public class SettlementConfiguration : IEntityTypeConfiguration<Settlement>
             .HasForeignKey(x => x.ReceiverFamilyId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        b.HasIndex(x => x.ActivityId);
+        // Unique per (activity, payer, receiver) — DB-level backstop preventing
+        // duplicate settlement rows if two concurrent generations race past the
+        // application's idempotency check. The leading ActivityId column also serves
+        // the by-activity lookups, so no separate ActivityId index is needed.
+        b.HasIndex(x => new { x.ActivityId, x.PayerFamilyId, x.ReceiverFamilyId }).IsUnique();
     }
 }

@@ -1,9 +1,6 @@
 using FamilySplit.Api.Hubs;
-using FamilySplit.Application.Push;
-using FamilySplit.Infrastructure;
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Moq;
 
@@ -14,19 +11,19 @@ public class SignalRNotificationServiceTests
     private readonly Mock<IHubContext<NotificationHub>> _hubMock = new();
     private readonly Mock<IHubClients> _clientsMock = new();
     private readonly Mock<IClientProxy> _clientProxyMock = new();
-    private readonly Mock<PushNotificationService> _vapidMock;
+    private readonly Mock<IServiceScopeFactory> _scopeFactoryMock = new();
     private readonly Mock<ILogger<SignalRNotificationService>> _loggerMock = new();
     private readonly SignalRNotificationService _sut;
 
     public SignalRNotificationServiceTests()
     {
-        var dbOptions = new DbContextOptionsBuilder<AppDbContext>()
-            .UseNpgsql("Host=localhost")
-            .Options;
-        _vapidMock = new Mock<PushNotificationService>(
-            new AppDbContext(dbOptions),
-            Mock.Of<IConfiguration>(),
-            Mock.Of<ILogger<PushNotificationService>>());
+        // VAPID push now runs on a fresh DI scope. These tests cover SignalR delivery;
+        // the scope resolves no PushNotificationService, so the background push throws
+        // and is swallowed by DeliverPushAsync — harmless and out of scope here.
+        var scopeMock = new Mock<IServiceScope>();
+        var spMock = new Mock<IServiceProvider>();
+        scopeMock.Setup(s => s.ServiceProvider).Returns(spMock.Object);
+        _scopeFactoryMock.Setup(f => f.CreateScope()).Returns(scopeMock.Object);
 
         _hubMock.Setup(h => h.Clients).Returns(_clientsMock.Object);
         _clientsMock.Setup(c => c.Group(It.IsAny<string>())).Returns(_clientProxyMock.Object);
@@ -34,14 +31,14 @@ public class SignalRNotificationServiceTests
             .Setup(p => p.SendCoreAsync(It.IsAny<string>(), It.IsAny<object?[]>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        _sut = new SignalRNotificationService(_hubMock.Object, _vapidMock.Object, _loggerMock.Object);
+        _sut = new SignalRNotificationService(_hubMock.Object, _scopeFactoryMock.Object, _loggerMock.Object);
     }
 
     [Fact]
     public void Constructor_StoresDependencies()
     {
         var service = new SignalRNotificationService(
-            _hubMock.Object, _vapidMock.Object, _loggerMock.Object);
+            _hubMock.Object, _scopeFactoryMock.Object, _loggerMock.Object);
 
         Assert.NotNull(service);
     }

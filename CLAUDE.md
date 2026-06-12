@@ -8,7 +8,7 @@
 
 FamilySplit is a family expense-splitting app where costs are divided by **age-weighted shares** rather than equal splits. Multiple *Families* (household units) join shared *Groups*, log activities and expenses, and the app calculates fair per-Family settlement amounts automatically.
 
-**Tech stack:** .NET 10 · Blazor WebAssembly · ASP.NET Core Minimal API · PostgreSQL · Entity Framework Core 10 · MudBlazor 8 · Fluxor 6 · Refit 8 · FluentValidation 11 · Serilog
+**Tech stack:** .NET 10 · Blazor WebAssembly · ASP.NET Core Minimal API · PostgreSQL · Entity Framework Core 10 · MudBlazor 9 · Fluxor 6 · Refit 8 · FluentValidation 11 · Serilog
 
 ---
 
@@ -101,7 +101,7 @@ Expenses are split by weight, calculated from date of birth at expense-save time
 
 ## Authentication Flow
 
-Two-token design — a short-lived **access token** (JWT, 15 minutes) in the WASM client's memory, plus a long-lived **refresh token** (30 days) in an HttpOnly Secure SameSite=Strict cookie scoped to `/auth`. Neither token ever touches `localStorage` or `sessionStorage`.
+Two-token design — a short-lived **access token** (JWT, 15 minutes) in the WASM client's memory, plus a long-lived **refresh token** (30 days) in an HttpOnly Secure SameSite=Lax cookie scoped to `/auth`. Neither token ever touches `localStorage` or `sessionStorage`. (SameSite=Lax — not Strict — so the cookie is sent on the top-level cross-site GET returning from the Google callback; refresh/logout are POSTs, which Lax still protects against CSRF.)
 
 1. Client calls `GET /auth/login/Google?returnUrl=...`
 2. API generates PKCE flow, stores state in an encrypted HttpOnly cookie, redirects to Google.
@@ -150,7 +150,7 @@ Two-token design — a short-lived **access token** (JWT, 15 minutes) in the WAS
 | File | Prefix | Description |
 |---|---|---|
 | `AuthEndpoints.cs` | `/auth` | Login, callback, handoff |
-| `UserEndpoints.cs` | `/users/me` | WhoAmI (current user info) |
+| `UserEndpoints.cs` | `/whoami` | WhoAmI (current user info) |
 | `FamilyMembersEndpoints.cs` | `/users/me/profile` | Caller's own FamilyMember profile (GET) |
 | `AdminEndpoints.cs` | `/admin/families` | Global-admin Family + member CRUD |
 | `FamilyEndpoints.cs` | `/families/mine` | Own-family management (rename, members) |
@@ -349,7 +349,7 @@ DbSet<DataProtectionKey>   DataProtectionKeys    // ASP.NET DP key ring (encrypt
 ## Client Layer (FamilySplit.Client)
 
 ### Architecture
-- Blazor WebAssembly SPA with MudBlazor 8 for UI.
+- Blazor WebAssembly SPA with MudBlazor 9 for UI.
 - **Fluxor 6** (Redux-style state management):
   - `[FeatureState]` records define state slices.
   - `[ReducerMethod]` static methods on reducer classes.
@@ -360,8 +360,8 @@ DbSet<DataProtectionKey>   DataProtectionKeys    // ASP.NET DP key ring (encrypt
 
 | Interface | Base path | Purpose |
 |---|---|---|
-| `IHealthApi` | `/health` | Anonymous health check |
-| `IWhoAmIApi` | `/users/me` | Current User info |
+| `IAuthApi` | `/auth` | Refresh + logout (uses credentials) |
+| `IWhoAmIApi` | `/whoami` | Current User info |
 | `IFamilyMemberClient` | `/users/me/profile` | Caller's FamilyMember profile |
 | `IFamilyClient` | `/families/mine` | Own-family management |
 | `IAdminClient` | `/admin/families` | Global-admin family management |
@@ -369,7 +369,7 @@ DbSet<DataProtectionKey>   DataProtectionKeys    // ASP.NET DP key ring (encrypt
 | `IActivityClient` | `/groups/{groupId}/activities` | Activity CRUD + sub-activities + participants + close |
 | `IExpenseClient` | `/groups/{groupId}/activities/{activityId}/expenses` | Expense CRUD |
 | `ISettlementClient` | `/groups/{groupId}/activities/{activityId}/settlements` | Settlement generation + approval flow |
-| `IHandoffApi` | `/auth/handoff` | JWT retrieval (uses credentials) |
+| `IPushClient` | `/push` | Web Push (VAPID) subscribe / unsubscribe |
 
 ### Fluxor Stores
 
@@ -395,10 +395,10 @@ DbSet<DataProtectionKey>   DataProtectionKeys    // ASP.NET DP key ring (encrypt
 | `/not-registered` | `NotRegistered.razor` | Shown when login email has no FamilyMember |
 
 ### Auth on the client
-- JWT stored in `sessionStorage`.
-- `JwtAuthHandler` (delegating handler) attaches `Authorization: Bearer <token>` to all authenticated Refit calls.
-- `IncludeCredentialsHandler` sets `credentials: include` for the handoff cookie exchange.
-- `AuthService` manages token storage and expiry.
+- JWT is held **in memory only** (`AuthService._token`) — never in `localStorage`/`sessionStorage`, so it is not XSS-exfiltrable. (See the "Authentication Flow" section above, which is the authoritative description.)
+- `JwtAuthHandler` (delegating handler) attaches `Authorization: Bearer <token>` to all authenticated Refit calls, and on a 401 performs one silent refresh + retry.
+- `IncludeCredentialsHandler` sets `credentials: include` on `IAuthApi` calls so the HttpOnly refresh cookie is sent to `/auth/refresh` and `/auth/logout`.
+- `AuthService` manages the in-memory token and proactively refreshes when <30s of life remain; refresh calls are serialised by a `SemaphoreSlim` (single-flight).
 
 ---
 

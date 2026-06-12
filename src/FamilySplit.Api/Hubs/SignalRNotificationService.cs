@@ -1,6 +1,7 @@
 using FamilySplit.Application.Notifications;
 using FamilySplit.Application.Push;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace FamilySplit.Api.Hubs;
 
@@ -22,16 +23,16 @@ namespace FamilySplit.Api.Hubs;
 public class SignalRNotificationService : INotificationService
 {
     private readonly IHubContext<NotificationHub> _hub;
-    private readonly PushNotificationService _vapid;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<SignalRNotificationService> _logger;
 
     public SignalRNotificationService(
         IHubContext<NotificationHub> hub,
-        PushNotificationService vapid,
+        IServiceScopeFactory scopeFactory,
         ILogger<SignalRNotificationService> logger)
     {
         _hub = hub;
-        _vapid = vapid;
+        _scopeFactory = scopeFactory;
         _logger = logger;
     }
 
@@ -62,7 +63,24 @@ public class SignalRNotificationService : INotificationService
         }
 
         // ── 2. VAPID (background, OS notification) ────────────────────────────
-        // Fire-and-forget — failures are logged inside PushNotificationService.
-        _ = _vapid.SendToFamilyAsync(targetFamilyId, title, message, url, ct);
+        // Delivered on a fresh DI scope so the background work never touches the
+        // caller's request-scoped (pooled) DbContext after the request completes.
+        // CancellationToken is intentionally NOT propagated — the request's token
+        // would cancel delivery the moment the HTTP response is sent.
+        _ = DeliverPushAsync(targetFamilyId, title, message, url);
+    }
+
+    private async Task DeliverPushAsync(Guid targetFamilyId, string title, string message, string? url)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var vapid = scope.ServiceProvider.GetRequiredService<PushNotificationService>();
+            await vapid.SendToFamilyAsync(targetFamilyId, title, message, url, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Background VAPID delivery failed for family {FamilyId}", targetFamilyId);
+        }
     }
 }

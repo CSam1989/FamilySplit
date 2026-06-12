@@ -1,0 +1,77 @@
+@using System.Globalization
+@inject I18nText I18nText
+
+@*
+    Money input that works on every mobile keypad. Renders a text field with
+    inputmode="decimal" and parses via AmountParser, which accepts both "." and ","
+    as the decimal separator and rejects grouping — unlike MudNumericField, whose
+    invariant-culture parsing turns "4,50" into 450 on EU-locale iOS keypads.
+*@
+<MudTextField T="string"
+              Value="@_text"
+              ValueChanged="@((string? v) => OnTextChangedAsync(v))"
+              Label="@Label"
+              Required="@Required"
+              RequiredError="@RequiredError"
+              Validation="@(new Func<string?, IEnumerable<string>>(Validate))"
+              InputMode="@(InputMode.@decimal)"
+              Placeholder="0.00"
+              Immediate="true"
+              Variant="@Variant"
+              Class="@Class"
+              data-testid="@DataTestId" />
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+    [Parameter] public decimal? Value { get; set; }
+    [Parameter] public EventCallback<decimal?> ValueChanged { get; set; }
+    [Parameter] public bool Required { get; set; }
+    [Parameter] public string? RequiredError { get; set; }
+    [Parameter] public decimal Min { get; set; } = 0.01m;
+    [Parameter] public decimal Max { get; set; } = 1_000_000m;
+    [Parameter] public Variant Variant { get; set; } = Variant.Text;
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public string? DataTestId { get; set; }
+
+    private string? _text;
+    private decimal? _lastSyncedValue;
+    private AppText _t = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _t = await I18nText.GetTextTableAsync<AppText>(this);
+    }
+
+    protected override void OnParametersSet()
+    {
+        // Resync the text only when the bound value was changed externally,
+        // so the user's in-progress typing is never reformatted under them.
+        if (Value != _lastSyncedValue)
+        {
+            _lastSyncedValue = Value;
+            _text = Value?.ToString("0.00", CultureInfo.InvariantCulture);
+        }
+    }
+
+    private async Task OnTextChangedAsync(string? text)
+    {
+        _text = text;
+        decimal? parsed = AmountParser.TryParse(text, out var v) ? v : null;
+        _lastSyncedValue = parsed;
+        if (parsed != Value)
+            await ValueChanged.InvokeAsync(parsed);
+    }
+
+    private IEnumerable<string> Validate(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) yield break; // Required covers empties
+        if (!AmountParser.TryParse(text, out var v))
+        {
+            yield return _t.ExpenseAmountInvalid;
+            yield break;
+        }
+        if (v < Min) yield return _t.ExpenseAmountMin;
+        if (v > Max) yield return _t.ExpenseAmountMax;
+        if (decimal.Round(v, 2) != v) yield return _t.ExpenseAmountInvalid;
+    }
+}
