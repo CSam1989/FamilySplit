@@ -229,19 +229,12 @@ Program.cs, GroupMembershipGuard injected into 4 services replacing duplicated p
 test files moved to Common/, AddFamilySplitCommon test added.
 689 unit / 431 client tests green; build: 0 warnings, 0 errors.
 
-### Phase 2 — Architecture-test scaffolding
+### ✅ Phase 2 — Architecture-test scaffolding (DONE — commit `04b8602`)
 
-- [ ] `Directory.Packages.props`: add `NetArchTest.Rules`; UnitTests csproj: add the package.
-- [ ] Create `tests/FamilySplit.UnitTests/Architecture/` with `[Trait("Category", "Architecture")]`:
-  - `FeatureAssemblies.cs` — static registry array (empty for now; phases append).
-  - **Rule 1** Reference allow-list (plain reflection): each feature assembly's `FamilySplit.*` refs ⊆ {Domain, Infrastructure, Common}. Companion facts: Domain references no `FamilySplit.*`; Common references only Domain/Infrastructure.
-  - **Rule 2** Exactly one public `IFeatureModule` per feature assembly.
-  - **Rule 3** Handlers sealed, suffix `CommandHandler` or `QueryHandler`, namespace `^FamilySplit\.Features\.\w+\.\w+$`.
-  - **Rule 4** Validators suffix `CommandValidator` + same namespace as their `AbstractValidator<T>` arg.
-  - **Rule 5** Inverted AppDbContext check: every type in a feature assembly depending on `AppDbContext` must be a `*Handler` or sanctioned helper (catches endpoint lambdas via display classes).
-  - **Rule 6** Registry completeness: host's referenced `FamilySplit.Features.*` ≡ registry.
-  - **Rule 7 (CQRS)** `*QueryHandler` types must not depend on `AuditService`, `INotificationService`, or any `*CommandHandler` (NetArchTest dependency check), and must not call `SaveChangesAsync` (custom `ICustomRule` scanning Mono.Cecil method bodies for `SaveChanges*` call instructions).
-- [ ] Verify (rules vacuously green) + commit.
+NetArchTest.Rules 1.3.2 added; `tests/FamilySplit.UnitTests/Architecture/` scaffolded with
+`FeatureAssemblies.cs` (registry, empty), `DoesNotCallSaveChangesRule.cs` (Mono.Cecil IL rule),
+and `ArchitectureTests.cs` (11 tests covering Rules 1–7). All rules vacuously green.
+700 unit / 431 client tests green; build: 0 warnings, 0 errors.
 
 ### Phase 3 — Pilot slice: **Expenses** (proves all conventions incl. the CQRS response change end-to-end)
 
