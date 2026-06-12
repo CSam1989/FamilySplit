@@ -102,7 +102,7 @@ public sealed class ArchitectureTests
             .GetResult();
 
         result.IsSuccessful.Should().BeTrue(
-            because: string.Join(", ", result.FailingTypes.Select(t => t.FullName)));
+            because: string.Join(", ", result.FailingTypes?.Select(t => t.FullName) ?? []));
     }
 
     private static readonly Regex UseCaseNamespacePattern =
@@ -240,6 +240,6 @@ public sealed class ArchitectureTests
             .GetResult();
 
         result.IsSuccessful.Should().BeTrue(
-            because: string.Join(", ", result.FailingTypes.Select(t => t.FullName)));
+            because: string.Join(", ", result.FailingTypes?.Select(t => t.FullName) ?? []));
     }
 }

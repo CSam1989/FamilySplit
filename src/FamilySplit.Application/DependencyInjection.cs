@@ -23,8 +23,9 @@ public static class DependencyInjection
         services.AddScoped<Core.ParticipantSeeder>();
         services.AddScoped<Activities.ActivityService>();
 
-        // ── Phase 5: Expenses ─────────────────────────────────────────────────
-        services.AddScoped<Expenses.ExpenseService>();
+        // ── Expenses ──────────────────────────────────────────────────────────
+        // Migrated to FamilySplit.Features.Expenses (vertical slice) — registered
+        // via ExpensesModule in the API host.
 
         // ── Phase 6: Settlements ──────────────────────────────────────────────
         services.AddScoped<Settlements.SettlementService>();

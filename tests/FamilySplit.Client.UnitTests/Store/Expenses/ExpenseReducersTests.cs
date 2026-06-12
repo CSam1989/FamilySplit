@@ -95,15 +95,13 @@ public class ExpenseReducersTests
     }
 
     [Fact]
-    public void OnCreateSuccess_SetsSelectedExpense_AndStopsLoading()
+    public void OnCreateSuccess_StopsLoading()
     {
-        var detail = CreateDetailDto();
         var state = _initialState with { IsLoading = true };
 
-        var result = ExpenseReducers.OnCreateSuccess(state, new CreateExpenseSuccessAction(detail));
+        var result = ExpenseReducers.OnCreateSuccess(state);
 
         result.IsLoading.Should().BeFalse();
-        result.SelectedExpense.Should().BeSameAs(detail);
     }
 
     [Fact]
@@ -127,15 +125,13 @@ public class ExpenseReducersTests
     }
 
     [Fact]
-    public void OnUpdateSuccess_SetsSelectedExpense_AndStopsLoading()
+    public void OnUpdateSuccess_StopsLoading()
     {
-        var detail = CreateDetailDto();
         var state = _initialState with { IsLoading = true };
 
-        var result = ExpenseReducers.OnUpdateSuccess(state, new UpdateExpenseSuccessAction(detail));
+        var result = ExpenseReducers.OnUpdateSuccess(state);
 
         result.IsLoading.Should().BeFalse();
-        result.SelectedExpense.Should().BeSameAs(detail);
     }
 
     [Fact]

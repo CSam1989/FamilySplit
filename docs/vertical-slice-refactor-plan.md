@@ -236,7 +236,7 @@ NetArchTest.Rules 1.3.2 added; `tests/FamilySplit.UnitTests/Architecture/` scaff
 and `ArchitectureTests.cs` (11 tests covering Rules 1–7). All rules vacuously green.
 700 unit / 431 client tests green; build: 0 warnings, 0 errors.
 
-### Phase 3 — Pilot slice: **Expenses** (proves all conventions incl. the CQRS response change end-to-end)
+### ✅ Phase 3 — Pilot slice: **Expenses** (DONE — proves all conventions incl. the CQRS response change end-to-end)
 
 | Use case | Kind | Response |
 |---|---|---|
@@ -250,6 +250,8 @@ and `ArchitectureTests.cs` (11 tests covering Rules 1–7). All rules vacuously 
 Also: delete `Application/Core/SplitCalculator.cs` + `Expenses/`; move `Core/SplitCalculatorTests.cs` + `BusinessGuardTests`' reshuffle section → `Features/Expenses/`; split `ExpenseServiceTests.cs` (883 lines — region comments are the cut points) with `ExpenseTestBase`.
 Client: `IExpenseClient` create/update signatures; Expense effects re-query (`LoadExpensesAction` / `LoadExpenseDetailAction`); reducers stop patching from command responses; effects tests.
 **Extra gates for the pilot:** run the E2E suite locally (expense flow exercises the re-query path through the real UI); verify Scalar lists the expense endpoints in dev.
+
+**Completion notes:** `FamilySplit.Features.Expenses` created (5 use-case folders + `Shared/`), wired into slnx / Dockerfile / Api csproj / `Program.cs` (`new ExpensesModule()`); `ExpenseGuards` implemented as static helpers taking `AppDbContext` (so Rule 5's ctor-injection check stays satisfied). `ExpenseAmountRules` moved to `Shared/`. Old `Application/Expenses/`, `Application/Core/SplitCalculator.cs`, `Api/Endpoints/ExpenseEndpoints.cs`, and the Application-DI line deleted. `FeatureAssemblies.All` now registers the slice — all 11 architecture rules apply (two latent Phase-2 `because:`-string NREs fixed: null-guard `result.FailingTypes`). Tests: ExpenseServiceTests split per-handler with `ExpenseTestBase`; validator tests split Create/Update; SplitCalculator + reshuffle tests moved; endpoint test rewritten as a per-module DI/route test; integration Update tests flipped to 204 + follow-up GET; client effects/reducers re-query. **Verification:** Release build 0 warnings/0 errors; 699 unit / 431 client / 96 integration green; E2E 17/18 (the 3 expense flows pass — re-query path proven through the UI). The 1 E2E failure (`SettlementFlowTests.FullSettlementLifecycle`) is **pre-existing and unrelated** — it seeds a Closed activity directly in the DB, but settlement generation only fires through the close flow, so the mark-sent button never appears. Scalar listing covered-by-proxy (integration tests exercise all 5 routes through the real host; unit test asserts the module maps them with `WithTags("Expenses")`).
 
 ### Phase 4 — Dashboard  
 `GetStats` (Query — single handler from `DashboardService`). No mutations → no client/integration-test changes. Smallest slice — fast confirmation of the pattern.

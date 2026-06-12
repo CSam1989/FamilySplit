@@ -1,4 +1,4 @@
-namespace FamilySplit.Application.Expenses;
+namespace FamilySplit.Features.Expenses.Shared;
 
 /// <summary>Pure guard: determines whether an expense update requires re-snapshotting weights and recalculating shares.</summary>
 public static class ExpenseReshuffleRequired

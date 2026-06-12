@@ -1,20 +1,28 @@
-using FamilySplit.Api.Endpoints;
-using FamilySplit.Application.Expenses;
+using FamilySplit.Features.Expenses;
+using FamilySplit.Features.Expenses.Create;
+using FamilySplit.Features.Expenses.Delete;
+using FamilySplit.Features.Expenses.GetDetail;
+using FamilySplit.Features.Expenses.List;
+using FamilySplit.Features.Expenses.Update;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace FamilySplit.UnitTests.Endpoints;
 
+/// <summary>
+/// Per-module DI + route-mapping test for the Expenses slice. Replaces the old
+/// <c>MapExpenseEndpoints</c> extension test now that registration and routing live
+/// in <see cref="ExpensesModule"/>.
+/// </summary>
 public class ExpenseEndpointsTests
 {
     private static WebApplication CreateApp()
     {
         var builder = WebApplication.CreateBuilder();
-        builder.Services.AddScoped<ExpenseService>(sp =>
-            throw new InvalidOperationException("Should not be resolved in unit tests"));
-        var app = builder.Build();
-        return app;
+        new ExpensesModule().RegisterServices(builder.Services, builder.Configuration);
+        return builder.Build();
     }
 
     private static List<RouteEndpoint> GetEndpoints(WebApplication app)
@@ -27,21 +35,30 @@ public class ExpenseEndpointsTests
     }
 
     [Fact]
-    public void MapExpenseEndpoints_Called_ReturnsTheSameWebApplication()
+    public void RegisterServices_RegistersAllHandlersAsScoped()
     {
-        var app = CreateApp();
+        var services = new ServiceCollection();
+        new ExpensesModule().RegisterServices(services, new ConfigurationBuilder().Build());
 
-        var result = app.MapExpenseEndpoints();
+        var handlerTypes = new[]
+        {
+            typeof(ListExpensesQueryHandler),
+            typeof(GetExpenseDetailQueryHandler),
+            typeof(CreateExpenseCommandHandler),
+            typeof(UpdateExpenseCommandHandler),
+            typeof(DeleteExpenseCommandHandler),
+        };
 
-        result.Should().BeSameAs(app);
+        foreach (var t in handlerTypes)
+            services.Should().Contain(d => d.ServiceType == t && d.Lifetime == ServiceLifetime.Scoped);
     }
 
     [Fact]
-    public void MapExpenseEndpoints_Called_RegistersFiveEndpoints()
+    public void MapEndpoints_RegistersFiveEndpoints()
     {
         var app = CreateApp();
 
-        app.MapExpenseEndpoints();
+        new ExpensesModule().MapEndpoints(app);
 
         GetEndpoints(app).Should().HaveCount(5);
     }
@@ -52,11 +69,11 @@ public class ExpenseEndpointsTests
     [InlineData("GET", "/groups/{groupId:guid}/activities/{activityId:guid}/expenses/{expenseId:guid}")]
     [InlineData("PUT", "/groups/{groupId:guid}/activities/{activityId:guid}/expenses/{expenseId:guid}")]
     [InlineData("DELETE", "/groups/{groupId:guid}/activities/{activityId:guid}/expenses/{expenseId:guid}")]
-    public void MapExpenseEndpoints_Called_RegistersEndpoint(string httpMethod, string expectedPattern)
+    public void MapEndpoints_RegistersEndpoint(string httpMethod, string expectedPattern)
     {
         var app = CreateApp();
 
-        app.MapExpenseEndpoints();
+        new ExpensesModule().MapEndpoints(app);
 
         var endpoints = GetEndpoints(app);
         endpoints.Should().Contain(e =>
@@ -64,11 +81,11 @@ public class ExpenseEndpointsTests
     }
 
     [Fact]
-    public void MapExpenseEndpoints_Called_AllEndpointsHaveDisplayName()
+    public void MapEndpoints_AllEndpointsHaveDisplayName()
     {
         var app = CreateApp();
 
-        app.MapExpenseEndpoints();
+        new ExpensesModule().MapEndpoints(app);
 
         var endpoints = GetEndpoints(app);
         endpoints.Should().NotBeEmpty();

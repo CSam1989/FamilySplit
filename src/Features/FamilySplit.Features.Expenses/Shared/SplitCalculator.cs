@@ -1,6 +1,6 @@
 using FamilySplit.Domain.Entities;
 
-namespace FamilySplit.Application.Core;
+namespace FamilySplit.Features.Expenses.Shared;
 
 /// <summary>
 /// Computes the per-participant CalculatedAmount for an expense based on

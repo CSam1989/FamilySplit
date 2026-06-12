@@ -1,8 +1,7 @@
-using FamilySplit.Application.Core;
 using FamilySplit.Domain.Entities;
-using FluentAssertions;
+using FamilySplit.Features.Expenses.Shared;
 
-namespace FamilySplit.UnitTests.Core;
+namespace FamilySplit.UnitTests.Features.Expenses.Shared;
 
 public class SplitCalculatorTests
 {

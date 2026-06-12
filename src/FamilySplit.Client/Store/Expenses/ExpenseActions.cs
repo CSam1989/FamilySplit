@@ -13,13 +13,16 @@ public record LoadExpenseDetailSuccessAction(ExpenseDetailDto Expense);
 public record LoadExpenseDetailFailureAction(string ErrorMessage);
 
 // ── Create ────────────────────────────────────────────────────────────────────
+// Strict CQRS: the create command returns only the new id; the effect re-queries
+// the list rather than patching state from a returned DTO.
 public record CreateExpenseAction(Guid GroupId, Guid ActivityId, CreateExpenseRequest Request);
-public record CreateExpenseSuccessAction(ExpenseDetailDto Expense);
+public record CreateExpenseSuccessAction;
 public record CreateExpenseFailureAction(string ErrorMessage);
 
 // ── Update ────────────────────────────────────────────────────────────────────
+// Strict CQRS: the update command returns 204; the effect re-queries the list.
 public record UpdateExpenseAction(Guid GroupId, Guid ActivityId, Guid ExpenseId, UpdateExpenseRequest Request);
-public record UpdateExpenseSuccessAction(ExpenseDetailDto Expense);
+public record UpdateExpenseSuccessAction;
 public record UpdateExpenseFailureAction(string ErrorMessage);
 
 // ── Delete ────────────────────────────────────────────────────────────────────

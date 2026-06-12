@@ -407,11 +407,12 @@
                 DateOnly.FromDateTime(_expenseDate ?? DateTime.Today),
                 null);
 
-            var created = await ExpenseClient.CreateAsync(
+            // Strict CQRS: the create command returns only the new id; re-query for the data.
+            await ExpenseClient.CreateAsync(
                 _selectedGroupId.Value, _selectedActivityId.Value, request);
 
             // Keep the store in sync
-            Dispatcher.Dispatch(new CreateExpenseSuccessAction(created));
+            Dispatcher.Dispatch(new CreateExpenseSuccessAction());
             Dispatcher.Dispatch(new LoadExpensesAction(_selectedGroupId.Value, _selectedActivityId.Value));
 
             // Remember this activity for next time

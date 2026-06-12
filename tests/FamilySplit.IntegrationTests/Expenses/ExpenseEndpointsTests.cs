@@ -530,7 +530,7 @@ public sealed class UpdateExpenseTests : IntegrationTestBase
     public UpdateExpenseTests(PostgresContainerFixture fixture) : base(fixture) { }
 
     [Fact]
-    public async Task UpdateExpense_ChangeAmount_Returns200WithUpdatedAmount()
+    public async Task UpdateExpense_ChangeAmount_Returns204AndRecalculates()
     {
         // Arrange
         var ct = TestContext.Current.CancellationToken;
@@ -552,10 +552,14 @@ public sealed class UpdateExpenseTests : IntegrationTestBase
         var response = await Client.PutAsync(
             $"/groups/{groupId}/activities/{activityId}/expenses/{expenseId}", updatePayload, ct);
 
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        // Assert — strict CQRS: 204 No Content, then re-query for the updated state
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
-        var body = await response.Content.ReadAsStringAsync(ct);
+        var detailResponse = await Client.GetAsync(
+            $"/groups/{groupId}/activities/{activityId}/expenses/{expenseId}", ct);
+        detailResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var body = await detailResponse.Content.ReadAsStringAsync(ct);
         using var doc = JsonDocument.Parse(body);
         doc.RootElement.GetProperty("totalAmount").GetDecimal().Should().Be(75.00m);
         doc.RootElement.GetProperty("title").GetString().Should().Be("Updated Expense");
@@ -607,10 +611,13 @@ public sealed class UpdateExpenseTests : IntegrationTestBase
         var updateResponse = await Client.PutAsync(
             $"/groups/{groupId}/activities/{activityId}/expenses/{expenseId}", updatePayload, ct);
 
-        // Assert
-        updateResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        // Assert — strict CQRS: 204 No Content, then re-query to verify the re-snapshot
+        updateResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
-        var afterBody = await updateResponse.Content.ReadAsStringAsync(ct);
+        var afterDetail = await Client.GetAsync(
+            $"/groups/{groupId}/activities/{activityId}/expenses/{expenseId}", ct);
+        afterDetail.StatusCode.Should().Be(HttpStatusCode.OK);
+        var afterBody = await afterDetail.Content.ReadAsStringAsync(ct);
         using var afterDoc = JsonDocument.Parse(afterBody);
         var afterSnapshot = afterDoc.RootElement.GetProperty("participants")
             .EnumerateArray().First(p => p.GetProperty("familyMemberId").GetGuid() == CallerMemberId)
@@ -821,10 +828,13 @@ public sealed class UpdateExpenseTitleOnlyTests : IntegrationTestBase
         var response = await Client.PutAsync(
             $"/groups/{groupId}/activities/{activityId}/expenses/{expenseId}", updatePayload, ct);
 
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        // Assert — strict CQRS: 204 No Content, then re-query to verify no re-snapshot
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
-        var afterBody = await response.Content.ReadAsStringAsync(ct);
+        var afterDetail = await Client.GetAsync(
+            $"/groups/{groupId}/activities/{activityId}/expenses/{expenseId}", ct);
+        afterDetail.StatusCode.Should().Be(HttpStatusCode.OK);
+        var afterBody = await afterDetail.Content.ReadAsStringAsync(ct);
         using var afterDoc = JsonDocument.Parse(afterBody);
 
         afterDoc.RootElement.GetProperty("title").GetString().Should().Be("Updated Title");
@@ -955,7 +965,7 @@ public sealed class ExpenseAuditLogTests : IntegrationTestBase
         // Act
         var response = await Client.PutAsync(
             $"/groups/{groupId}/activities/{activityId}/expenses/{expenseId}", updatePayload, ct);
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
         // Assert — one Updated row must exist in audit_log for this expense
         await using var cmd = Connection.CreateCommand();

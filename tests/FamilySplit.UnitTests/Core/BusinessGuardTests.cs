@@ -1,5 +1,4 @@
 using FamilySplit.Application.Activities;
-using FamilySplit.Application.Expenses;
 using FamilySplit.Application.Settlements;
 using FamilySplit.Domain.Enums;
 
@@ -7,35 +6,7 @@ namespace FamilySplit.UnitTests.Core;
 
 public class BusinessGuardTests
 {
-    // ── ExpenseReshuffleRequired ──────────────────────────────────────────────
-
-    [Fact]
-    public void ExpenseReshuffle_AmountUnchanged_DateUnchanged_ReturnsFalse()
-    {
-        ExpenseReshuffleRequired.Check(10m, 10m, new DateOnly(2026, 1, 1), new DateOnly(2026, 1, 1))
-            .Should().BeFalse();
-    }
-
-    [Fact]
-    public void ExpenseReshuffle_AmountChanged_ReturnsTrue()
-    {
-        ExpenseReshuffleRequired.Check(10m, 20m, new DateOnly(2026, 1, 1), new DateOnly(2026, 1, 1))
-            .Should().BeTrue();
-    }
-
-    [Fact]
-    public void ExpenseReshuffle_DateChanged_ReturnsTrue()
-    {
-        ExpenseReshuffleRequired.Check(10m, 10m, new DateOnly(2026, 1, 1), new DateOnly(2026, 2, 1))
-            .Should().BeTrue();
-    }
-
-    [Fact]
-    public void ExpenseReshuffle_BothChanged_ReturnsTrue()
-    {
-        ExpenseReshuffleRequired.Check(10m, 20m, new DateOnly(2026, 1, 1), new DateOnly(2026, 2, 1))
-            .Should().BeTrue();
-    }
+    // ── ExpenseReshuffleRequired moved to Features/Expenses/Shared with the slice ─
 
     // ── SettlementStateMachine ────────────────────────────────────────────────
 

@@ -10,6 +10,7 @@ using FamilySplit.Application;
 using FamilySplit.Common;
 using FamilySplit.Common.Modules;
 using FamilySplit.Common.Notifications;
+using FamilySplit.Features.Expenses;
 using FamilySplit.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
@@ -157,8 +158,8 @@ builder.Services.AddFamilySplitCommon();
 builder.Services.AddFamilySplitApplication();
 builder.Services.AddFamilySplitInfrastructure(builder.Configuration, builder.Environment);
 
-// Feature modules (populated slice by slice; empty during Phase 1).
-IFeatureModule[] modules = [];
+// Feature modules (populated slice by slice).
+IFeatureModule[] modules = [ new ExpensesModule() ];
 foreach (var m in modules) m.RegisterServices(builder.Services, builder.Configuration);
 
 // --- Auth: JwtBearer + OAuth handler placeholders ---------------------------------
@@ -324,7 +325,7 @@ app.MapFamilyEndpoints();         // /families/mine — own-family management
 app.MapGroupEndpoints();          // /groups — CRUD + join + invite-code
 app.MapGroupMemberEndpoints();    // no-op stub (members managed via Family endpoints)
 app.MapActivityEndpoints();       // /groups/{groupId}/activities — CRUD + participants + close
-app.MapExpenseEndpoints();        // /groups/{groupId}/activities/{activityId}/expenses — Phase 5
+// Expenses: /groups/{groupId}/activities/{activityId}/expenses — migrated to ExpensesModule (vertical slice)
 app.MapSettlementEndpoints();     // /groups/{groupId}/activities/{activityId}/settlements — Phase 6
 app.MapDashboardEndpoints();      // /dashboard/stats — per-group statistics
 app.MapPushEndpoints();           // /push — VAPID subscription management

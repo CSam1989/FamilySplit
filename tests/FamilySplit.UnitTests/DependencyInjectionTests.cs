@@ -4,7 +4,6 @@ using FamilySplit.Application.Admin;
 using FamilySplit.Application.Auth;
 using FamilySplit.Application.Core;
 using FamilySplit.Application.Dashboard;
-using FamilySplit.Application.Expenses;
 using FamilySplit.Application.Families;
 using FamilySplit.Application.Groups;
 using FamilySplit.Application.Push;
@@ -40,7 +39,8 @@ public class DependencyInjectionTests
         services.Should().Contain(sd => sd.ServiceType == typeof(GroupService) && sd.Lifetime == ServiceLifetime.Scoped);
         services.Should().Contain(sd => sd.ServiceType == typeof(ParticipantSeeder) && sd.Lifetime == ServiceLifetime.Scoped);
         services.Should().Contain(sd => sd.ServiceType == typeof(ActivityService) && sd.Lifetime == ServiceLifetime.Scoped);
-        services.Should().Contain(sd => sd.ServiceType == typeof(ExpenseService) && sd.Lifetime == ServiceLifetime.Scoped);
+        // Expenses migrated to FamilySplit.Features.Expenses (ExpensesModule) — its DI
+        // registration is covered by ExpenseEndpointsTests.RegisterServices_RegistersAllHandlersAsScoped.
         services.Should().Contain(sd => sd.ServiceType == typeof(SettlementService) && sd.Lifetime == ServiceLifetime.Scoped);
         services.Should().Contain(sd => sd.ServiceType == typeof(DashboardService) && sd.Lifetime == ServiceLifetime.Scoped);
         services.Should().Contain(sd => sd.ServiceType == typeof(RefreshTokenService) && sd.Lifetime == ServiceLifetime.Scoped);
