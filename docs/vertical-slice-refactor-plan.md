@@ -221,29 +221,13 @@ Rules: handlers sealed, registered scoped, namespace `FamilySplit.Features.{Slic
 
 Deleted 30 empty stray test files (`UnitTests/Store/**`, `UnitTests/Services/**`); removed Client.UnitTests' dead `FamilySplit.Application` reference. Baseline recorded: 688 unit / 431 client / 96 integration.
 
-### Phase 1 — Extract `FamilySplit.Common`
+### ✅ Phase 1 — Extract `FamilySplit.Common` (DONE — commit `514509a`)
 
-> The 10 Common source files are **already scaffolded (uncommitted)** in `src/FamilySplit.Common/`:
-> csproj, `Modules/IFeatureModule`, `Exceptions/ForbiddenException` + `ValidationErrors`,
-> `Auditing/AuditService`, `Calculations/WeightCalculator`, `Notifications/INotificationService`,
-> `Security/ClaimsPrincipalExtensions` + `GroupMembershipGuard`, `Routing/HubPaths` + `RateLimitPolicies`,
-> `DependencyInjection`. Review/keep them, or `git clean -fd src/FamilySplit.Common` and recreate.
-
-- [ ] Add `Contracts/CreatedResponse.cs` to Common: `public sealed record CreatedResponse(Guid Id);` (the create-command wire shape).
-- [ ] Add `src/FamilySplit.Common` to slnx (`/src/` folder) + Dockerfile COPY line.
-- [ ] Delete originals: `Application/Exceptions/ForbiddenException.cs`, `Application/Audit/AuditService.cs`, `Application/Core/WeightCalculator.cs`, `Application/Notifications/INotificationService.cs`, blank `Api/Middleware/ForbiddenException.cs`.
-- [ ] Application csproj + Api csproj: add ProjectReference to Common (temporary for Application — dies in Phase 13). Add `<Using Include="FamilySplit.Common.Security" />` to Api csproj.
-- [ ] Namespace updates (~20 files in src + tests, exact list via
-      `grep -rn "using FamilySplit.Application.\(Exceptions\|Audit\|Notifications\)" src tests`):
-      `Application.Exceptions`→`Common.Exceptions`, `Application.Audit`→`Common.Auditing`,
-      `Application.Notifications`→`Common.Notifications`; add `using FamilySplit.Common.Calculations;`
-      where `WeightCalculator` is used (Families, Groups, Activities, Expenses services keep
-      `using FamilySplit.Application.Core;` for the other Core types).
-- [ ] Program.cs: delete the inline `ClaimsPrincipalExtensions` class; call `AddFamilySplitCommon()`; add the (empty) module array + two loops.
-- [ ] Application `DependencyInjection.cs`: remove the `AddScoped<AuditService>()` line (now in Common).
-- [ ] In-place dedup: ActivityService/ExpenseService/SettlementService inject `GroupMembershipGuard` and delete their private `RequireGroupMemberAsync` (+ SettlementService's `GetCallerFamilyIdAsync`); DashboardService swaps its inline caller-family query for the guard.
-- [ ] Tests: UnitTests + IntegrationTests csprojs reference Common; update usings; move `Audit/AuditServiceTests.cs`, `Exceptions/ForbiddenExceptionTests.cs`, `Core/WeightCalculatorTests.cs` → `tests/FamilySplit.UnitTests/Common/`; rename `ProgramTests.cs` → `Common/ClaimsPrincipalExtensionsTests.cs` (it tests that class); update `DependencyInjectionTests` (AuditService moved to AddFamilySplitCommon).
-- [ ] Verify + commit. HTTP behavior must be identical in this phase (integration tests unmodified — the CQRS response change starts in Phase 3, slice by slice).
+All 10 Common source files scaffolded, CreatedResponse added, slnx + Dockerfile + csprojs updated,
+originals deleted, namespaces updated across ~20 files, inline ClaimsPrincipalExtensions removed from
+Program.cs, GroupMembershipGuard injected into 4 services replacing duplicated private guards,
+test files moved to Common/, AddFamilySplitCommon test added.
+689 unit / 431 client tests green; build: 0 warnings, 0 errors.
 
 ### Phase 2 — Architecture-test scaffolding
 
