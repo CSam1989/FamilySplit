@@ -1,6 +1,8 @@
 using FamilySplit.Application.Activities.Dtos;
 using FamilySplit.Application.Core;
-using FamilySplit.Application.Exceptions;
+using FamilySplit.Common.Calculations;
+using FamilySplit.Common.Exceptions;
+using FamilySplit.Common.Security;
 using FamilySplit.Domain.Entities;
 using FamilySplit.Domain.Enums;
 using FamilySplit.Infrastructure;
@@ -21,6 +23,7 @@ public class ActivityService
     private readonly UpdateActivityValidator _updateValidator;
     private readonly AddParticipantValidator _addParticipantValidator;
     private readonly ParticipantSeeder _seeder;
+    private readonly GroupMembershipGuard _guard;
     private readonly ILogger<ActivityService> _logger;
 
     public ActivityService(
@@ -29,6 +32,7 @@ public class ActivityService
         UpdateActivityValidator updateValidator,
         AddParticipantValidator addParticipantValidator,
         ParticipantSeeder seeder,
+        GroupMembershipGuard guard,
         ILogger<ActivityService> logger)
     {
         _db = db;
@@ -36,6 +40,7 @@ public class ActivityService
         _updateValidator = updateValidator;
         _addParticipantValidator = addParticipantValidator;
         _seeder = seeder;
+        _guard = guard;
         _logger = logger;
     }
 
@@ -45,7 +50,7 @@ public class ActivityService
     public async Task<List<ActivitySummaryDto>> ListAsync(Guid groupId, Guid callerId, CancellationToken ct = default)
     {
         _logger.LogDebug("ListAsync called for {GroupId} by {UserId}", groupId, callerId);
-        await RequireGroupMemberAsync(groupId, callerId, ct);
+        await _guard.RequireGroupMemberAsync(groupId, callerId, ct);
 
         var activities = await _db.Activities
             .AsNoTracking()
@@ -121,7 +126,7 @@ public class ActivityService
             .FirstOrDefaultAsync(ct)
             ?? throw NotFound();
 
-        await RequireGroupMemberAsync(activity.GroupId, callerId, ct);
+        await _guard.RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 
         return await BuildDetailDtoAsync(activity.Id, activity.GroupId, activity.Name,
             activity.Description, activity.Status, activity.ParentActivityId,
@@ -134,7 +139,7 @@ public class ActivityService
     {
         _logger.LogDebug("CreateAsync called for {GroupId} by {UserId}", groupId, callerId);
         await _createValidator.ValidateAndThrowAsync(req, ct);
-        await RequireGroupMemberAsync(groupId, callerId, ct);
+        await _guard.RequireGroupMemberAsync(groupId, callerId, ct);
 
         var activity = new Activity
         {
@@ -179,7 +184,7 @@ public class ActivityService
         if (parent.Status != ActivityStatus.Open)
             throw Throw422("Status", "Cannot add a sub-activity to a closed or settled activity.");
 
-        await RequireGroupMemberAsync(parent.GroupId, callerId, ct);
+        await _guard.RequireGroupMemberAsync(parent.GroupId, callerId, ct);
 
         var sub = new Activity
         {
@@ -215,7 +220,7 @@ public class ActivityService
         var activity = await _db.Activities.FindAsync([activityId], ct)
             ?? throw NotFound();
 
-        await RequireGroupMemberAsync(activity.GroupId, callerId, ct);
+        await _guard.RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 
         if (activity.Status != ActivityStatus.Open)
             throw Throw422("Status", "Only open activities can be edited.");
@@ -245,7 +250,7 @@ public class ActivityService
         var activity = await _db.Activities.FindAsync([activityId], ct)
             ?? throw NotFound();
 
-        await RequireGroupMemberAsync(activity.GroupId, callerId, ct);
+        await _guard.RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 
         if (!ActivityCloseGuard.CanClose(activity.Status))
             throw Throw422("Status", "Activity is already closed or settled.");
@@ -294,7 +299,7 @@ public class ActivityService
             .FirstOrDefaultAsync(ct)
             ?? throw NotFound();
 
-        await RequireGroupMemberAsync(activity.GroupId, callerId, ct);
+        await _guard.RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 
         if (activity.Status != ActivityStatus.Open)
             throw Throw422("Status", "Cannot add participants to a closed activity.");
@@ -343,7 +348,7 @@ public class ActivityService
             .FirstOrDefaultAsync(ct)
             ?? throw NotFound();
 
-        await RequireGroupMemberAsync(activity.GroupId, callerId, ct);
+        await _guard.RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 
         if (activity.Status != ActivityStatus.Open)
             throw Throw422("Status", "Cannot remove participants from a closed activity.");
@@ -363,21 +368,6 @@ public class ActivityService
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
-
-    private async Task RequireGroupMemberAsync(Guid groupId, Guid callerId, CancellationToken ct)
-    {
-        var callerFamilyId = await _db.FamilyMembers
-            .Where(m => m.UserId == callerId && m.IsActive)
-            .Select(m => (Guid?)m.FamilyId)
-            .FirstOrDefaultAsync(ct)
-            ?? throw new ForbiddenException();
-
-        var isMember = await _db.GroupFamilies
-            .AnyAsync(gf => gf.GroupId == groupId && gf.FamilyId == callerFamilyId, ct);
-
-        if (!isMember)
-            throw new ForbiddenException();
-    }
 
     private async Task<ActivityDetailDto> BuildDetailDtoAsync(
         Guid id, Guid groupId, string name, string? description,

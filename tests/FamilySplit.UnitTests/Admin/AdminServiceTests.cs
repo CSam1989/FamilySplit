@@ -1,6 +1,6 @@
 using FamilySplit.Application.Admin;
 using FamilySplit.Application.Admin.Dtos;
-using FamilySplit.Application.Exceptions;
+using FamilySplit.Common.Exceptions;
 using FamilySplit.Application.Families;
 using FamilySplit.Application.Families.Dtos;
 using FamilySplit.Domain.Entities;

@@ -1,7 +1,8 @@
 using FamilySplit.Application.Activities;
 using FamilySplit.Application.Activities.Dtos;
 using FamilySplit.Application.Core;
-using FamilySplit.Application.Exceptions;
+using FamilySplit.Common.Exceptions;
+using FamilySplit.Common.Security;
 using FamilySplit.Domain.Entities;
 using FamilySplit.Domain.Enums;
 using FamilySplit.Infrastructure;
@@ -32,6 +33,7 @@ public class ActivityServiceTests : IDisposable
             new UpdateActivityValidator(),
             new AddParticipantValidator(),
             new ParticipantSeeder(_db),
+            new GroupMembershipGuard(_db),
             NullLogger<ActivityService>.Instance);
 
         _db.Families.Add(new Family { Id = _familyId, Name = "TestFamily" });

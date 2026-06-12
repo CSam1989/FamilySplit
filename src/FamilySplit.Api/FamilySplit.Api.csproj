@@ -21,7 +21,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\FamilySplit.Application\FamilySplit.Application.csproj" />
+    <ProjectReference Include="..\FamilySplit.Common\FamilySplit.Common.csproj" />
     <ProjectReference Include="..\FamilySplit.Infrastructure\FamilySplit.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="FamilySplit.Common.Security" />
   </ItemGroup>
 
 </Project>

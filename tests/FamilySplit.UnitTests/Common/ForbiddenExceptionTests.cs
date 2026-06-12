@@ -1,7 +1,6 @@
-using FamilySplit.Application.Exceptions;
-using FluentAssertions;
+using FamilySplit.Common.Exceptions;
 
-namespace FamilySplit.UnitTests.Exceptions;
+namespace FamilySplit.UnitTests.Common;
 
 public class ForbiddenExceptionTests
 {

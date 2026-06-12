@@ -1,6 +1,7 @@
-using FamilySplit.Application.Audit;
-using FamilySplit.Application.Exceptions;
-using FamilySplit.Application.Notifications;
+using FamilySplit.Common.Auditing;
+using FamilySplit.Common.Exceptions;
+using FamilySplit.Common.Notifications;
+using FamilySplit.Common.Security;
 using FamilySplit.Application.Settlements;
 using FamilySplit.Application.Settlements.Dtos;
 using FamilySplit.Domain.Entities;
@@ -37,7 +38,7 @@ public class SettlementServiceTests : IDisposable
             .Options;
         _db = new AppDbContext(options);
         _audit = new AuditService(_db, new Mock<ILogger<AuditService>>().Object);
-        _sut = new SettlementService(_db, _audit, _notificationsMock.Object, _loggerMock.Object);
+        _sut = new SettlementService(_db, _audit, new GroupMembershipGuard(_db), _notificationsMock.Object, _loggerMock.Object);
     }
 
     public void Dispose()

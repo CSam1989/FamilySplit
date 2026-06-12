@@ -1,8 +1,10 @@
-namespace FamilySplit.Application.Notifications;
+namespace FamilySplit.Common.Notifications;
 
 /// <summary>
 /// Sends real-time notifications to connected family members.
 /// Implementations broadcast to the SignalR group "family-{familyId}".
+/// Lives in Common so slices (e.g. Settlements) can notify without depending
+/// on the Notifications slice that implements delivery.
 /// </summary>
 public interface INotificationService
 {

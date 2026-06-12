@@ -1,5 +1,4 @@
 using System.IO.Compression;
-using System.Security.Claims;
 using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
@@ -8,7 +7,9 @@ using FamilySplit.Api.Endpoints;
 using FamilySplit.Api.Hubs;
 using FamilySplit.Api.Middleware;
 using FamilySplit.Application;
-using FamilySplit.Application.Notifications;
+using FamilySplit.Common;
+using FamilySplit.Common.Modules;
+using FamilySplit.Common.Notifications;
 using FamilySplit.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
@@ -151,9 +152,14 @@ builder.Services.AddHttpClient("google-oauth", c =>
     o.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(35);
 });
 
-// --- Application + Infrastructure -------------------------------------------------
+// --- Common + Application + Infrastructure ----------------------------------------
+builder.Services.AddFamilySplitCommon();
 builder.Services.AddFamilySplitApplication();
 builder.Services.AddFamilySplitInfrastructure(builder.Configuration, builder.Environment);
+
+// Feature modules (populated slice by slice; empty during Phase 1).
+IFeatureModule[] modules = [];
+foreach (var m in modules) m.RegisterServices(builder.Services, builder.Configuration);
 
 // --- Auth: JwtBearer + OAuth handler placeholders ---------------------------------
 var jwt = builder.Configuration.GetSection("Jwt");
@@ -306,6 +312,9 @@ app.MapGet("/health", () => Results.Ok(new
     utc = DateTimeOffset.UtcNow
 })).AllowAnonymous();
 
+// Feature module endpoint mapping.
+foreach (var m in modules) m.MapEndpoints(app);
+
 // --- Endpoint groups --------------------------------------------------------------
 app.MapAuthEndpoints();
 app.MapUserEndpoints();
@@ -336,15 +345,3 @@ app.Run();
 
 // Exposed for WebApplicationFactory<Program> in integration tests.
 public partial class Program { }
-
-// Small helper used by future endpoints to pull the caller's UserId from the JWT.
-public static class ClaimsPrincipalExtensions
-{
-    public static Guid GetUserId(this ClaimsPrincipal user)
-    {
-        var sub = user.FindFirstValue(ClaimTypes.NameIdentifier)
-                  ?? user.FindFirstValue("sub")
-                  ?? throw new UnauthorizedAccessException("JWT missing sub/NameIdentifier claim.");
-        return Guid.Parse(sub);
-    }
-}

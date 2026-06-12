@@ -1,7 +1,8 @@
-using FamilySplit.Application.Audit;
 using FamilySplit.Application.Core;
-using FamilySplit.Application.Exceptions;
-using FamilySplit.Application.Notifications;
+using FamilySplit.Common.Auditing;
+using FamilySplit.Common.Exceptions;
+using FamilySplit.Common.Notifications;
+using FamilySplit.Common.Security;
 using FamilySplit.Application.Settlements.Dtos;
 using FamilySplit.Domain.Entities;
 using FamilySplit.Domain.Enums;
@@ -21,17 +22,20 @@ public class SettlementService
 {
     private readonly AppDbContext _db;
     private readonly AuditService _audit;
+    private readonly GroupMembershipGuard _guard;
     private readonly INotificationService _notifications;
     private readonly ILogger<SettlementService> _logger;
 
     public SettlementService(
         AppDbContext db,
         AuditService audit,
+        GroupMembershipGuard guard,
         INotificationService notifications,
         ILogger<SettlementService> logger)
     {
         _db = db;
         _audit = audit;
+        _guard = guard;
         _notifications = notifications;
         _logger = logger;
     }
@@ -49,7 +53,7 @@ public class SettlementService
             .FirstOrDefaultAsync(ct)
             ?? throw NotFound("Activity not found.");
 
-        await RequireGroupMemberAsync(activity.GroupId, callerId, ct);
+        await _guard.RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 
         var currency = await GetActivityCurrencyAsync(activityId, ct);
         var (expenses, participants) = await LoadExpenseDataAsync(activityId, ct);
@@ -87,7 +91,7 @@ public class SettlementService
             .FirstOrDefaultAsync(ct)
             ?? throw NotFound("Activity not found.");
 
-        await RequireGroupMemberAsync(activity.GroupId, callerId, ct);
+        await _guard.RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 
         if (activity.Status == ActivityStatus.AbsorbedByParent)
             throw Throw422("Status", "Cannot settle a sub-activity that was absorbed by its parent.");
@@ -202,7 +206,7 @@ public class SettlementService
     {
         _logger.LogDebug("Listing settlements for group {GroupId} requested by user {UserId}", groupId, callerId);
 
-        await RequireGroupMemberAsync(groupId, callerId, ct);
+        await _guard.RequireGroupMemberAsync(groupId, callerId, ct);
 
         var activities = await _db.Activities
             .Where(a => a.GroupId == groupId && a.ParentActivityId == null)
@@ -350,7 +354,7 @@ public class SettlementService
             .FirstOrDefaultAsync(ct)
             ?? throw NotFound("Activity not found.");
 
-        await RequireGroupMemberAsync(activity.GroupId, callerId, ct);
+        await _guard.RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 
         return await BuildSummaryListAsync(activityId, ct);
     }
@@ -373,7 +377,7 @@ public class SettlementService
             .FirstOrDefaultAsync(ct)
             ?? throw NotFound("Activity not found.");
 
-        await RequireGroupMemberAsync(activity.GroupId, callerId, ct);
+        await _guard.RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 
         return await BuildDetailDtoAsync(settlementId, ct);
     }
@@ -393,9 +397,9 @@ public class SettlementService
             .FirstOrDefaultAsync(ct)
             ?? throw NotFound("Activity not found.");
 
-        await RequireGroupMemberAsync(activity.GroupId, callerId, ct);
+        await _guard.RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 
-        var callerFamilyId = await GetCallerFamilyIdAsync(callerId, ct);
+        var callerFamilyId = await _guard.GetCallerFamilyIdAsync(callerId, ct);
         if (callerFamilyId != settlement.PayerFamilyId)
             throw new ForbiddenException("Only a member of the paying family can confirm payment sent.");
 
@@ -460,9 +464,9 @@ public class SettlementService
             .FirstOrDefaultAsync(ct)
             ?? throw NotFound("Activity not found.");
 
-        await RequireGroupMemberAsync(activity.GroupId, callerId, ct);
+        await _guard.RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 
-        var callerFamilyId = await GetCallerFamilyIdAsync(callerId, ct);
+        var callerFamilyId = await _guard.GetCallerFamilyIdAsync(callerId, ct);
         if (callerFamilyId != settlement.ReceiverFamilyId)
             throw new ForbiddenException("Only a member of the receiving family can confirm payment received.");
 
@@ -529,30 +533,6 @@ public class SettlementService
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
-
-    private async Task RequireGroupMemberAsync(Guid groupId, Guid callerId, CancellationToken ct)
-    {
-        var callerFamilyId = await _db.FamilyMembers
-            .Where(m => m.UserId == callerId && m.IsActive)
-            .Select(m => (Guid?)m.FamilyId)
-            .FirstOrDefaultAsync(ct)
-            ?? throw new ForbiddenException();
-
-        var isMember = await _db.GroupFamilies
-            .AnyAsync(gf => gf.GroupId == groupId && gf.FamilyId == callerFamilyId, ct);
-
-        if (!isMember)
-            throw new ForbiddenException();
-    }
-
-    private async Task<Guid> GetCallerFamilyIdAsync(Guid callerId, CancellationToken ct)
-    {
-        return await _db.FamilyMembers
-            .Where(m => m.UserId == callerId && m.IsActive)
-            .Select(m => (Guid?)m.FamilyId)
-            .FirstOrDefaultAsync(ct)
-            ?? throw new ForbiddenException();
-    }
 
     private async Task<string> GetActivityCurrencyAsync(Guid activityId, CancellationToken ct)
     {

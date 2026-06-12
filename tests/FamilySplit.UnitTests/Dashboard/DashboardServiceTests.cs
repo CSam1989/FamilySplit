@@ -1,5 +1,6 @@
 using FamilySplit.Application.Dashboard;
-using FamilySplit.Application.Exceptions;
+using FamilySplit.Common.Exceptions;
+using FamilySplit.Common.Security;
 using FamilySplit.Domain.Entities;
 using FamilySplit.Domain.Enums;
 using FamilySplit.Infrastructure;
@@ -26,7 +27,7 @@ public class DashboardServiceTests : IDisposable
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         _db = new AppDbContext(options);
-        _sut = new DashboardService(_db);
+        _sut = new DashboardService(_db, new GroupMembershipGuard(_db));
     }
 
     public void Dispose()

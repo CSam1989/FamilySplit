@@ -1,11 +1,11 @@
-using FamilySplit.Application.Audit;
+using FamilySplit.Common.Auditing;
 using FamilySplit.Domain.Entities;
 using FamilySplit.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
 
-namespace FamilySplit.UnitTests.Audit;
+namespace FamilySplit.UnitTests.Common;
 
 public class AuditServiceTests : IDisposable
 {

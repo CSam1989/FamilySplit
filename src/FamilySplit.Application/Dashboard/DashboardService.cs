@@ -1,5 +1,5 @@
 using FamilySplit.Application.Dashboard.Dtos;
-using FamilySplit.Application.Exceptions;
+using FamilySplit.Common.Security;
 using FamilySplit.Domain.Enums;
 using FamilySplit.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -14,17 +14,18 @@ namespace FamilySplit.Application.Dashboard;
 public class DashboardService
 {
     private readonly AppDbContext _db;
+    private readonly GroupMembershipGuard _guard;
 
-    public DashboardService(AppDbContext db) => _db = db;
+    public DashboardService(AppDbContext db, GroupMembershipGuard guard)
+    {
+        _db = db;
+        _guard = guard;
+    }
 
     public async Task<List<DashboardGroupStatDto>> GetStatsAsync(Guid callerId, CancellationToken ct = default)
     {
         // ── 1. Resolve caller's family ────────────────────────────────────────
-        var callerFamilyId = await _db.FamilyMembers
-            .Where(m => m.UserId == callerId && m.IsActive)
-            .Select(m => (Guid?)m.FamilyId)
-            .FirstOrDefaultAsync(ct)
-            ?? throw new ForbiddenException("Caller has no active family membership.");
+        var callerFamilyId = await _guard.GetCallerFamilyIdAsync(callerId, ct);
 
         // ── 2. Groups the caller's family belongs to ──────────────────────────
         var groupInfos = await (

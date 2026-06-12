@@ -1,12 +1,13 @@
 using FamilySplit.Domain.Entities;
 using FamilySplit.Domain.Enums;
 
-namespace FamilySplit.Application.Core;
+namespace FamilySplit.Common.Calculations;
 
 /// <summary>
 /// Resolves an effective weight for a <see cref="FamilyMember"/> at a given expense date.
 /// Order of precedence: WeightOverride → age-tier from DOB → 1.00 fallback.
 /// The numeric result is snapshotted on ExpenseParticipant.WeightSnapshot at save time and never re-derived.
+/// Shared across the Groups, Families, Activities, and Expenses slices.
 /// </summary>
 public static class WeightCalculator
 {

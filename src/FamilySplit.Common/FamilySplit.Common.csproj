@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>FamilySplit.Common</RootNamespace>
+    <AssemblyName>FamilySplit.Common</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- IEndpointRouteBuilder, IServiceCollection extensions, HttpContext etc. live in
+         the shared framework — class libraries must opt in explicitly. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FluentValidation" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FamilySplit.Domain\FamilySplit.Domain.csproj" />
+    <ProjectReference Include="..\FamilySplit.Infrastructure\FamilySplit.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="FamilySplit.UnitTests" />
+  </ItemGroup>
+
+</Project>

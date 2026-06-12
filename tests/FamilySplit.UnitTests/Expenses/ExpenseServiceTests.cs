@@ -1,5 +1,6 @@
-using FamilySplit.Application.Audit;
-using FamilySplit.Application.Exceptions;
+using FamilySplit.Common.Auditing;
+using FamilySplit.Common.Exceptions;
+using FamilySplit.Common.Security;
 using FamilySplit.Application.Expenses;
 using FamilySplit.Application.Expenses.Dtos;
 using FamilySplit.Domain.Entities;
@@ -34,7 +35,7 @@ public class ExpenseServiceTests : IDisposable
             .Options;
         _db = new AppDbContext(options);
         _audit = new AuditService(_db, new Mock<ILogger<AuditService>>().Object);
-        _sut = new ExpenseService(_db, new CreateExpenseValidator(), new UpdateExpenseValidator(), _audit, _loggerMock.Object);
+        _sut = new ExpenseService(_db, new CreateExpenseValidator(), new UpdateExpenseValidator(), _audit, new GroupMembershipGuard(_db), _loggerMock.Object);
     }
 
     public void Dispose()

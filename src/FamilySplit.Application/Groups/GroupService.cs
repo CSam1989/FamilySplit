@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
-using FamilySplit.Application.Core;
-using FamilySplit.Application.Exceptions;
+using FamilySplit.Common.Calculations;
+using FamilySplit.Common.Exceptions;
 using FamilySplit.Application.Families;
 using FamilySplit.Application.Groups.Dtos;
 using FamilySplit.Domain.Entities;

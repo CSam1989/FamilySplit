@@ -1,8 +1,7 @@
 using System.Security.Claims;
+using FamilySplit.Common.Security;
 
-using FluentAssertions;
-
-namespace FamilySplit.UnitTests;
+namespace FamilySplit.UnitTests.Common;
 
 public class ClaimsPrincipalExtensionsTests
 {

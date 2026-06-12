@@ -14,6 +14,7 @@ WORKDIR /src
 COPY ["Directory.Build.props", "./"]
 COPY ["Directory.Packages.props", "./"]
 COPY ["src/FamilySplit.Domain/FamilySplit.Domain.csproj", "src/FamilySplit.Domain/"]
+COPY ["src/FamilySplit.Common/FamilySplit.Common.csproj", "src/FamilySplit.Common/"]
 COPY ["src/FamilySplit.Application/FamilySplit.Application.csproj", "src/FamilySplit.Application/"]
 COPY ["src/FamilySplit.Infrastructure/FamilySplit.Infrastructure.csproj", "src/FamilySplit.Infrastructure/"]
 COPY ["src/FamilySplit.Api/FamilySplit.Api.csproj", "src/FamilySplit.Api/"]

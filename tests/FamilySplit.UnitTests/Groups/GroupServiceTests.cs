@@ -1,4 +1,4 @@
-using FamilySplit.Application.Exceptions;
+using FamilySplit.Common.Exceptions;
 using FamilySplit.Application.Groups;
 using FamilySplit.Application.Groups.Dtos;
 using FamilySplit.Domain.Entities;

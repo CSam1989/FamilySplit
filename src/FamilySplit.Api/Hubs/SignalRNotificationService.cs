@@ -1,4 +1,4 @@
-using FamilySplit.Application.Notifications;
+using FamilySplit.Common.Notifications;
 using FamilySplit.Application.Push;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;

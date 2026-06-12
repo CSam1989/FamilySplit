@@ -1,8 +1,8 @@
-using FamilySplit.Application.Core;
+using FamilySplit.Common.Calculations;
 using FamilySplit.Domain.Entities;
 using FamilySplit.Domain.Enums;
 
-namespace FamilySplit.UnitTests.Core;
+namespace FamilySplit.UnitTests.Common;
 
 public class WeightCalculatorTests
 {

@@ -1,7 +1,7 @@
-namespace FamilySplit.Application.Exceptions;
+namespace FamilySplit.Common.Exceptions;
 
 /// <summary>
-/// Thrown by service methods when the caller lacks the required role.
+/// Thrown by handlers when the caller lacks the required role.
 /// Maps to HTTP 403 via the API's middleware.
 /// </summary>
 public class ForbiddenException : Exception

@@ -1,7 +1,9 @@
-using FamilySplit.Application.Audit;
 using FamilySplit.Application.Core;
-using FamilySplit.Application.Exceptions;
 using FamilySplit.Application.Expenses.Dtos;
+using FamilySplit.Common.Auditing;
+using FamilySplit.Common.Calculations;
+using FamilySplit.Common.Exceptions;
+using FamilySplit.Common.Security;
 using FamilySplit.Domain.Entities;
 using FamilySplit.Domain.Enums;
 using FamilySplit.Infrastructure;
@@ -22,6 +24,7 @@ public class ExpenseService
     private readonly CreateExpenseValidator _createValidator;
     private readonly UpdateExpenseValidator _updateValidator;
     private readonly AuditService _audit;
+    private readonly GroupMembershipGuard _guard;
     private readonly ILogger<ExpenseService> _logger;
 
     public ExpenseService(
@@ -29,12 +32,14 @@ public class ExpenseService
         CreateExpenseValidator createValidator,
         UpdateExpenseValidator updateValidator,
         AuditService audit,
+        GroupMembershipGuard guard,
         ILogger<ExpenseService> logger)
     {
         _db = db;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
         _audit = audit;
+        _guard = guard;
         _logger = logger;
     }
 
@@ -51,7 +56,7 @@ public class ExpenseService
             .FirstOrDefaultAsync(ct)
             ?? throw NotFound("Activity not found.");
 
-        await RequireGroupMemberAsync(activity.GroupId, callerId, ct);
+        await _guard.RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 
         var expenses = await _db.Expenses
             .Where(e => e.ActivityId == activityId)
@@ -120,7 +125,7 @@ public class ExpenseService
             .FirstOrDefaultAsync(ct)
             ?? throw NotFound("Activity not found.");
 
-        await RequireGroupMemberAsync(activity.GroupId, callerId, ct);
+        await _guard.RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 
         return await BuildDetailDtoAsync(expense.Id, expense.ActivityId, expense.Title, expense.Description,
             expense.TotalAmount, expense.Currency, expense.ExpenseDate, expense.PaidByUserId,
@@ -143,7 +148,7 @@ public class ExpenseService
             .FirstOrDefaultAsync(ct)
             ?? throw NotFound("Activity not found.");
 
-        await RequireGroupMemberAsync(activity.GroupId, callerId, ct);
+        await _guard.RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 
         if (activity.Status is ActivityStatus.Settled or ActivityStatus.Closed)
             throw Throw422("Status", "Cannot add expenses to a closed or settled activity.");
@@ -247,7 +252,7 @@ public class ExpenseService
             .FirstOrDefaultAsync(ct)
             ?? throw NotFound("Activity not found.");
 
-        await RequireGroupMemberAsync(activity.GroupId, callerId, ct);
+        await _guard.RequireGroupMemberAsync(activity.GroupId, callerId, ct);
         await RequireSameFamilyAsPayerOrGlobalAdminAsync(expense.PaidByUserId, callerId, ct);
 
         if (activity.Status is ActivityStatus.Settled or ActivityStatus.Closed)
@@ -356,7 +361,7 @@ public class ExpenseService
             .FirstOrDefaultAsync(ct)
             ?? throw NotFound("Activity not found.");
 
-        await RequireGroupMemberAsync(activity.GroupId, callerId, ct);
+        await _guard.RequireGroupMemberAsync(activity.GroupId, callerId, ct);
         await RequireSameFamilyAsPayerOrGlobalAdminAsync(expense.PaidByUserId, callerId, ct);
 
         if (activity.Status is ActivityStatus.Settled or ActivityStatus.Closed)
@@ -384,21 +389,6 @@ public class ExpenseService
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
-
-    private async Task RequireGroupMemberAsync(Guid groupId, Guid callerId, CancellationToken ct)
-    {
-        var callerFamilyId = await _db.FamilyMembers
-            .Where(m => m.UserId == callerId && m.IsActive)
-            .Select(m => (Guid?)m.FamilyId)
-            .FirstOrDefaultAsync(ct)
-            ?? throw new ForbiddenException();
-
-        var isMember = await _db.GroupFamilies
-            .AnyAsync(gf => gf.GroupId == groupId && gf.FamilyId == callerFamilyId, ct);
-
-        if (!isMember)
-            throw new ForbiddenException();
-    }
 
     /// <summary>
     /// Only a member of the family that posted the expense (the payer's family) may

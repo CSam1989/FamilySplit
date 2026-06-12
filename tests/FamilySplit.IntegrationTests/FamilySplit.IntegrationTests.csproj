@@ -28,6 +28,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\FamilySplit.Api\FamilySplit.Api.csproj" />
+    <ProjectReference Include="..\..\src\FamilySplit.Common\FamilySplit.Common.csproj" />
     <ProjectReference Include="..\..\src\FamilySplit.Application\FamilySplit.Application.csproj" />
     <ProjectReference Include="..\..\src\FamilySplit.Domain\FamilySplit.Domain.csproj" />
     <ProjectReference Include="..\..\src\FamilySplit.Infrastructure\FamilySplit.Infrastructure.csproj" />

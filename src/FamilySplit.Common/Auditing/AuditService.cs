@@ -4,13 +4,15 @@ using FamilySplit.Domain.Entities;
 using FamilySplit.Infrastructure;
 using Microsoft.Extensions.Logging;
 
-namespace FamilySplit.Application.Audit;
+namespace FamilySplit.Common.Auditing;
 
 /// <summary>
 /// Queues <see cref="AuditLog"/> rows into the current <see cref="AppDbContext"/>
-/// unit-of-work.  The entry is persisted atomically when the calling service
+/// unit-of-work.  The entry is persisted atomically when the calling handler
 /// invokes <c>SaveChangesAsync()</c> — there is no separate database round-trip.
 ///
+/// Each slice owns <em>what</em> it audits (entity types, actions, metadata);
+/// this class is only the generic queueing mechanism.
 /// Supported entity types: <c>Expense</c>, <c>Settlement</c>.
 /// Supported actions:
 ///   Expense  → Created | Updated | Deleted
