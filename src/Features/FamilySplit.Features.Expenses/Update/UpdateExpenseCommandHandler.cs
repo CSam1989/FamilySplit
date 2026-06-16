@@ -4,36 +4,33 @@ using FamilySplit.Common.Exceptions;
 using FamilySplit.Common.Security;
 using FamilySplit.Domain.Entities;
 using FamilySplit.Domain.Enums;
+using FamilySplit.Features.Expenses.Data;
 using FamilySplit.Features.Expenses.Shared;
-using FamilySplit.Infrastructure;
 using FluentValidation;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace FamilySplit.Features.Expenses.Update;
 
 /// <summary>
-/// Command — edits an expense. If the amount or date changed, re-snapshots every
-/// participant's weight and recalculates shares. Returns nothing (204).
+/// Command (business logic) — edits an expense. If the amount or date changed, re-snapshots every
+/// participant's weight and recalculates shares. Holds no EF — all data access goes through
+/// <see cref="IExpenseData"/> (ADR-001). Returns nothing (204).
 /// </summary>
 public sealed class UpdateExpenseCommandHandler
 {
-    private readonly AppDbContext _db;
+    private readonly IExpenseData _data;
     private readonly UpdateExpenseCommandValidator _validator;
-    private readonly AuditService _audit;
-    private readonly GroupMembershipGuard _guard;
+    private readonly IGroupMembershipGuard _guard;
     private readonly ILogger<UpdateExpenseCommandHandler> _logger;
 
     public UpdateExpenseCommandHandler(
-        AppDbContext db,
+        IExpenseData data,
         UpdateExpenseCommandValidator validator,
-        AuditService audit,
-        GroupMembershipGuard guard,
+        IGroupMembershipGuard guard,
         ILogger<UpdateExpenseCommandHandler> logger)
     {
-        _db = db;
+        _data = data;
         _validator = validator;
-        _audit = audit;
         _guard = guard;
         _logger = logger;
     }
@@ -44,17 +41,17 @@ public sealed class UpdateExpenseCommandHandler
 
         await _validator.ValidateAndThrowAsync(cmd, ct);
 
-        var expense = await _db.Expenses.FindAsync([expenseId], ct)
+        var expense = await _data.GetExpenseAsync(expenseId, ct)
             ?? throw ValidationErrors.NotFound("Expense not found.");
 
-        var activity = await _db.Activities
-            .Where(a => a.Id == expense.ActivityId)
-            .Select(a => new { a.GroupId, a.Status })
-            .FirstOrDefaultAsync(ct)
+        var activity = await _data.GetActivityAsync(expense.ActivityId, ct)
             ?? throw ValidationErrors.NotFound("Activity not found.");
 
         await _guard.RequireGroupMemberAsync(activity.GroupId, callerId, ct);
-        await ExpenseGuards.RequireSameFamilyAsPayerOrGlobalAdminAsync(_db, expense.PaidByUserId, callerId, ct);
+
+        var ownership = await _data.GetExpenseOwnershipAsync(expense.PaidByUserId, callerId, ct);
+        ExpenseGuards.RequireSameFamilyAsPayerOrGlobalAdmin(
+            ownership.IsGlobalAdmin, ownership.CallerFamilyId, ownership.PayerFamilyId);
 
         if (activity.Status is ActivityStatus.Settled or ActivityStatus.Closed)
             throw ValidationErrors.Field("Status", "Cannot edit expenses on a closed or settled activity.");
@@ -63,12 +60,17 @@ public sealed class UpdateExpenseCommandHandler
             throw ValidationErrors.Field("Status", "This expense is locked and cannot be edited.");
 
         var currency = (cmd.Currency ?? expense.Currency).ToUpperInvariant();
-        await ExpenseGuards.EnsureCurrencyConsistentAsync(_db, expense.ActivityId, currency, excludeExpenseId: expenseId, ct);
-        await ExpenseGuards.EnsureCategoryValidAsync(_db, cmd.CategoryId, activity.GroupId, ct);
+        ExpenseGuards.EnsureCurrencyConsistent(
+            await _data.GetActivityCurrencyAsync(expense.ActivityId, excludeExpenseId: expenseId, ct), currency);
 
-        bool amountOrDateChanged = ExpenseReshuffleRequired.Check(expense.TotalAmount, cmd.TotalAmount, expense.ExpenseDate, cmd.ExpenseDate);
+        if (cmd.CategoryId is not null)
+            ExpenseGuards.EnsureCategoryValid(
+                await _data.CategoryIsValidForGroupAsync(cmd.CategoryId.Value, activity.GroupId, ct));
 
-        // Capture before-state for audit diff.
+        bool amountOrDateChanged = ExpenseReshuffleRequired.Check(
+            expense.TotalAmount, cmd.TotalAmount, expense.ExpenseDate, cmd.ExpenseDate);
+
+        // Capture before-state for the audit diff.
         var before = new
         {
             title = expense.Title,
@@ -77,69 +79,61 @@ public sealed class UpdateExpenseCommandHandler
             expenseDate = expense.ExpenseDate,
         };
 
-        expense.Title = cmd.Title.Trim();
-        expense.Description = cmd.Description?.Trim();
-        expense.TotalAmount = cmd.TotalAmount;
-        expense.Currency = currency;
-        expense.ExpenseDate = cmd.ExpenseDate;
-        expense.CategoryId = cmd.CategoryId;
-        expense.UpdatedAt = DateTimeOffset.UtcNow;
+        var fields = new ExpenseFields(
+            cmd.Title.Trim(), cmd.Description?.Trim(), cmd.TotalAmount, currency, cmd.ExpenseDate, cmd.CategoryId);
 
         // If amount or date changed, re-snapshot weights and recalculate shares.
+        List<ParticipantShare>? recomputed = null;
         if (amountOrDateChanged)
         {
             _logger.LogDebug(
-                "Amount or date changed on expense {ExpenseId} — re-snapshotting weights",
-                expenseId);
+                "Amount or date changed on expense {ExpenseId} — re-snapshotting weights", expenseId);
 
-            var existingParticipants = await _db.ExpenseParticipants
-                .Where(ep => ep.ExpenseId == expenseId)
-                .ToListAsync(ct);
-
-            if (existingParticipants.Count > 0)
+            var inputs = await _data.GetExpenseParticipantsAsync(expenseId, ct);
+            if (inputs.Count > 0)
             {
-                var memberIds = existingParticipants.Select(ep => ep.FamilyMemberId).ToList();
-                var memberData = await _db.FamilyMembers
-                    .Where(fm => memberIds.Contains(fm.Id))
-                    .Select(fm => new { fm.Id, fm.DateOfBirth, fm.WeightOverride })
-                    .ToDictionaryAsync(m => m.Id, ct);
-
-                foreach (var ep in existingParticipants)
+                var rebuilt = inputs.Select(p =>
                 {
-                    if (memberData.TryGetValue(ep.FamilyMemberId, out var m))
+                    var shell = new FamilyMember
                     {
-                        var shell = new FamilyMember
-                        {
-                            Id = m.Id,
-                            DateOfBirth = m.DateOfBirth,
-                            WeightOverride = m.WeightOverride,
-                        };
-                        ep.WeightSnapshot = WeightCalculator.GetWeight(shell, expense.ExpenseDate);
-                    }
-                }
+                        Id = p.FamilyMemberId,
+                        DateOfBirth = p.DateOfBirth,
+                        WeightOverride = p.WeightOverride,
+                    };
+                    return new ExpenseParticipant
+                    {
+                        Id = p.ParticipantId,
+                        FamilyMemberId = p.FamilyMemberId,
+                        WeightSnapshot = WeightCalculator.GetWeight(shell, cmd.ExpenseDate),
+                        IsExcluded = p.IsExcluded,
+                    };
+                }).ToList();
 
-                SplitCalculator.CalculateShares(expense.TotalAmount, existingParticipants);
+                SplitCalculator.CalculateShares(cmd.TotalAmount, rebuilt);
+
+                recomputed = rebuilt
+                    .Select(r => new ParticipantShare(r.Id, r.WeightSnapshot, r.CalculatedAmount))
+                    .ToList();
             }
         }
 
-        // Queue audit entry — persisted atomically with SaveChangesAsync below.
-        _audit.Queue(callerId, "Expense", expenseId, "Updated", new
+        var audit = new AuditEntry(callerId, "Expense", expenseId, "Updated", new
         {
             before,
             after = new
             {
-                title = expense.Title,
-                amount = expense.TotalAmount,
-                currency = expense.Currency,
-                expenseDate = expense.ExpenseDate,
+                title = fields.Title,
+                amount = fields.TotalAmount,
+                currency = fields.Currency,
+                expenseDate = fields.ExpenseDate,
             },
             recalculated = amountOrDateChanged,
         });
 
-        await _db.SaveChangesAsync(ct);
+        await _data.UpdateExpenseAsync(expenseId, fields, recomputed, audit, ct);
 
         _logger.LogInformation(
             "Expense {ExpenseId} updated by user {UserId} — '{Title}' {Amount} {Currency}",
-            expenseId, callerId, expense.Title, expense.TotalAmount, expense.Currency);
+            expenseId, callerId, fields.Title, fields.TotalAmount, fields.Currency);
     }
 }

@@ -1,21 +1,28 @@
+using FamilySplit.Common.Auditing;
 using FamilySplit.Common.Exceptions;
-using FamilySplit.Domain.Entities;
 using FamilySplit.Domain.Enums;
+using FamilySplit.Features.Expenses.Data;
 using FamilySplit.Features.Expenses.Delete;
+using FamilySplit.UnitTests.Features.Expenses;
 using FluentValidation;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 
 namespace FamilySplit.UnitTests.Features.Expenses.Delete;
 
-public class DeleteExpenseCommandHandlerTests : ExpenseTestBase
+public class DeleteExpenseCommandHandlerTests : ExpenseCommandTestBase
 {
     private readonly DeleteExpenseCommandHandler _sut;
+    private AuditEntry? _audit;
 
     public DeleteExpenseCommandHandlerTests()
     {
         _sut = new DeleteExpenseCommandHandler(
-            Db, Audit, Guard, NullLogger<DeleteExpenseCommandHandler>.Instance);
+            Data.Object, Guard.Object, NullLogger<DeleteExpenseCommandHandler>.Instance);
+
+        Data.Setup(d => d.DeleteExpenseAsync(It.IsAny<Guid>(), It.IsAny<AuditEntry>(), It.IsAny<CancellationToken>()))
+            .Callback<Guid, AuditEntry, CancellationToken>((_, a, _) => _audit = a)
+            .Returns(Task.CompletedTask);
     }
 
     [Fact]
@@ -30,17 +37,8 @@ public class DeleteExpenseCommandHandlerTests : ExpenseTestBase
     public async Task Handle_ActivityNotFound_ThrowsValidationException()
     {
         var expenseId = Guid.NewGuid();
-        Db.Expenses.Add(new Expense
-        {
-            Id = expenseId,
-            ActivityId = Guid.NewGuid(),
-            PaidByUserId = CallerId,
-            Title = "X",
-            TotalAmount = 1,
-            Currency = "EUR",
-            ExpenseDate = DateOnly.FromDateTime(DateTime.Today),
-        });
-        await Db.SaveChangesAsync(CT);
+        ArrangeExpense(expenseId);
+        // GetActivityAsync unconfigured → null.
 
         Func<Task> act = () => _sut.HandleAsync(expenseId, CallerId, CT);
 
@@ -50,19 +48,11 @@ public class DeleteExpenseCommandHandlerTests : ExpenseTestBase
     [Fact]
     public async Task Handle_CallerNotMember_ThrowsForbiddenException()
     {
-        await SeedActivityAsync();
         var expenseId = Guid.NewGuid();
-        Db.Expenses.Add(new Expense
-        {
-            Id = expenseId,
-            ActivityId = ActivityId,
-            PaidByUserId = CallerId,
-            Title = "X",
-            TotalAmount = 1,
-            Currency = "EUR",
-            ExpenseDate = DateOnly.FromDateTime(DateTime.Today),
-        });
-        await Db.SaveChangesAsync(CT);
+        ArrangeExpense(expenseId);
+        ArrangeActivity();
+        Guard.Setup(g => g.RequireGroupMemberAsync(GroupId, CallerId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new ForbiddenException());
 
         Func<Task> act = () => _sut.HandleAsync(expenseId, CallerId, CT);
 
@@ -72,20 +62,10 @@ public class DeleteExpenseCommandHandlerTests : ExpenseTestBase
     [Fact]
     public async Task Handle_SettledActivity_ThrowsValidationException()
     {
-        await SeedGroupMembershipAsync();
-        await SeedActivityAsync(ActivityStatus.Settled);
         var expenseId = Guid.NewGuid();
-        Db.Expenses.Add(new Expense
-        {
-            Id = expenseId,
-            ActivityId = ActivityId,
-            PaidByUserId = CallerId,
-            Title = "X",
-            TotalAmount = 1,
-            Currency = "EUR",
-            ExpenseDate = DateOnly.FromDateTime(DateTime.Today),
-        });
-        await Db.SaveChangesAsync(CT);
+        ArrangeExpense(expenseId);
+        ArrangeActivity(ActivityStatus.Settled);
+        ArrangeCallerOwnsExpense();
 
         Func<Task> act = () => _sut.HandleAsync(expenseId, CallerId, CT);
 
@@ -95,21 +75,10 @@ public class DeleteExpenseCommandHandlerTests : ExpenseTestBase
     [Fact]
     public async Task Handle_LockedExpense_ThrowsValidationException()
     {
-        await SeedGroupMembershipAsync();
-        await SeedActivityAsync();
         var expenseId = Guid.NewGuid();
-        Db.Expenses.Add(new Expense
-        {
-            Id = expenseId,
-            ActivityId = ActivityId,
-            PaidByUserId = CallerId,
-            Title = "X",
-            TotalAmount = 1,
-            Currency = "EUR",
-            ExpenseDate = DateOnly.FromDateTime(DateTime.Today),
-            Status = ExpenseStatus.Locked,
-        });
-        await Db.SaveChangesAsync(CT);
+        ArrangeExpense(expenseId, ExpenseStatus.Locked);
+        ArrangeActivity();
+        ArrangeCallerOwnsExpense();
 
         Func<Task> act = () => _sut.HandleAsync(expenseId, CallerId, CT);
 
@@ -119,9 +88,13 @@ public class DeleteExpenseCommandHandlerTests : ExpenseTestBase
     [Fact]
     public async Task Handle_CallerFromDifferentFamily_ThrowsForbidden()
     {
-        var (outsiderId, expenseId) = await SeedExpenseByCallerWithOutsiderAsync();
+        var expenseId = Guid.NewGuid();
+        ArrangeExpense(expenseId);
+        ArrangeActivity();
+        Data.Setup(d => d.GetExpenseOwnershipAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExpenseOwnership(IsGlobalAdmin: false, CallerFamilyId: Guid.NewGuid(), PayerFamilyId: Guid.NewGuid()));
 
-        Func<Task> act = () => _sut.HandleAsync(expenseId, outsiderId, CT);
+        Func<Task> act = () => _sut.HandleAsync(expenseId, CallerId, CT);
 
         await act.Should().ThrowAsync<ForbiddenException>();
     }
@@ -129,50 +102,29 @@ public class DeleteExpenseCommandHandlerTests : ExpenseTestBase
     [Fact]
     public async Task Handle_Valid_RemovesExpense()
     {
-        await SeedGroupMembershipAsync();
-        await SeedActivityAsync();
         var expenseId = Guid.NewGuid();
-        Db.Expenses.Add(new Expense
-        {
-            Id = expenseId,
-            ActivityId = ActivityId,
-            PaidByUserId = CallerId,
-            Title = "ToDelete",
-            TotalAmount = 99,
-            Currency = "EUR",
-            ExpenseDate = DateOnly.FromDateTime(DateTime.Today),
-        });
-        await Db.SaveChangesAsync(CT);
+        ArrangeExpense(expenseId);
+        ArrangeActivity();
+        ArrangeCallerOwnsExpense();
 
         await _sut.HandleAsync(expenseId, CallerId, CT);
 
-        Db.Expenses.Should().BeEmpty();
+        Data.Verify(d => d.DeleteExpenseAsync(expenseId, It.IsAny<AuditEntry>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
-    public async Task Handle_Valid_CreatesAuditEntry()
+    public async Task Handle_Valid_BuildsDeletedAuditEntry()
     {
-        await SeedGroupMembershipAsync();
-        await SeedActivityAsync();
         var expenseId = Guid.NewGuid();
-        Db.Expenses.Add(new Expense
-        {
-            Id = expenseId,
-            ActivityId = ActivityId,
-            PaidByUserId = CallerId,
-            Title = "Audited",
-            TotalAmount = 50,
-            Currency = "USD",
-            ExpenseDate = DateOnly.FromDateTime(DateTime.Today),
-        });
-        await Db.SaveChangesAsync(CT);
+        ArrangeExpense(expenseId);
+        ArrangeActivity();
+        ArrangeCallerOwnsExpense();
 
         await _sut.HandleAsync(expenseId, CallerId, CT);
 
-        var auditEntry = await Db.AuditLogs.FirstOrDefaultAsync(CT);
-        auditEntry.Should().NotBeNull();
-        auditEntry!.EntityType.Should().Be("Expense");
-        auditEntry.Action.Should().Be("Deleted");
-        auditEntry.EntityId.Should().Be(expenseId);
+        _audit.Should().NotBeNull();
+        _audit!.EntityType.Should().Be("Expense");
+        _audit.Action.Should().Be("Deleted");
+        _audit.EntityId.Should().Be(expenseId);
     }
 }

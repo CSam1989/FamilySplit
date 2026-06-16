@@ -1,5 +1,6 @@
 using FamilySplit.Common.Modules;
 using FamilySplit.Features.Expenses.Create;
+using FamilySplit.Features.Expenses.Data;
 using FamilySplit.Features.Expenses.Delete;
 using FamilySplit.Features.Expenses.GetDetail;
 using FamilySplit.Features.Expenses.List;
@@ -24,6 +25,7 @@ public sealed class ExpensesModule : IFeatureModule
     {
         services.AddValidatorsFromAssembly(typeof(ExpensesModule).Assembly);
 
+        services.AddScoped<IExpenseData, ExpenseData>();    // the data seam (ADR-001)
         services.AddScoped<ListExpensesQueryHandler>();
         services.AddScoped<GetExpenseDetailQueryHandler>();
         services.AddScoped<CreateExpenseCommandHandler>();

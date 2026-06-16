@@ -1,33 +1,46 @@
+using FamilySplit.Common.Auditing;
 using FamilySplit.Common.Exceptions;
 using FamilySplit.Domain.Entities;
 using FamilySplit.Domain.Enums;
 using FamilySplit.Features.Expenses.Create;
+using FamilySplit.Features.Expenses.Data;
+using FamilySplit.UnitTests.Features.Expenses;
 using FluentValidation;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 
 namespace FamilySplit.UnitTests.Features.Expenses.Create;
 
-public class CreateExpenseCommandHandlerTests : ExpenseTestBase
+public class CreateExpenseCommandHandlerTests : ExpenseCommandTestBase
 {
     private readonly CreateExpenseCommandHandler _sut;
+
+    // Captured arguments from the data gateway's persist call.
+    private Expense? _added;
+    private IReadOnlyList<ExpenseParticipant>? _addedParticipants;
+    private AuditEntry? _audit;
 
     public CreateExpenseCommandHandlerTests()
     {
         _sut = new CreateExpenseCommandHandler(
-            Db, new CreateExpenseCommandValidator(), Audit, Guard,
+            Data.Object, new CreateExpenseCommandValidator(), Guard.Object,
             NullLogger<CreateExpenseCommandHandler>.Instance);
+
+        Data.Setup(d => d.AddExpenseAsync(
+                It.IsAny<Expense>(), It.IsAny<IReadOnlyList<ExpenseParticipant>>(), It.IsAny<AuditEntry>(), It.IsAny<CancellationToken>()))
+            .Callback<Expense, IReadOnlyList<ExpenseParticipant>, AuditEntry, CancellationToken>(
+                (e, p, a, _) => { _added = e; _addedParticipants = p; _audit = a; })
+            .Returns(Task.CompletedTask);
     }
 
     private static CreateExpenseCommand MakeCommand(decimal amount = 100m, string title = "Dinner")
-        => new(title, "desc", amount, "EUR", DateOnly.FromDateTime(DateTime.Today), null);
+        => new(title, "desc", amount, "EUR", Today, null);
 
     [Fact]
     public async Task Handle_ActivityNotFound_ThrowsValidationException()
     {
-        await SeedGroupMembershipAsync();
-
-        Func<Task> act = () => _sut.HandleAsync(Guid.NewGuid(), MakeCommand(), CallerId, CT);
+        // GetActivityAsync is unconfigured → returns null.
+        Func<Task> act = () => _sut.HandleAsync(ActivityId, MakeCommand(), CallerId, CT);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -35,8 +48,7 @@ public class CreateExpenseCommandHandlerTests : ExpenseTestBase
     [Fact]
     public async Task Handle_SettledActivity_ThrowsValidationException()
     {
-        await SeedGroupMembershipAsync();
-        await SeedActivityAsync(ActivityStatus.Settled);
+        ArrangeActivity(ActivityStatus.Settled);
 
         Func<Task> act = () => _sut.HandleAsync(ActivityId, MakeCommand(), CallerId, CT);
 
@@ -46,7 +58,9 @@ public class CreateExpenseCommandHandlerTests : ExpenseTestBase
     [Fact]
     public async Task Handle_CallerNotMember_ThrowsForbiddenException()
     {
-        await SeedActivityAsync();
+        ArrangeActivity();
+        Guard.Setup(g => g.RequireGroupMemberAsync(GroupId, CallerId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new ForbiddenException());
 
         Func<Task> act = () => _sut.HandleAsync(ActivityId, MakeCommand(), CallerId, CT);
 
@@ -56,68 +70,68 @@ public class CreateExpenseCommandHandlerTests : ExpenseTestBase
     [Fact]
     public async Task Handle_Valid_CreatesExpenseAndReturnsId()
     {
-        await SeedGroupMembershipAsync();
-        await SeedActivityAsync();
+        ArrangeActivity();
+        Data.Setup(d => d.GetActivityParticipantsAsync(ActivityId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
 
         var id = await _sut.HandleAsync(ActivityId, MakeCommand(), CallerId, CT);
 
         id.Should().NotBeEmpty();
-        var expense = await Db.Expenses.FindAsync([id], CT);
-        expense.Should().NotBeNull();
-        expense!.Title.Should().Be("Dinner");
-        expense.TotalAmount.Should().Be(100);
-        expense.Currency.Should().Be("EUR");
-        Db.Expenses.Should().HaveCount(1);
+        _added.Should().NotBeNull();
+        id.Should().Be(_added!.Id);
+        _added.Title.Should().Be("Dinner");
+        _added.TotalAmount.Should().Be(100);
+        _added.Currency.Should().Be("EUR");
+        Data.Verify(d => d.AddExpenseAsync(
+            It.IsAny<Expense>(), It.IsAny<IReadOnlyList<ExpenseParticipant>>(), It.IsAny<AuditEntry>(), It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
     public async Task Handle_NullCurrency_DefaultsToEUR()
     {
-        await SeedGroupMembershipAsync();
-        await SeedActivityAsync();
+        ArrangeActivity();
+        Data.Setup(d => d.GetActivityParticipantsAsync(ActivityId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
 
-        var cmd = new CreateExpenseCommand("Test", null, 50, null, DateOnly.FromDateTime(DateTime.Today), null);
-        var id = await _sut.HandleAsync(ActivityId, cmd, CallerId, CT);
+        var cmd = new CreateExpenseCommand("Test", null, 50, null, Today, null);
+        await _sut.HandleAsync(ActivityId, cmd, CallerId, CT);
 
-        var expense = await Db.Expenses.FindAsync([id], CT);
-        expense!.Currency.Should().Be("EUR");
+        _added!.Currency.Should().Be("EUR");
     }
 
     [Fact]
     public async Task Handle_TitleWithWhitespace_GetsTrimmed()
     {
-        await SeedGroupMembershipAsync();
-        await SeedActivityAsync();
+        ArrangeActivity();
+        Data.Setup(d => d.GetActivityParticipantsAsync(ActivityId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
 
-        var cmd = new CreateExpenseCommand("  Trimmed  ", null, 50, "EUR", DateOnly.FromDateTime(DateTime.Today), null);
-        var id = await _sut.HandleAsync(ActivityId, cmd, CallerId, CT);
+        var cmd = new CreateExpenseCommand("  Trimmed  ", null, 50, "EUR", Today, null);
+        await _sut.HandleAsync(ActivityId, cmd, CallerId, CT);
 
-        var expense = await Db.Expenses.FindAsync([id], CT);
-        expense!.Title.Should().Be("Trimmed");
+        _added!.Title.Should().Be("Trimmed");
     }
 
     [Fact]
     public async Task Handle_WithActivityParticipants_SeedsExpenseParticipants()
     {
-        await SeedGroupMembershipAsync();
-        await SeedActivityAsync();
-
-        var memberId = await Db.FamilyMembers.Select(fm => fm.Id).FirstAsync(CT);
-        Db.ActivityParticipants.Add(new ActivityParticipant { Id = Guid.NewGuid(), ActivityId = ActivityId, FamilyMemberId = memberId });
-        await Db.SaveChangesAsync(CT);
+        ArrangeActivity();
+        var memberId = Guid.NewGuid();
+        Data.Setup(d => d.GetActivityParticipantsAsync(ActivityId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new ParticipantSnapshotInput(memberId, new DateOnly(2000, 1, 1), null)]);
 
         await _sut.HandleAsync(ActivityId, MakeCommand(), CallerId, CT);
 
-        Db.ExpenseParticipants.Should().HaveCount(1);
+        _addedParticipants.Should().ContainSingle()
+            .Which.FamilyMemberId.Should().Be(memberId);
     }
 
     [Fact]
     public async Task Handle_InvalidRequest_ThrowsValidationException()
     {
-        await SeedGroupMembershipAsync();
-        await SeedActivityAsync();
-
-        var cmd = new CreateExpenseCommand("", null, 0, "EUR", DateOnly.FromDateTime(DateTime.Today), null);
+        // Validation runs first — no data setup needed.
+        var cmd = new CreateExpenseCommand("", null, 0, "EUR", Today, null);
         Func<Task> act = () => _sut.HandleAsync(ActivityId, cmd, CallerId, CT);
 
         await act.Should().ThrowAsync<ValidationException>();
@@ -126,23 +140,32 @@ public class CreateExpenseCommandHandlerTests : ExpenseTestBase
     [Fact]
     public async Task Handle_CurrencyDiffersFromExistingExpense_ThrowsValidation()
     {
-        await SeedGroupMembershipAsync();
-        await SeedActivityAsync();
-        Db.Expenses.Add(new Expense
-        {
-            Id = Guid.NewGuid(),
-            ActivityId = ActivityId,
-            PaidByUserId = CallerId,
-            Title = "First",
-            TotalAmount = 10,
-            Currency = "EUR",
-            ExpenseDate = DateOnly.FromDateTime(DateTime.Today),
-        });
-        await Db.SaveChangesAsync(CT);
+        ArrangeActivity();
+        Data.Setup(d => d.GetActivityCurrencyAsync(ActivityId, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync("EUR");
 
-        var cmd = new CreateExpenseCommand("Second", null, 20, "USD", DateOnly.FromDateTime(DateTime.Today), null);
+        var cmd = new CreateExpenseCommand("Second", null, 20, "USD", Today, null);
         Func<Task> act = () => _sut.HandleAsync(ActivityId, cmd, CallerId, CT);
 
         await act.Should().ThrowAsync<ValidationException>().WithMessage("*same currency*");
+        Data.Verify(d => d.AddExpenseAsync(
+            It.IsAny<Expense>(), It.IsAny<IReadOnlyList<ExpenseParticipant>>(), It.IsAny<AuditEntry>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_Valid_BuildsCreatedAuditEntry()
+    {
+        ArrangeActivity();
+        Data.Setup(d => d.GetActivityParticipantsAsync(ActivityId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        var id = await _sut.HandleAsync(ActivityId, MakeCommand(), CallerId, CT);
+
+        _audit.Should().NotBeNull();
+        _audit!.EntityType.Should().Be("Expense");
+        _audit.Action.Should().Be("Created");
+        _audit.EntityId.Should().Be(id);
+        _audit.UserId.Should().Be(CallerId);
     }
 }

@@ -9,7 +9,7 @@ namespace FamilySplit.Common.Security;
 /// caller's family or group membership. Scoped — shares the request's
 /// <see cref="AppDbContext"/> unit-of-work.
 /// </summary>
-public sealed class GroupMembershipGuard
+public sealed class GroupMembershipGuard : IGroupMembershipGuard
 {
     private readonly AppDbContext _db;
 

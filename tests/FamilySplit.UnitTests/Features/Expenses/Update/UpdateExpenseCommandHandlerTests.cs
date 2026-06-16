@@ -1,29 +1,46 @@
+using FamilySplit.Common.Auditing;
 using FamilySplit.Common.Exceptions;
-using FamilySplit.Domain.Entities;
 using FamilySplit.Domain.Enums;
+using FamilySplit.Features.Expenses.Data;
 using FamilySplit.Features.Expenses.Update;
+using FamilySplit.UnitTests.Features.Expenses;
 using FluentValidation;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 
 namespace FamilySplit.UnitTests.Features.Expenses.Update;
 
-public class UpdateExpenseCommandHandlerTests : ExpenseTestBase
+public class UpdateExpenseCommandHandlerTests : ExpenseCommandTestBase
 {
     private readonly UpdateExpenseCommandHandler _sut;
+
+    // Captured arguments from the data gateway's persist call.
+    private ExpenseFields? _fields;
+    private IReadOnlyList<ParticipantShare>? _recomputed;
+    private AuditEntry? _audit;
 
     public UpdateExpenseCommandHandlerTests()
     {
         _sut = new UpdateExpenseCommandHandler(
-            Db, new UpdateExpenseCommandValidator(), Audit, Guard,
+            Data.Object, new UpdateExpenseCommandValidator(), Guard.Object,
             NullLogger<UpdateExpenseCommandHandler>.Instance);
+
+        Data.Setup(d => d.UpdateExpenseAsync(
+                It.IsAny<Guid>(), It.IsAny<ExpenseFields>(), It.IsAny<IReadOnlyList<ParticipantShare>?>(), It.IsAny<AuditEntry>(), It.IsAny<CancellationToken>()))
+            .Callback<Guid, ExpenseFields, IReadOnlyList<ParticipantShare>?, AuditEntry, CancellationToken>(
+                (_, f, r, a, _) => { _fields = f; _recomputed = r; _audit = a; })
+            .Returns(Task.CompletedTask);
     }
+
+    private static UpdateExpenseCommand MakeCommand(
+        string title = "New Title", decimal amount = 200m, string? currency = "EUR", DateOnly? date = null)
+        => new(title, "new desc", amount, currency, date ?? Today, null);
 
     [Fact]
     public async Task Handle_ExpenseNotFound_ThrowsValidationException()
     {
-        var cmd = new UpdateExpenseCommand("Test", null, 100, "EUR", DateOnly.FromDateTime(DateTime.Today), null);
-        Func<Task> act = () => _sut.HandleAsync(Guid.NewGuid(), cmd, CallerId, CT);
+        // GetExpenseAsync unconfigured → null.
+        Func<Task> act = () => _sut.HandleAsync(Guid.NewGuid(), MakeCommand(), CallerId, CT);
 
         await act.Should().ThrowAsync<ValidationException>().WithMessage("*Expense not found.*");
     }
@@ -31,24 +48,12 @@ public class UpdateExpenseCommandHandlerTests : ExpenseTestBase
     [Fact]
     public async Task Handle_SettledActivity_ThrowsValidationException()
     {
-        await SeedGroupMembershipAsync();
-        await SeedActivityAsync(ActivityStatus.Settled);
-
         var expenseId = Guid.NewGuid();
-        Db.Expenses.Add(new Expense
-        {
-            Id = expenseId,
-            ActivityId = ActivityId,
-            PaidByUserId = CallerId,
-            Title = "Old",
-            TotalAmount = 50,
-            Currency = "EUR",
-            ExpenseDate = DateOnly.FromDateTime(DateTime.Today),
-        });
-        await Db.SaveChangesAsync(CT);
+        ArrangeExpense(expenseId);
+        ArrangeActivity(ActivityStatus.Settled);
+        ArrangeCallerOwnsExpense();
 
-        var cmd = new UpdateExpenseCommand("New", null, 100, "EUR", DateOnly.FromDateTime(DateTime.Today), null);
-        Func<Task> act = () => _sut.HandleAsync(expenseId, cmd, CallerId, CT);
+        Func<Task> act = () => _sut.HandleAsync(expenseId, MakeCommand(), CallerId, CT);
 
         await act.Should().ThrowAsync<ValidationException>().WithMessage("*settled*");
     }
@@ -56,25 +61,12 @@ public class UpdateExpenseCommandHandlerTests : ExpenseTestBase
     [Fact]
     public async Task Handle_LockedExpense_ThrowsValidationException()
     {
-        await SeedGroupMembershipAsync();
-        await SeedActivityAsync();
-
         var expenseId = Guid.NewGuid();
-        Db.Expenses.Add(new Expense
-        {
-            Id = expenseId,
-            ActivityId = ActivityId,
-            PaidByUserId = CallerId,
-            Title = "Old",
-            TotalAmount = 50,
-            Currency = "EUR",
-            ExpenseDate = DateOnly.FromDateTime(DateTime.Today),
-            Status = ExpenseStatus.Locked,
-        });
-        await Db.SaveChangesAsync(CT);
+        ArrangeExpense(expenseId, ExpenseStatus.Locked);
+        ArrangeActivity();
+        ArrangeCallerOwnsExpense();
 
-        var cmd = new UpdateExpenseCommand("New", null, 100, "EUR", DateOnly.FromDateTime(DateTime.Today), null);
-        Func<Task> act = () => _sut.HandleAsync(expenseId, cmd, CallerId, CT);
+        Func<Task> act = () => _sut.HandleAsync(expenseId, MakeCommand(), CallerId, CT);
 
         await act.Should().ThrowAsync<ValidationException>().WithMessage("*locked*");
     }
@@ -82,150 +74,74 @@ public class UpdateExpenseCommandHandlerTests : ExpenseTestBase
     [Fact]
     public async Task Handle_Valid_UpdatesExpense()
     {
-        await SeedGroupMembershipAsync();
-        await SeedActivityAsync();
-
         var expenseId = Guid.NewGuid();
-        Db.Expenses.Add(new Expense
-        {
-            Id = expenseId,
-            ActivityId = ActivityId,
-            PaidByUserId = CallerId,
-            Title = "Old",
-            TotalAmount = 50,
-            Currency = "EUR",
-            ExpenseDate = DateOnly.FromDateTime(DateTime.Today),
-        });
-        await Db.SaveChangesAsync(CT);
+        ArrangeExpense(expenseId);
+        ArrangeActivity();
+        ArrangeCallerOwnsExpense();
 
-        var cmd = new UpdateExpenseCommand("New Title", "new desc", 200, "USD", DateOnly.FromDateTime(DateTime.Today), null);
+        var cmd = new UpdateExpenseCommand("New Title", "new desc", 200, "USD", Today, null);
         await _sut.HandleAsync(expenseId, cmd, CallerId, CT);
 
-        var expense = await Db.Expenses.FindAsync([expenseId], CT);
-        expense!.Title.Should().Be("New Title");
-        expense.TotalAmount.Should().Be(200);
-        expense.Currency.Should().Be("USD");
+        _fields.Should().NotBeNull();
+        _fields!.Title.Should().Be("New Title");
+        _fields.TotalAmount.Should().Be(200);
+        _fields.Currency.Should().Be("USD");
     }
 
     [Fact]
     public async Task Handle_AmountChanged_RecalculatesShares()
     {
-        await SeedGroupMembershipAsync();
-        await SeedActivityAsync();
-
         var expenseId = Guid.NewGuid();
-        var memberId = await Db.FamilyMembers.Select(fm => fm.Id).FirstAsync(CT);
-        Db.Expenses.Add(new Expense
-        {
-            Id = expenseId,
-            ActivityId = ActivityId,
-            PaidByUserId = CallerId,
-            Title = "Old",
-            TotalAmount = 50,
-            Currency = "EUR",
-            ExpenseDate = DateOnly.FromDateTime(DateTime.Today),
-        });
-        Db.ExpenseParticipants.Add(new ExpenseParticipant
-        {
-            Id = Guid.NewGuid(),
-            ExpenseId = expenseId,
-            FamilyMemberId = memberId,
-            WeightSnapshot = 1,
-            CalculatedAmount = 50,
-            IsExcluded = false,
-        });
-        await Db.SaveChangesAsync(CT);
+        ArrangeExpense(expenseId);           // existing amount 50
+        ArrangeActivity();
+        ArrangeCallerOwnsExpense();
+        var memberId = Guid.NewGuid();
+        Data.Setup(d => d.GetExpenseParticipantsAsync(expenseId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new ParticipantReshuffleInput(Guid.NewGuid(), memberId, new DateOnly(2000, 1, 1), null, false)]);
 
-        var cmd = new UpdateExpenseCommand("Old", null, 200, "EUR", DateOnly.FromDateTime(DateTime.Today), null);
-        await _sut.HandleAsync(expenseId, cmd, CallerId, CT);
+        await _sut.HandleAsync(expenseId, MakeCommand(amount: 200m), CallerId, CT);
 
-        var participant = await Db.ExpenseParticipants.FirstAsync(ep => ep.ExpenseId == expenseId, CT);
-        participant.CalculatedAmount.Should().Be(200);
+        _recomputed.Should().NotBeNull();
+        _recomputed.Should().ContainSingle().Which.CalculatedAmount.Should().Be(200);
     }
 
     [Fact]
     public async Task Handle_SameAmountAndDate_DoesNotRecalculate()
     {
-        await SeedGroupMembershipAsync();
-        await SeedActivityAsync();
-
-        var today = DateOnly.FromDateTime(DateTime.Today);
         var expenseId = Guid.NewGuid();
-        var memberId = await Db.FamilyMembers.Select(fm => fm.Id).FirstAsync(CT);
-        Db.Expenses.Add(new Expense
-        {
-            Id = expenseId,
-            ActivityId = ActivityId,
-            PaidByUserId = CallerId,
-            Title = "Old",
-            TotalAmount = 50,
-            Currency = "EUR",
-            ExpenseDate = today,
-        });
-        Db.ExpenseParticipants.Add(new ExpenseParticipant
-        {
-            Id = Guid.NewGuid(),
-            ExpenseId = expenseId,
-            FamilyMemberId = memberId,
-            WeightSnapshot = 1,
-            CalculatedAmount = 999,
-            IsExcluded = false,
-        });
-        await Db.SaveChangesAsync(CT);
+        ArrangeExpense(expenseId);           // existing amount 50, date Today
+        ArrangeActivity();
+        ArrangeCallerOwnsExpense();
 
-        var cmd = new UpdateExpenseCommand("New Title", null, 50, "EUR", today, null);
-        await _sut.HandleAsync(expenseId, cmd, CallerId, CT);
+        await _sut.HandleAsync(expenseId, MakeCommand(amount: 50m, date: Today), CallerId, CT);
 
-        var participant = await Db.ExpenseParticipants.FirstAsync(ep => ep.ExpenseId == expenseId, CT);
-        participant.CalculatedAmount.Should().Be(999);
+        _recomputed.Should().BeNull("amount and date are unchanged");
+        Data.Verify(d => d.GetExpenseParticipantsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
     public async Task Handle_NullCurrency_KeepsExistingCurrency()
     {
-        await SeedGroupMembershipAsync();
-        await SeedActivityAsync();
-
-        var today = DateOnly.FromDateTime(DateTime.Today);
         var expenseId = Guid.NewGuid();
-        Db.Expenses.Add(new Expense
-        {
-            Id = expenseId,
-            ActivityId = ActivityId,
-            PaidByUserId = CallerId,
-            Title = "Old",
-            TotalAmount = 50,
-            Currency = "GBP",
-            ExpenseDate = today,
-        });
-        await Db.SaveChangesAsync(CT);
+        ArrangeExpense(expenseId, currency: "GBP");
+        ArrangeActivity();
+        ArrangeCallerOwnsExpense();
 
-        var cmd = new UpdateExpenseCommand("Old", null, 50, null, today, null);
-        await _sut.HandleAsync(expenseId, cmd, CallerId, CT);
+        await _sut.HandleAsync(expenseId, MakeCommand(amount: 50m, currency: null, date: Today), CallerId, CT);
 
-        var expense = await Db.Expenses.FindAsync([expenseId], CT);
-        expense!.Currency.Should().Be("GBP");
+        _fields!.Currency.Should().Be("GBP");
     }
 
     [Fact]
     public async Task Handle_CallerNotMember_ThrowsForbiddenException()
     {
-        await SeedActivityAsync();
         var expenseId = Guid.NewGuid();
-        Db.Expenses.Add(new Expense
-        {
-            Id = expenseId,
-            ActivityId = ActivityId,
-            PaidByUserId = CallerId,
-            Title = "X",
-            TotalAmount = 1,
-            Currency = "EUR",
-            ExpenseDate = DateOnly.FromDateTime(DateTime.Today),
-        });
-        await Db.SaveChangesAsync(CT);
+        ArrangeExpense(expenseId);
+        ArrangeActivity();
+        Guard.Setup(g => g.RequireGroupMemberAsync(GroupId, CallerId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new ForbiddenException());
 
-        var cmd = new UpdateExpenseCommand("X", null, 1, "EUR", DateOnly.FromDateTime(DateTime.Today), null);
-        Func<Task> act = () => _sut.HandleAsync(expenseId, cmd, CallerId, CT);
+        Func<Task> act = () => _sut.HandleAsync(expenseId, MakeCommand(amount: 1m), CallerId, CT);
 
         await act.Should().ThrowAsync<ForbiddenException>();
     }
@@ -233,47 +149,30 @@ public class UpdateExpenseCommandHandlerTests : ExpenseTestBase
     [Fact]
     public async Task Handle_DateChanged_RecalculatesShares()
     {
-        await SeedGroupMembershipAsync();
-        await SeedActivityAsync();
-
         var expenseId = Guid.NewGuid();
-        var memberId = await Db.FamilyMembers.Select(fm => fm.Id).FirstAsync(CT);
-        Db.Expenses.Add(new Expense
-        {
-            Id = expenseId,
-            ActivityId = ActivityId,
-            PaidByUserId = CallerId,
-            Title = "Old",
-            TotalAmount = 100,
-            Currency = "EUR",
-            ExpenseDate = new DateOnly(2024, 1, 1),
-        });
-        Db.ExpenseParticipants.Add(new ExpenseParticipant
-        {
-            Id = Guid.NewGuid(),
-            ExpenseId = expenseId,
-            FamilyMemberId = memberId,
-            WeightSnapshot = 1,
-            CalculatedAmount = 100,
-            IsExcluded = false,
-        });
-        await Db.SaveChangesAsync(CT);
+        ArrangeExpense(expenseId);
+        ArrangeActivity();
+        ArrangeCallerOwnsExpense();
+        var memberId = Guid.NewGuid();
+        Data.Setup(d => d.GetExpenseParticipantsAsync(expenseId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new ParticipantReshuffleInput(Guid.NewGuid(), memberId, new DateOnly(2000, 1, 1), null, false)]);
 
-        var cmd = new UpdateExpenseCommand("Old", null, 100, "EUR", new DateOnly(2024, 6, 1), null);
-        await _sut.HandleAsync(expenseId, cmd, CallerId, CT);
+        // Same amount (50) but a different date → reshuffle. One participant → keeps full 50.
+        await _sut.HandleAsync(expenseId, MakeCommand(amount: 50m, date: new DateOnly(2024, 6, 1)), CallerId, CT);
 
-        // Date changed so recalculation should have happened - amount should still be 100 with 1 participant
-        var participant = await Db.ExpenseParticipants.FirstAsync(ep => ep.ExpenseId == expenseId, CT);
-        participant.CalculatedAmount.Should().Be(100);
+        _recomputed.Should().ContainSingle().Which.CalculatedAmount.Should().Be(50);
     }
 
     [Fact]
     public async Task Handle_CallerFromDifferentFamily_ThrowsForbidden()
     {
-        var (outsiderId, expenseId) = await SeedExpenseByCallerWithOutsiderAsync();
+        var expenseId = Guid.NewGuid();
+        ArrangeExpense(expenseId);
+        ArrangeActivity();
+        Data.Setup(d => d.GetExpenseOwnershipAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExpenseOwnership(IsGlobalAdmin: false, CallerFamilyId: Guid.NewGuid(), PayerFamilyId: Guid.NewGuid()));
 
-        var cmd = new UpdateExpenseCommand("Hacked", null, 999, "EUR", DateOnly.FromDateTime(DateTime.Today), null);
-        Func<Task> act = () => _sut.HandleAsync(expenseId, cmd, outsiderId, CT);
+        Func<Task> act = () => _sut.HandleAsync(expenseId, MakeCommand(title: "Hacked", amount: 999m), CallerId, CT);
 
         await act.Should().ThrowAsync<ForbiddenException>();
     }
@@ -281,13 +180,30 @@ public class UpdateExpenseCommandHandlerTests : ExpenseTestBase
     [Fact]
     public async Task Handle_GlobalAdminFromDifferentFamily_Succeeds()
     {
-        var (adminId, expenseId) = await SeedExpenseByCallerWithOutsiderAsync(outsiderIsGlobalAdmin: true);
+        var expenseId = Guid.NewGuid();
+        ArrangeExpense(expenseId);
+        ArrangeActivity();
+        Data.Setup(d => d.GetExpenseOwnershipAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExpenseOwnership(IsGlobalAdmin: true, CallerFamilyId: Guid.NewGuid(), PayerFamilyId: Guid.NewGuid()));
 
-        var cmd = new UpdateExpenseCommand("Admin edit", null, 60, "EUR", DateOnly.FromDateTime(DateTime.Today), null);
-        await _sut.HandleAsync(expenseId, cmd, adminId, CT);
+        await _sut.HandleAsync(expenseId, MakeCommand(title: "Admin edit", amount: 60m), CallerId, CT);
 
-        var expense = await Db.Expenses.FindAsync([expenseId], CT);
-        expense!.Title.Should().Be("Admin edit");
-        expense.TotalAmount.Should().Be(60);
+        _fields!.Title.Should().Be("Admin edit");
+        _fields.TotalAmount.Should().Be(60);
+    }
+
+    [Fact]
+    public async Task Handle_Valid_BuildsUpdatedAuditEntry()
+    {
+        var expenseId = Guid.NewGuid();
+        ArrangeExpense(expenseId);
+        ArrangeActivity();
+        ArrangeCallerOwnsExpense();
+
+        await _sut.HandleAsync(expenseId, MakeCommand(amount: 50m, date: Today), CallerId, CT);
+
+        _audit!.EntityType.Should().Be("Expense");
+        _audit.Action.Should().Be("Updated");
+        _audit.EntityId.Should().Be(expenseId);
     }
 }

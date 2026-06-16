@@ -58,4 +58,11 @@ public class AuditService
             "Audit queued: {AuditAction} {AuditEntityType} {AuditEntityId} by user {AuditUserId}",
             action, entityType, entityId, userId);
     }
+
+    /// <summary>
+    /// Queues an <see cref="AuditEntry"/> built by a command handler. Convenience overload
+    /// so the data gateway can flush the handler's audit record without unpacking it (ADR-001).
+    /// </summary>
+    public void Queue(AuditEntry entry) =>
+        Queue(entry.UserId, entry.EntityType, entry.EntityId, entry.Action, entry.Metadata);
 }

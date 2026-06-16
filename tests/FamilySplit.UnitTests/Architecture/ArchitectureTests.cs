@@ -151,12 +151,14 @@ public sealed class ArchitectureTests
         }
     }
 
-    // ── Rule 5: AppDbContext only used by handlers and sanctioned helpers ─────────
+    // ── Rule 5 (revised, ADR-001): AppDbContext only in the data-access layer ─────
+    // Query handlers + the {Slice}Data gateway + seeders/guards may take AppDbContext.
+    // Command handlers (business logic) must NOT — they depend on I{Slice}Data instead.
 
     [Fact]
-    public void AppDbContext_OnlyUsedBy_HandlersAndSanctionedHelpers()
+    public void AppDbContext_OnlyUsedBy_DataAccessTypes()
     {
-        var sanctionedSuffixes = new[] { "Handler", "Guard", "Seeder" };
+        var sanctionedSuffixes = new[] { "QueryHandler", "Data", "Seeder", "Guard" };
 
         foreach (var asm in FeatureAssemblies.All)
         {
@@ -170,7 +172,8 @@ public sealed class ArchitectureTests
                 .ToList();
 
             violators.Should().BeEmpty(
-                because: "only *Handler, *Guard, and *Seeder types may take AppDbContext as a constructor parameter");
+                because: "only *QueryHandler, *Data, *Seeder, and *Guard types may take AppDbContext "
+                       + "as a constructor parameter — command handlers must use I{Slice}Data (ADR-001)");
         }
     }
 
@@ -241,5 +244,69 @@ public sealed class ArchitectureTests
 
         result.IsSuccessful.Should().BeTrue(
             because: string.Join(", ", result.FailingTypes?.Select(t => t.FullName) ?? []));
+    }
+
+    // ── Rule 8 (ADR-001): command handlers depend on the I{Slice}Data seam ────────
+
+    [Fact]
+    public void CommandHandlers_DependOn_SliceDataInterface()
+    {
+        foreach (var asm in FeatureAssemblies.All)
+        {
+            var commandHandlers = asm.GetTypes()
+                .Where(t => t.Name.EndsWith("CommandHandler", StringComparison.Ordinal)
+                         && t is { IsClass: true, IsAbstract: false });
+
+            foreach (var handler in commandHandlers)
+            {
+                var ctorParamTypes = handler.GetConstructors()
+                    .SelectMany(c => c.GetParameters())
+                    .Select(p => p.ParameterType)
+                    .ToList();
+
+                ctorParamTypes.Should().Contain(
+                    t => t.IsInterface && t.Name.EndsWith("Data", StringComparison.Ordinal),
+                    because: $"command handler '{handler.FullName}' must depend on its slice's I{{Slice}}Data seam (ADR-001)");
+
+                ctorParamTypes.Should().NotContain(t => t == typeof(AppDbContext),
+                    because: $"command handler '{handler.FullName}' must not take AppDbContext (ADR-001)");
+            }
+        }
+    }
+
+    // ── Rule 10 (ADR-001): command handlers never call SaveChangesAsync ───────────
+    // Only the {Slice}Data gateway persists; command handlers are pure business logic.
+
+    [Fact]
+    public void CommandHandlers_DoNotCall_SaveChangesAsync()
+    {
+        if (FeatureAssemblies.All.Length == 0) return;
+
+        var result = Types.InAssemblies(FeatureAssemblies.All)
+            .That()
+                .HaveNameEndingWith("CommandHandler")
+            .Should()
+                .MeetCustomRule(new DoesNotCallSaveChangesRule())
+            .GetResult();
+
+        result.IsSuccessful.Should().BeTrue(
+            because: string.Join(", ", result.FailingTypes?.Select(t => t.FullName) ?? []));
+    }
+
+    // ── Rule 11 (ADR-001, test-side): command-handler tests must mock, not use a DB ─
+
+    [Fact]
+    public void CommandHandlerTests_DoNotReference_DbContext()
+    {
+        var result = Types.InAssembly(typeof(ArchitectureTests).Assembly)
+            .That()
+                .HaveNameEndingWith("CommandHandlerTests")
+            .Should()
+                .MeetCustomRule(new DoesNotReferenceDbContextRule())
+            .GetResult();
+
+        result.IsSuccessful.Should().BeTrue(
+            because: "command-handler tests must mock I{Slice}Data and never touch AppDbContext / the InMemory provider (ADR-001): "
+                   + string.Join(", ", result.FailingTypes?.Select(t => t.FullName) ?? []));
     }
 }

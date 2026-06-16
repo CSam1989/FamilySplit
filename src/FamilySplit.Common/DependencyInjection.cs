@@ -16,6 +16,9 @@ public static class DependencyInjection
     {
         services.AddScoped<AuditService>();
         services.AddScoped<GroupMembershipGuard>();
+        // Command handlers depend on the interface (mockable seam, ADR-001); legacy services and
+        // query handlers keep the concrete type. Forward the interface to the same scoped instance.
+        services.AddScoped<IGroupMembershipGuard>(sp => sp.GetRequiredService<GroupMembershipGuard>());
         return services;
     }
 }
