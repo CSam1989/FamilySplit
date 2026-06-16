@@ -7,6 +7,15 @@
 > state is always releasable between phases.
 >
 > Branch: `refactor/vertical-slices`. Baseline (commit `7034697`): 688 unit / 431 client / 96 integration tests green.
+>
+> **Revision (2026-06-16) — data-access seam.** The CQRS split is taken one step further: the
+> *business logic* (commands) and the *data access* (queries) are split into separately-testable
+> layers. Command handlers no longer touch `AppDbContext` — they depend on a mockable per-slice
+> data interface `I{Slice}Data`, so business logic is unit-tested with **Moq** (no DB). All EF
+> access lives in query handlers and the `{Slice}Data` implementation, which are verified against a
+> real Postgres with **Testcontainers**. See [ADR-001](#adr-001--business-logic--data-access-seam-binding)
+> and the revised [Decision 3](#decisions-binding-user-confirmed) below. This reshapes the already-merged
+> Expenses + Dashboard slices — see the Retrofit callouts in their phase entries.
 
 ---
 
@@ -14,20 +23,45 @@
 
 1. **One class-library project per feature slice** under `src/Features/`, grouped in a `/src/Features/` solution folder. Thin API host keeps the name `FamilySplit.Api` (E2E `dotnet run` + Dockerfile depend on it).
 2. **`FamilySplit.Domain` + `FamilySplit.Infrastructure` stay unchanged** (entities, enums, AppDbContext, EF configs, migrations).
-3. **Use-case folders inside each slice, split CQRS-style** (e.g. `Expenses/Create/`, `Expenses/GetDetail/`). Service classes dissolve into one handler per use case. **No MediatR.**
-   - **Queries** (reads) are the data-access layer: thin handlers doing EF projections — `AsNoTracking()`, no mutations, no business rules (authorization guards still apply).
-   - **Commands** (writes) hold the business logic: validation → guards → rules → mutations → `SaveChangesAsync` → audit/notify.
+3. **Use-case folders inside each slice, split CQRS-style** (e.g. `Expenses/Create/`, `Expenses/GetDetail/`). Service classes dissolve into one handler per use case. **No MediatR.** Each slice has **two physically-separable layers — business logic and data access** (ADR-001):
+   - **Queries** (reads) **are** the data-access layer: thin handlers doing EF projections — `AsNoTracking()`, no mutations, no business rules (authorization guards still apply). They may use `AppDbContext` directly and are **Testcontainers-tested** (the read-side wire-format lock).
+   - **Commands** (writes) **are the business logic** — and contain **no EF**. They depend on a per-slice **`I{Slice}Data`** interface (the mockable data seam) plus pure calculators/guard interfaces, and run: validation → guards → rules → `data.…` calls. A command handler **must not** reference `AppDbContext`, `DbSet<>`, or call `SaveChangesAsync`. They are **unit-tested with Moq** (mock the data, no DB).
+   - **`{Slice}Data : I{Slice}Data`** (in the slice's `Data/` folder) is the only write-side code that touches EF: the reads a command needs + the persistence (`Add`/`Update`/`Remove` + `SaveChangesAsync`, audit flush). `internal sealed`, registered scoped, **Testcontainers-tested**.
 4. **Strict CQRS command responses (BREAKING wire-format change, chosen deliberately):** commands no longer return detail DTOs. Creates return `201 Created` + `Location` + `{ "id": "<guid>" }`; all other mutations return `204 No Content`. The client re-queries after mutating. See the response-semantics table below for the per-endpoint mapping and the two documented exceptions (Join, RegenerateInviteCode).
 5. **Per-slice DTOs and logic.** Only *truly shared* code goes in `FamilySplit.Common`. Slice-local: `SplitCalculator`+`ExpenseReshuffleRequired`→Expenses; `BalanceCalculator`+`SettlementOptimiser`+`SettlementStateMachine`→Settlements; `ParticipantSeeder`+`ActivityCloseGuard`→Activities. Common: `WeightCalculator` (4 slices), `AuditService` (mechanism only — slices own what they audit), `ForbiddenException`, `CreatedResponse`.
 6. **Consistency enforcement:** `IFeatureModule` pattern + NetArchTest architecture tests (including CQRS rules).
 7. **Keep the 4 test projects** (CI paths untouched); folders mirror slices.
 8. **Blazor Client scope (revised by decision 4):** the client's internal architecture stays out of scope, but each slice phase must update the client's Refit mutation signatures, Fluxor effects (re-query after mutate), affected client DTOs, and their client unit tests — otherwise the app breaks against the new wire format.
+9. **Business logic and data access are separate, separately-testable layers (ADR-001).** Command handlers are pure business logic over a mockable `I{Slice}Data` seam (unit-tested with Moq); query handlers and `{Slice}Data` are the only EF-touching code (Testcontainers-tested). No `AppDbContext` in command handlers. This is the binding refinement of decision 3 — see ADR-001.
+
+### ADR-001 — Business logic / data-access seam (binding)
+
+**Status:** Accepted (2026-06-16). **Supersedes** the original "commands hold business logic *and* `SaveChangesAsync`; handlers inject `AppDbContext`" wording of decision 3.
+
+**Context.** With commands injecting `AppDbContext` directly, business logic could only be exercised against a database (InMemory provider in unit tests) — the rules and the EF queries were entangled in one class. We want (a) to verify *queries* against a real Postgres (Testcontainers, so EF-Core-10 translation quirks are caught), and (b) to unit-test *business logic* fast by **mocking the data** rather than spinning up a provider.
+
+**Decision.** Split **every** slice into two layers — and **enforce the split by NetArchTest on every feature assembly, with no per-slice opt-out** (Rules 5, 8–11). The rule is universal: no business-logic class anywhere in `src/Features/` may hold an `AppDbContext`; all EF lives in query handlers or `{Slice}Data` gateways. (The legacy `FamilySplit.Application` services are exempt only because they are being deleted slice-by-slice — once a slice migrates, its code is bound by the rules.)
+
+| Layer | What it is | EF? | Where | How it's tested |
+|---|---|---|---|---|
+| **Data access** | Read **query handlers** (`*QueryHandler`) + the write-side gateway **`{Slice}Data : I{Slice}Data`** | **Yes** — the only EF in the slice | `Data/` (gateway) + each query's use-case folder | **Testcontainers** (real Postgres) in `IntegrationTests` |
+| **Business logic** | **Command handlers** (`*CommandHandler`) + pure calculators/guards | **No** | each command's use-case folder + `Shared/` | **Unit tests + Moq** over `I{Slice}Data` (no DB) in `UnitTests` |
+
+- `I{Slice}Data` exposes (1) **reads** the command needs, returning plain DTOs/records (never tracked entities — so the seam stays mockable and tracking never leaks into business logic) and (2) **writes** that accept the new/changed state and persist it (encapsulating `Add`/`Update`/`Remove` + `SaveChangesAsync`, and the atomic **audit** flush for financial mutations).
+- DB-touching **authorization guards** used by command handlers are exposed as **interfaces** (`IGroupMembershipGuard` in Common) so they too are mockable. Query handlers may keep the concrete guard.
+- Pure calculators (`SplitCalculator`, `BalanceCalculator`, …) are unchanged — they take plain data, so command-handler unit tests call them for real (no mock needed).
+
+**Consequences.**
+- Rule 5 tightens and Rules 8–11 are added (see *Architecture rules* below); `DoesNotCallSaveChangesRule` now also covers command handlers.
+- The InMemory-`DbContext` `{Slice}TestBase` for command tests is **removed**; command tests mock `I{Slice}Data`. Data-access tests move to Testcontainers.
+- The already-merged **Expenses** and **Dashboard** slices must be retrofitted (see their phase entries).
+- Trade-off accepted: one extra interface + impl per slice with commands, and write methods are coarser-grained (per-use-case persist methods) than raw `DbSet` calls.
 
 ## Verified facts
 
 - `Application/FamilyMembers/*` are tombstones; `GET /users/me/profile` is backed by `FamilyService` → **no FamilyMembers slice**, Families absorbs it. `GroupMembersEndpoints` is a no-op stub → delete.
 - `Api/Middleware/ForbiddenException.cs` is blank; real one is `Application/Exceptions/ForbiddenException.cs`.
-- `RequireGroupMemberAsync` is duplicated **verbatim** in ActivityService:367, ExpenseService:388, SettlementService:533; caller-family lookup also in DashboardService and SettlementService:548 → `GroupMembershipGuard` in Common. NotificationHub keeps its inline non-throwing lookup (silent no-op, not 403 — do not change).
+- `RequireGroupMemberAsync` is duplicated **verbatim** in ActivityService:367, ExpenseService:388, SettlementService:533; caller-family lookup also in DashboardService and SettlementService:548 → `GroupMembershipGuard` in Common. **Per ADR-001 it is exposed as `IGroupMembershipGuard`** (Common) so command handlers can mock it; the concrete impl (uses `AppDbContext`, Testcontainers-tested) is registered scoped. NotificationHub keeps its inline non-throwing lookup (silent no-op, not 403 — do not change).
 - `NotFound()`/`Throw422()` private helpers duplicated in 6 services → `ValidationErrors.NotFound/Field` in Common. **422-for-not-found semantics must be preserved** (client + integration tests depend on it).
 - IntegrationTests contain **zero** `using FamilySplit.Application` (raw JSON asserts). **Query endpoints**: integration tests stay unmodified — they are the read-side wire-format lock. **Mutation endpoints**: tests are deliberately updated once per slice to assert the new 201/204 + follow-up-GET shape.
 - `AdminService` reuses Families DTOs/validators → **Admin migrates before Families**.
@@ -60,26 +94,79 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="FamilySplit.UnitTests" />
+    <InternalsVisibleTo Include="FamilySplit.IntegrationTests" /> <!-- Testcontainers tests resolve the internal {Slice}Data -->
     <Using Include="FamilySplit.Common.Security" /> <!-- GetUserId() without per-file usings -->
   </ItemGroup>
 </Project>
 ```
 
+> `I{Slice}Data` is **public** (command handlers in other use-case folders consume it); `{Slice}Data` is **internal sealed** (only DI + Testcontainers tests touch it).
+
 ### CQRS classification and naming
 
-| | Query use case | Command use case |
+| | Query use case (data access) | Command use case (business logic) |
 |---|---|---|
-| Purpose | Pure data access (the "access layer") | Business logic + mutations |
+| Purpose | Pure data access (the "access layer") | Business logic — **no EF** |
 | Class names | `{UseCase}Query` (record, only if there are non-route inputs) + `{UseCase}QueryHandler` | `{UseCase}Command` (record, only if there is a request body) + `{UseCase}CommandHandler` |
-| EF usage | `AsNoTracking()` projections; **never** `SaveChangesAsync`, never entity mutation | Tracked entities, `SaveChangesAsync` |
-| Allowed deps | `AppDbContext`, `GroupMembershipGuard` (authz is not business logic), mappers | + validators, `AuditService`, `INotificationService`, slice guards/calculators |
+| EF usage | `AsNoTracking()` projections; **never** `SaveChangesAsync`, never entity mutation | **None.** All EF goes through `I{Slice}Data`; never `AppDbContext`/`DbSet<>`/`SaveChangesAsync` |
+| Allowed deps | `AppDbContext`, `IGroupMembershipGuard` (authz is not business logic), mappers | `I{Slice}Data`, validators, `IGroupMembershipGuard`, slice calculators/guards (audit + notify flow **through** `I{Slice}Data`'s persist) |
 | Validation | None today (route-bound ids only) | `await _validator.ValidateAndThrowAsync(cmd, ct)` first statement when a body exists |
 | Returns | DTOs (same shapes as today — read side is the wire-format lock) | `Guid` id for creates, nothing for everything else |
+| Tested by | **Testcontainers** (real Postgres) | **Moq** over `I{Slice}Data` (no DB) |
+
+The **`{Slice}Data` gateway** (the third class) lives in `Data/`, owns the tracked entities + `SaveChangesAsync`, exposes reads as plain records and writes as per-use-case persist methods, and is Testcontainers-tested alongside the queries.
 
 - Validators are named `{UseCase}CommandValidator` and live in the command's folder (they validate the `{UseCase}Command` record).
 - Route-bound parameters (groupId, activityId, callerId) pass directly into `HandleAsync(...)` — don't wrap them in records.
 - Response DTOs live **in the query's use-case folder** (e.g. `GetDetail/ExpenseDetailDto.cs`); they move to slice `Shared/` only when a second use case in the same slice needs them (e.g. `ExpenseParticipantDto` used by List + GetDetail).
 - Because commands no longer return detail DTOs, the old service `BuildDetailDtoAsync` helpers collapse **into the GetDetail query handler** — most planned `Shared/*Reader` classes disappear.
+
+### Business-logic / data-access seam — `I{Slice}Data` (ADR-001)
+
+Every slice that has **commands** declares one data interface + one implementation. Slices with only queries (e.g. Dashboard) have **no** `I{Slice}Data` — their query handlers *are* the data access.
+
+```
+FamilySplit.Features.{Slice}/
+├── {Query}/                       # READ — data access
+│   ├── {Query}QueryHandler.cs        #   uses AppDbContext (AsNoTracking); Testcontainers-tested
+│   ├── {Query}Endpoint.cs
+│   └── {Query}Dto.cs
+├── {Command}/                     # WRITE — business logic
+│   ├── {Command}Command.cs
+│   ├── {Command}CommandValidator.cs
+│   ├── {Command}CommandHandler.cs    #   NO EF; depends on I{Slice}Data; Moq-tested
+│   └── {Command}Endpoint.cs
+├── Data/                          # WRITE-side data access (the mockable seam)
+│   ├── I{Slice}Data.cs               #   public interface — reads (plain records) + persist methods
+│   └── {Slice}Data.cs                #   internal sealed; AppDbContext + SaveChanges + audit; Testcontainers-tested
+├── Shared/                        # pure calculators, slice DTOs (no EF)
+└── {Slice}Module.cs
+```
+
+**Interface shape** — reads return plain records (never tracked entities); writes take state and persist atomically (incl. the audit entry for financial mutations):
+
+```csharp
+public interface IExpenseData
+{
+    // ── reads the commands need (plain records, no tracking leaks) ──
+    Task<ActivityForExpense?> GetActivityAsync(Guid activityId, CancellationToken ct);
+    Task<IReadOnlyList<ParticipantSnapshotInput>> GetActivityParticipantsAsync(Guid activityId, CancellationToken ct);
+    Task<bool> CurrencyIsConsistentAsync(Guid activityId, string currency, Guid? excludeExpenseId, CancellationToken ct);
+    Task<bool> CategoryIsValidAsync(Guid? categoryId, Guid groupId, CancellationToken ct);
+    Task<ExpenseForUpdate?> GetExpenseForUpdateAsync(Guid expenseId, CancellationToken ct);
+
+    // ── writes: accept the computed state, persist + flush audit atomically ──
+    Task PersistNewExpenseAsync(Expense expense, IReadOnlyList<ExpenseParticipant> participants, AuditEntry audit, CancellationToken ct);
+    Task PersistExpenseUpdateAsync(/* changed fields + recomputed participants */ AuditEntry audit, CancellationToken ct);
+    Task DeleteExpenseAsync(Guid expenseId, AuditEntry audit, CancellationToken ct);
+}
+```
+
+**Rules for the seam:**
+- The command handler builds entities/values and calls `data.Persist…Async(…)`. It **never** sees a `DbSet`, an `IQueryable`, or a tracked entity. Calculators (`SplitCalculator`, weight snapshots) run **in the handler** on the plain records returned by the reads.
+- `{Slice}Data` is the **only** place `SaveChangesAsync` is called on the write side, and the **only** place `AuditService.Queue` is flushed — so the audit write stays atomic with the mutation (CLAUDE.md "saved atomically inside the same `SaveChangesAsync`").
+- Authorization stays a guard, but command handlers depend on **`IGroupMembershipGuard`** (mockable), not the concrete guard.
+- DI: `services.AddScoped<IExpenseData, ExpenseData>();` in the module.
 
 ### Command response semantics (strict CQRS — the wire-format change)
 
@@ -103,6 +190,7 @@ public sealed class ExpensesModule : IFeatureModule
     public void RegisterServices(IServiceCollection services, IConfiguration configuration)
     {
         services.AddValidatorsFromAssembly(typeof(ExpensesModule).Assembly);
+        services.AddScoped<IExpenseData, ExpenseData>();     // the data seam (ADR-001)
         services.AddScoped<ListExpensesQueryHandler>();      // one explicit line per handler
         services.AddScoped<GetExpenseDetailQueryHandler>();
         services.AddScoped<CreateExpenseCommandHandler>();
@@ -132,10 +220,10 @@ foreach (var m in modules) m.MapEndpoints(app);
 ### Handler shapes
 
 ```csharp
-// QUERY — thin data access, no business rules
+// QUERY — data access; uses AppDbContext directly (Testcontainers-tested)
 public sealed class GetExpenseDetailQueryHandler
 {
-    // ctor-inject: AppDbContext, GroupMembershipGuard, ILogger<T>
+    // ctor-inject: AppDbContext, IGroupMembershipGuard, ILogger<T>
     public async Task<ExpenseDetailDto> HandleAsync(Guid expenseId, Guid callerId, CancellationToken ct)
     {
         _logger.LogDebug("Fetching expense {ExpenseId} for user {UserId}", expenseId, callerId);
@@ -144,21 +232,42 @@ public sealed class GetExpenseDetailQueryHandler
     }
 }
 
-// COMMAND — business logic; returns the new id (creates) or nothing
+// COMMAND — business logic; NO EF. Reads + writes go through IExpenseData (Moq-tested)
 public sealed class CreateExpenseCommandHandler
 {
-    // ctor-inject: AppDbContext, CreateExpenseCommandValidator, GroupMembershipGuard,
-    //              AuditService, slice calculators, ILogger<T>
+    // ctor-inject: IExpenseData, CreateExpenseCommandValidator, IGroupMembershipGuard,
+    //              slice calculators, ILogger<T>   (NO AppDbContext, NO AuditService)
     public async Task<Guid> HandleAsync(
         Guid activityId, CreateExpenseCommand cmd, Guid callerId, CancellationToken ct)
     {
         _logger.LogDebug("Creating expense on activity {ActivityId} by user {UserId}", activityId, callerId);
         await _validator.ValidateAndThrowAsync(cmd, ct);   // first statement
-        // ... guards, business rules, mutations (body copied from the service method,
-        //     minus the final detail-DTO read) ...
-        await _db.SaveChangesAsync(ct);
-        _logger.LogInformation("Expense {ExpenseId} created ... by user {UserId}", ...);
+
+        var activity = await _data.GetActivityAsync(activityId, ct)
+            ?? throw ValidationErrors.NotFound("Activity not found.");
+        await _guard.RequireGroupMemberAsync(activity.GroupId, callerId, ct);
+        // ... status / currency / category guards via _data reads ...
+
+        var snapshots = await _data.GetActivityParticipantsAsync(activityId, ct);
+        // build Expense + ExpenseParticipants in memory; snapshot weights; SplitCalculator.CalculateShares(...)
+
+        var audit = new AuditEntry(callerId, "Expense", expense.Id, "Created", /* metadata */);
+        await _data.PersistNewExpenseAsync(expense, participants, audit, ct);   // Add + SaveChanges + audit, atomically
+        _logger.LogInformation("Expense {ExpenseId} created ... by user {UserId}", expense.Id, callerId);
         return expense.Id;
+    }
+}
+
+// DATA — the seam impl; the ONLY write-side EF in the slice (Testcontainers-tested)
+internal sealed class ExpenseData : IExpenseData
+{
+    // ctor-inject: AppDbContext, AuditService, ILogger<T>
+    public async Task PersistNewExpenseAsync(Expense e, IReadOnlyList<ExpenseParticipant> ps, AuditEntry audit, CancellationToken ct)
+    {
+        _db.Expenses.Add(e);
+        _db.ExpenseParticipants.AddRange(ps);
+        _audit.Queue(audit);              // flushed in the same SaveChanges → atomic
+        await _db.SaveChangesAsync(ct);
     }
 }
 ```
@@ -180,7 +289,7 @@ internal static class CreateExpenseEndpoint
 }
 ```
 
-Rules: handlers sealed, registered scoped, namespace `FamilySplit.Features.{Slice}.{UseCase}`. Endpoint classes never touch `AppDbContext`. Happy path at the bottom, early returns for guards (existing repo convention). Logging: `LogDebug` entry, `LogInformation` on successful mutation (commands only).
+Rules: handlers sealed, registered scoped, namespace `FamilySplit.Features.{Slice}.{UseCase}` (the gateway lives in `FamilySplit.Features.{Slice}.Data`). Endpoint classes never touch `AppDbContext`. **Command handlers never touch `AppDbContext`/`DbSet<>`/`SaveChangesAsync` — only `{Slice}Data` does** (ADR-001). Happy path at the bottom, early returns for guards (existing repo convention). Logging: `LogDebug` entry in the handler, `LogInformation` on successful mutation (commands only).
 
 ### Client update recipe (per slice with mutations)
 
@@ -191,12 +300,37 @@ Rules: handlers sealed, registered scoped, namespace `FamilySplit.Features.{Slic
 
 ### Test conventions
 
-- Per slice: `tests/FamilySplit.UnitTests/Features/{Slice}/{UseCase}/{UseCase}CommandHandlerTests.cs` / `{UseCase}QueryHandlerTests.cs` (+ `{UseCase}CommandValidatorTests.cs` beside it).
-- Extract `{Slice}TestBase` from the old service-test constructor (InMemory DbContext + seed helpers, moved verbatim).
-- Old service-test files are sectioned with `// ── MethodAsync ──` region comments — those are the exact cut points. Method rename `CreateAsync_X_Y` → `Handle_X_Y`. Read-side assertions unchanged; command-side assertions change from inspecting the returned DTO to asserting the returned id / DB state (query the InMemory context).
-- **Parity gate:** new per-handler test count >= old file count (minus deliberately dropped per-class constructor tests). Delete the old file in the same commit.
-- Endpoint tests (`Endpoints/*Tests.cs`) keep their literal route-pattern asserts; their `CreateApp()` swaps service registration for `new XModule().RegisterServices(...)` / `MapEndpoints(...)` — they become the per-module DI tests.
+Tests follow the ADR-001 layer split — **business logic is mocked, data access uses Testcontainers**:
+
+| Code under test | Project | Strategy |
+|---|---|---|
+| **Command handlers** (business logic) | `FamilySplit.UnitTests` | **Moq** over `I{Slice}Data` + `IGroupMembershipGuard` — **no DbContext, no InMemory provider** |
+| **Validators, pure calculators** (`SplitCalculator`, …) | `FamilySplit.UnitTests` | plain unit tests (no mocks — they take plain data) |
+| **`{Slice}Data` gateway** (write-side data access) | `FamilySplit.IntegrationTests` | **Testcontainers** — resolve the gateway against the real Postgres, seed, assert persisted rows |
+| **Query handlers** (read-side data access) | `FamilySplit.IntegrationTests` | **Testcontainers** — directly, and/or via the existing query-endpoint tests (the read-side wire-format lock) |
+
+- Command-handler unit tests: `tests/FamilySplit.UnitTests/Features/{Slice}/{UseCase}/{UseCase}CommandHandlerTests.cs` (+ `{UseCase}CommandValidatorTests.cs` beside it). Arrange the `Mock<I{Slice}Data>` to return the read records; **assert** (a) the returned id, (b) the calculator output baked into the entity passed to the mock, and (c) `Verify(...)` that the correct `Persist…Async` was called (or **not** called on a guard/validation failure).
+- **The InMemory-`DbContext` `{Slice}TestBase` is removed** — command tests own no DbContext. A Testcontainers `{Slice}DataTestBase` (seed helpers + real `AppDbContext` from the shared connection) backs the gateway/query tests instead.
+- Data-access (gateway + query) tests: `tests/FamilySplit.IntegrationTests/Features/{Slice}/...`. Mirror the EF behaviour the old service relied on — `AsNoTracking` projections, filtered indexes, soft-delete filters, the EF-Core-10 cycle-detection workaround.
+- Old service-test files are sectioned with `// ── MethodAsync ──` region comments — still the cut points. Read-side assertions move to Testcontainers; command-side assertions move from "inspect returned DTO / InMemory state" to "Moq `Verify` + returned id".
+- **Parity gate:** combined new test count (unit command + integration data + validator) >= old service-test file count (minus deliberately dropped per-class constructor tests). Delete the old file in the same commit.
+- Endpoint tests (`Endpoints/*Tests.cs`) keep their literal route-pattern asserts; their `CreateApp()` swaps service registration for `new XModule().RegisterServices(...)` / `MapEndpoints(...)` — they become the per-module DI tests (and now also assert `I{Slice}Data` is registered).
 - IntegrationTests: query-endpoint tests untouched; mutation-endpoint tests updated in the same slice phase to assert `201 + Location + {id}` / `204` and to follow up with a GET where the old test asserted response-body content.
+
+### Architecture rules (NetArchTest — `tests/FamilySplit.UnitTests/Architecture/`)
+
+**Enforced everywhere, no opt-out.** These rules run against **every** assembly in `FeatureAssemblies.All` (and the test-side rules against the whole `FamilySplit.UnitTests.Features.*` tree) — a slice is not "done" until it passes them, and there is no per-slice exemption. Rules 1–7 already exist (Phase 2). ADR-001 **revises Rule 5** and **adds Rules 8–11**; update `ArchitectureTests.cs` + `DoesNotCallSaveChangesRule.cs` as part of the Expenses retrofit (the first slice to land under the new model) so the rules are live before any further slice migrates:
+
+| Rule | Statement |
+|---|---|
+| 1–4, 6, 7 | (unchanged) reference allow-list · one `IFeatureModule` per slice · handlers sealed + in use-case namespace · validator co-located · registry completeness · query handlers don't depend on mutation services |
+| **5 (revised)** | `AppDbContext` may be taken only by `*QueryHandler`, `*Data` (the gateway), `*Seeder`, and the Common guard impl. **`*CommandHandler` must NOT take `AppDbContext`.** |
+| **8 (new)** | Each `*CommandHandler` constructor depends on an `I{Slice}Data` interface and references **no** `AppDbContext`/`DbSet<>`/concrete `*Data` type — enforces mockability. |
+| **9 (new)** | A slice with commands declares exactly one `I{Slice}Data` (public) + one `{Slice}Data` (`internal sealed`, in the `…​.Data` namespace) registered scoped. Query-only slices declare neither. |
+| **10 (new)** | `SaveChangesAsync` is called only by `*Data` gateways (+ Common audit/guard impl). Extend `DoesNotCallSaveChangesRule` to also fail `*CommandHandler` types (today it covers `*QueryHandler`). |
+| **11 (new, test-side — required)** | Custom rule scanning `FamilySplit.UnitTests.Features.*` command-handler tests for an `AppDbContext`/`DbContextOptions`/`UseInMemoryDatabase` reference → fail (business-logic tests must mock `I{Slice}Data`, never touch a provider). |
+
+> The separation is **not** a per-slice judgement call: any new slice that holds business logic must split it from its data access, or the architecture suite goes red. Query-only slices already satisfy it (their query handler *is* the data-access layer — there is no business logic to separate); they are not an exception to the rule.
 
 ### Per-slice phase checklist (the same steps every time)
 
@@ -204,14 +338,15 @@ Rules: handlers sealed, registered scoped, namespace `FamilySplit.Features.{Slic
 2. Add to `FamilySplit.slnx` under `/src/Features/` solution folder.
 3. Add COPY line to `src/FamilySplit.Api/Dockerfile` restore block.
 4. Api csproj: add ProjectReference; Program.cs: add `new {X}Module()` to the array; remove the old `Map{X}Endpoints()` call.
-5. Classify each use case **Command or Query** (inventory below); create use-case folders; dissolve the service into handlers (copy bodies; queries get `AsNoTracking`; commands drop the final detail-read and return ids/nothing; swap `NotFound()`/`Throw422()` → `ValidationErrors`; swap private guards → `GroupMembershipGuard` where applicable); move slice-local calculators/guards into `Shared/`; DTOs into their query folders (or `Shared/` if multi-use-case).
-6. Delete the old `Api/Endpoints/{X}Endpoints.cs`, the `Application/{X}/` folder, and the slice's lines in `Application/DependencyInjection.cs`.
-7. UnitTests: add ProjectReference to the new feature project; migrate tests per the recipe; delete old files same commit.
-8. IntegrationTests: update this slice's **mutation** tests to the new response shapes (+ follow-up GETs); leave query tests untouched.
-9. Client: apply the client update recipe (Refit signatures, effects re-query, client unit tests).
-10. Append the slice assembly to `tests/FamilySplit.UnitTests/Architecture/FeatureAssemblies.cs`.
-11. Verify: `dotnet build FamilySplit.slnx -c Release` && UnitTests && IntegrationTests && Client.UnitTests green.
-12. Commit (one commit per slice).
+5. Classify each use case **Command or Query** (inventory below); create use-case folders; dissolve the service into handlers (copy bodies; queries get `AsNoTracking`; commands drop the final detail-read and return ids/nothing; swap `NotFound()`/`Throw422()` → `ValidationErrors`; swap private guards → `IGroupMembershipGuard` where applicable); move slice-local calculators/guards into `Shared/`; DTOs into their query folders (or `Shared/` if multi-use-case).
+6. **If the slice has commands, build the `Data/` seam (ADR-001):** define `I{Slice}Data` (reads as plain records + per-use-case persist methods that own `Add`/`Update`/`Remove` + `SaveChangesAsync` + audit flush) and `{Slice}Data` (`internal sealed`, the **only** write-side `AppDbContext`/`SaveChanges`). Move every EF read/write out of the command handlers into it; register `AddScoped<I{Slice}Data, {Slice}Data>()` in the module. Query-only slices skip this step.
+7. Delete the old `Api/Endpoints/{X}Endpoints.cs`, the `Application/{X}/` folder, and the slice's lines in `Application/DependencyInjection.cs`.
+8. UnitTests: add ProjectReference to the new feature project; **command-handler tests mock `I{Slice}Data` (Moq, no DbContext)**; validator/calculator tests stay plain; delete old files same commit.
+9. IntegrationTests: add **Testcontainers tests for `{Slice}Data` + query handlers**; update this slice's **mutation** endpoint tests to the new response shapes (+ follow-up GETs); leave query-endpoint tests untouched.
+10. Client: apply the client update recipe (Refit signatures, effects re-query, client unit tests).
+11. Append the slice assembly to `tests/FamilySplit.UnitTests/Architecture/FeatureAssemblies.cs`; ensure Rules 5 + 8–11 pass for it.
+12. Verify: `dotnet build FamilySplit.slnx -c Release` && UnitTests && IntegrationTests && Client.UnitTests green.
+13. Commit (one commit per slice).
 
 ---
 
@@ -253,40 +388,44 @@ Client: `IExpenseClient` create/update signatures; Expense effects re-query (`Lo
 
 **Completion notes:** `FamilySplit.Features.Expenses` created (5 use-case folders + `Shared/`), wired into slnx / Dockerfile / Api csproj / `Program.cs` (`new ExpensesModule()`); `ExpenseGuards` implemented as static helpers taking `AppDbContext` (so Rule 5's ctor-injection check stays satisfied). `ExpenseAmountRules` moved to `Shared/`. Old `Application/Expenses/`, `Application/Core/SplitCalculator.cs`, `Api/Endpoints/ExpenseEndpoints.cs`, and the Application-DI line deleted. `FeatureAssemblies.All` now registers the slice — all 11 architecture rules apply (two latent Phase-2 `because:`-string NREs fixed: null-guard `result.FailingTypes`). Tests: ExpenseServiceTests split per-handler with `ExpenseTestBase`; validator tests split Create/Update; SplitCalculator + reshuffle tests moved; endpoint test rewritten as a per-module DI/route test; integration Update tests flipped to 204 + follow-up GET; client effects/reducers re-query. **Verification:** Release build 0 warnings/0 errors; 699 unit / 431 client / 96 integration green; E2E 17/18 (the 3 expense flows pass — re-query path proven through the UI). The 1 E2E failure (`SettlementFlowTests.FullSettlementLifecycle`) is **pre-existing and unrelated** — it seeds a Closed activity directly in the DB, but settlement generation only fires through the close flow, so the mark-sent button never appears. Scalar listing covered-by-proxy (integration tests exercise all 5 routes through the real host; unit test asserts the module maps them with `WithTags("Expenses")`).
 
+> 🔧 **Retrofit required (ADR-001).** The merged Expenses slice predates the data seam — `CreateExpenseCommandHandler` / `UpdateExpenseCommandHandler` / `DeleteExpenseCommandHandler` inject `AppDbContext` and call `SaveChangesAsync` directly, and `ExpenseGuards` are static `AppDbContext` helpers. Retrofit: introduce `IExpenseData` + `ExpenseData` (absorbing the inline activity/participant/currency/category reads, the `Add`/`SaveChanges`, and the `AuditService.Queue` flush); strip `AppDbContext`/`AuditService` from the three command handlers; fold `ExpenseGuards`' DB checks into `IExpenseData` (keep any pure parts in `Shared/`); move `ExpenseServiceTests`-derived command tests onto `Mock<IExpenseData>` and add Testcontainers tests for `ExpenseData` + the two query handlers; delete the InMemory `ExpenseTestBase`. Do this as its own commit before/alongside Phase 5.
+
 ### ✅ Phase 4 — Dashboard (DONE)
 `GetStats` (Query — single handler from `DashboardService`). No mutations → no client/integration-test changes. Smallest slice — fast confirmation of the pattern.
 
 **Completion notes:** `FamilySplit.Features.Dashboard` created (single `GetStats/` use-case folder: `GetStatsQueryHandler` + `DashboardGroupStatDto` + `GetStatsEndpoint`, plus `DashboardModule`). csproj omits FluentValidation (no command/body → no validators), so `RegisterServices` registers only the one handler and does **not** call `AddValidatorsFromAssembly`. Handler body copied verbatim from `DashboardService.GetStatsAsync`, with `ILogger<GetStatsQueryHandler>` injected (LogDebug entry) and `.AsNoTracking()` added to each entity-rooted query (read-side intent). Route unchanged (`GET /dashboard/stats` → `Results.Ok(stats)`), so the read-side wire format is preserved — client DTO + effects + reducers untouched. Wired into slnx (`/src/Features/`), Dockerfile COPY, Api csproj, and `Program.cs` (`new DashboardModule()` in the module array; `app.MapDashboardEndpoints()` removed). Old `Application/Dashboard/` (service + DTOs), `Api/Endpoints/DashboardEndpoints.cs`, and the Application-DI line deleted. Tests: `DashboardServiceTests` (11) → `Features/Dashboard/GetStats/GetStatsQueryHandlerTests` (11, `GetStatsAsync_*`→`Handle_*`, self-contained — no separate TestBase needed for a single handler); `DashboardEndpointsTests` rewritten as a per-module DI/route test (2→4); `DependencyInjectionTests` DashboardService assertion removed; `FeatureAssemblies.All` now registers the Dashboard assembly so all 11 architecture rules apply. **Verification:** Release build 0 warnings/0 errors; 701 unit (was 699) / 431 client green. No Dashboard integration tests exist (query-only, unchanged route) and the client is untouched, so nothing else to run.
 
+> 🔧 **Retrofit required (ADR-001).** Dashboard is **query-only**, so there is **no `I{Slice}Data`** — `GetStatsQueryHandler` *is* data access and correctly uses `AppDbContext`. The only change: its tests are data-access tests, so move `GetStatsQueryHandlerTests` from InMemory `UnitTests` to **Testcontainers** in `IntegrationTests` (this is the slice that proves query-only handlers go straight to Testcontainers with no mocking).
+
 ### Phase 5 — Users  
-`WhoAmI` (Query — inline `db.Users` projection from `UserEndpoints.cs`). No mutations.
+`WhoAmI` (Query — inline `db.Users` projection from `UserEndpoints.cs`). No mutations. **Query-only → no `I{Slice}Data`**; the `WhoAmI` query handler uses `AppDbContext` directly and is Testcontainers-tested.
 
 ### Phase 6 — Groups  
 Queries: `List`, `GetDetail`. Commands: `Create` (**201+id**), `Update` (**204**), `Join` (**200+`{id}` — documented exception**), `Leave` (204), `RegenerateInviteCode` (**verify**: 204 + re-query if `GroupDetailDto` exposes the code, else `200+{inviteCode}`).
-`Shared/`: group-admin guard, invite-code helper, member-mapping DTOs (uses Common `WeightCalculator`). Delete `GroupMembersEndpoints.cs` stub. Client: `IGroupClient` + Group effects (Join navigates via returned id, then re-queries).
+`Shared/`: group-admin guard (interface), invite-code helper, member-mapping DTOs (uses Common `WeightCalculator`). **`Data/`:** `IGroupData` + `GroupData` (the 5 commands' reads/writes incl. invite-code uniqueness). Delete `GroupMembersEndpoints.cs` stub. Client: `IGroupClient` + Group effects (Join navigates via returned id, then re-queries).
 
 ### Phase 7 — Activities  
 Queries: `List`, `GetDetail`. Commands: `Create` (**201+id**), `CreateSubActivity` (**201+id**), `Update` (204), `Close` (204), `AddParticipant` (204), `RemoveParticipant` (204).
-`Shared/`: `ParticipantSeeder`, `ActivityCloseGuard`, participant DTOs (detail builder collapses into GetDetail query). Move `Core/ParticipantSeederTests.cs` + close-guard section of `BusinessGuardTests` along. Client: `IActivityClient` + Activity effects.
+`Shared/`: `ParticipantSeeder`, `ActivityCloseGuard`, participant DTOs (detail builder collapses into GetDetail query). **`Data/`:** `IActivityData` + `ActivityData` (the 6 commands' reads/writes; `ParticipantSeeder` stays pure and runs in the handler on records returned by `IActivityData`). Move `Core/ParticipantSeederTests.cs` + close-guard section of `BusinessGuardTests` along (pure → stay in UnitTests). Client: `IActivityClient` + Activity effects.
 
 ### Phase 8 — Settlements  
 Queries: `GetBalances`, `List`, `GetDetail`, `ListForGroup`, `ListMyPending`. Commands: `Generate` (**204** — idempotent, client re-queries the list; was: summary list), `ConfirmSent` (**204**, was detail DTO), `ConfirmReceived` (**204**).
-`Shared/`: `BalanceCalculator`, `SettlementOptimiser`, `SettlementStateMachine`, `SettlementQueryHelpers` (LoadExpenseData/GetActivityCurrency/GetActivityAndSubIds — used by both queries and Generate), summary DTOs. Consumes Common `INotificationService` (implementation still host-registered until Phase 11 — fine, bound by interface). Move calculator/state-machine tests along. Largest test split (991 lines, 8 handlers). Client: `ISettlementClient` + Settlement effects (mark-sent/mark-received re-query settlements + balances).
+`Shared/`: `BalanceCalculator`, `SettlementOptimiser`, `SettlementStateMachine`, summary DTOs (all pure → stay in UnitTests). **`Data/`:** `ISettlementData` + `SettlementData` absorbs the old `SettlementQueryHelpers` (LoadExpenseData/GetActivityCurrency/GetActivityAndSubIds) plus the Generate/ConfirmSent/ConfirmReceived persistence. Note: those helpers were shared by queries **and** the Generate command — under ADR-001 the **query handlers** call `AppDbContext` directly and the **Generate command** calls `ISettlementData`; the shared SQL is duplicated or both delegate to `SettlementData` (queries may use the gateway's read methods since it's data access too). `INotificationService` (Common) is invoked from `SettlementData`'s persist so the command stays EF-free; impl still host-registered until Phase 11. Largest test split (991 lines, 8 handlers): commands → Moq, calculators/state-machine → plain, gateway/queries → Testcontainers. Client: `ISettlementClient` + Settlement effects (mark-sent/mark-received re-query settlements + balances).
 
 ### Phase 9 — Admin (MUST precede Families)  
 Queries: `ListFamilies`, `GetFamily`. Commands: `CreateFamily` (**201+id**), `AddFamilyMember` (**201+id**), `UpdateFamilyMember` (204), `RemoveFamilyMember` (204), `DeleteGroup` (204), `AddFamilyToGroup` (204), `RemoveFamilyFromGroup` (204).
-`Shared/`: `RequireGlobalAdmin` guard + **own copies** of FamilyDto/FamilyMemberDto + member validators (identical JSON property names on the query side — `IntegrationTests/Admin` query tests lock it). Client: `IAdminClient` + Admin effects.
+`Shared/`: `RequireGlobalAdmin` guard (interface) + **own copies** of FamilyDto/FamilyMemberDto + member validators (identical JSON property names on the query side — `IntegrationTests/Admin` query tests lock it). **`Data/`:** `IAdminData` + `AdminData` (family/member/group-link reads + writes; `RequireGlobalAdminAsync` is a DB read → expose mockably so command tests stub the admin check). Client: `IAdminClient` + Admin effects.
 
 ### Phase 10 — Families  
 Queries: `GetMyFamily`, **`GetMyProfile`** (absorbs `GET /users/me/profile`; maps its own `/users/me` group). Commands: `UpdateFamilyName` (204), `AddMember` (**201+id**), `UpdateMember` (204), `RemoveMember` (204).
-`Shared/`: family-admin guard, member mapper (uses Common `WeightCalculator`), shared member DTOs. Delete `FamilyEndpoints.cs`, `FamilyMembersEndpoints.cs`, `Application/Families/`, and the tombstone `Application/FamilyMembers/`. Client: `IFamilyClient` + Family effects.
+`Shared/`: family-admin guard (interface), member mapper (uses Common `WeightCalculator`), shared member DTOs. **`Data/`:** `IFamilyData` + `FamilyData` (own-family reads + member writes; reused by the absorbed `GetMyProfile`). Delete `FamilyEndpoints.cs`, `FamilyMembersEndpoints.cs`, `Application/Families/`, and the tombstone `Application/FamilyMembers/`. Client: `IFamilyClient` + Family effects.
 
 ### Phase 11 — Notifications  
 Query: `GetVapidPublicKey` (AllowAnonymous). Commands: `Subscribe` (204), `Unsubscribe` (204).
-Plus `PushNotificationService`, `NotificationHub`, `SignalRNotificationService` (keep the `IServiceScopeFactory` background-push pattern exactly). Module: `AddSignalR()` + `AddScoped<INotificationService, SignalRNotificationService>()` + maps `/push` group and `MapHub<NotificationHub>(HubPaths.Notifications)`. Host drops `Hubs/` folder, `AddSignalR`, the INotificationService registration, and `MapHub`. `Lib.Net.Http.WebPush` package moves from Application csproj to this slice. Client: `IPushClient` signatures if response shapes change.
+Plus `PushNotificationService`, `NotificationHub`, `SignalRNotificationService` (keep the `IServiceScopeFactory` background-push pattern exactly). Module: `AddSignalR()` + `AddScoped<INotificationService, SignalRNotificationService>()` + maps `/push` group and `MapHub<NotificationHub>(HubPaths.Notifications)`. Host drops `Hubs/` folder, `AddSignalR`, the INotificationService registration, and `MapHub`. `Lib.Net.Http.WebPush` package moves from Application csproj to this slice. **`Data/`:** `IPushSubscriptionData` + impl for the Subscribe/Unsubscribe persistence (`GetVapidPublicKey` reads config, not the DB → no data dependency). Client: `IPushClient` signatures if response shapes change.
 
-### Phase 12 — Auth (last; most host-entangled — outside CQRS response rules)  
-`Login`, `Callback`, `Refresh`, `Logout` (endpoint lambdas stay thicker — cookie/redirect orchestration is HTTP-edge logic; response shapes unchanged). `Shared/`: `JwtFactory`, `PkceFlow`, `OAuthHandler` (from `Api/Auth/`), `RefreshTokenService` (from Application), `AuthCookies` helpers. `AuthModule.RegisterServices` takes over from Program.cs: Jwt section read + signing-key check + `AddAuthentication().AddJwtBearer(...)` (incl. SignalR `?access_token=` plumbing via `HubPaths.Prefix`), `JwtFactory`/`PkceFlow` singletons + `OAuthHandler`/`RefreshTokenService` scoped, the `"google-oauth"` HttpClient + resilience, and the **"auth" rate-limit policy** via a second `AddRateLimiter` (options delegates compose; host keeps the global limiter + OnRejected). Auth group keeps `.AllowAnonymous().RequireRateLimiting(RateLimitPolicies.Auth)`. Api csproj drops `Microsoft.AspNetCore.Authentication.JwtBearer` + `Microsoft.Extensions.Http.Resilience` (move to the slice). Host keeps `AddAuthorization` fallback policy + DataProtection.
+### Phase 12 — Auth (last; most host-entangled — outside CQRS response rules *and* ADR-001's command/query seam)  
+`Login`, `Callback`, `Refresh`, `Logout` (endpoint lambdas stay thicker — cookie/redirect orchestration is HTTP-edge logic; response shapes unchanged). Auth is a token-exchange protocol, not domain CQRS, so it has **no `I{Slice}Data`** — but `RefreshTokenService` remains its data-access component (issue/rotate/revoke against `refresh_tokens`) and is Testcontainers-tested; `OAuthHandler` orchestration is integration-tested at the seam (Phase 14 smoke tests). `Shared/`: `JwtFactory`, `PkceFlow`, `OAuthHandler` (from `Api/Auth/`), `RefreshTokenService` (from Application), `AuthCookies` helpers. `AuthModule.RegisterServices` takes over from Program.cs: Jwt section read + signing-key check + `AddAuthentication().AddJwtBearer(...)` (incl. SignalR `?access_token=` plumbing via `HubPaths.Prefix`), `JwtFactory`/`PkceFlow` singletons + `OAuthHandler`/`RefreshTokenService` scoped, the `"google-oauth"` HttpClient + resilience, and the **"auth" rate-limit policy** via a second `AddRateLimiter` (options delegates compose; host keeps the global limiter + OnRejected). Auth group keeps `.AllowAnonymous().RequireRateLimiting(RateLimitPolicies.Auth)`. Api csproj drops `Microsoft.AspNetCore.Authentication.JwtBearer` + `Microsoft.Extensions.Http.Resilience` (move to the slice). Host keeps `AddAuthorization` fallback policy + DataProtection.
 
 ### Phase 13 — Delete `FamilySplit.Application`  
 Remove: project folder, slnx entry, Dockerfile COPY line, `AddFamilySplitApplication()` call, ProjectReferences in Api/UnitTests/IntegrationTests, remaining `DependencyInjectionTests` assertions for it.
@@ -294,7 +433,7 @@ Remove: project folder, slnx entry, Dockerfile COPY line, `AddFamilySplitApplica
 ### Phase 14 — Hardening, docs, CI  
 - [ ] Integration smoke tests for the seams: `POST /auth/refresh` returns non-500 (proves composed "auth" rate-limit policy exists); `POST /hubs/notifications/negotiate` returns 401-not-404 (proves module-mapped hub); dev OpenAPI document lists module endpoints.
 - [ ] `dotnet format FamilySplit.slnx --verify-no-changes` (CI format gate).
-- [ ] Update **CLAUDE.md** (solution structure, conventions, validation/logging sections all reference the old layering; document the CQRS command/query rules and response semantics) + `.github/copilot-instructions.md`.
+- [ ] Update **CLAUDE.md** (solution structure, conventions, validation/logging sections all reference the old layering; document the CQRS command/query rules and response semantics) + `.github/copilot-instructions.md`. *(Done as of the 2026-06-16 revision: both files now carry a "Vertical Slice Architecture" section documenting the ADR-001 business-logic/data-access seam and the Testcontainers-vs-Moq test split; finalise the per-section sweep here once the legacy `Application` layer is gone.)*
 - [ ] Full E2E pass locally (publish client wwwroot per CI recipe) — the flows exercise every re-query path through the real UI.
 - [ ] Push branch; full CI green before merging (deploy auto-fires on CI success on `main`).
 
@@ -314,6 +453,11 @@ Remove: project folder, slnx entry, Dockerfile COPY line, `AddFamilySplitApplica
 | Docker breaks mid-migration | Each phase adds its Dockerfile COPY line in the same commit |
 | 422-for-not-found "fixed" to 404 | Forbidden — preserve `ValidationErrors.NotFound` semantics |
 | Extra HTTP round-trip after each mutation (UX latency) | Accepted trade-off of strict CQRS; effects dispatch existing Load actions which already show loading states |
+| **Tracked entities leak through `I{Slice}Data`** (re-couples business logic to EF, breaks mockability) | Reads return plain records/DTOs only — never `IQueryable`/tracked entities; Rule 8 forbids `AppDbContext`/`DbSet<>` in command handlers |
+| **Business logic drifts back into `{Slice}Data`** (fat gateway → untestable rules) | Gateway methods are mechanical persist/read only; decisions/calculators stay in the handler; reviewed per slice |
+| **Audit no longer atomic** once `SaveChanges` moves to the gateway | Gateway's persist method flushes `AuditService.Queue` in the *same* `SaveChangesAsync` — assert atomicity in the `{Slice}Data` Testcontainers test |
+| Command unit tests silently revert to a DB provider | Rule 11 (required) fails any command-handler test referencing `AppDbContext`/`DbContextOptions`/`UseInMemoryDatabase` |
+| Two already-merged slices stuck on the old shape | Explicit Retrofit callouts in Phase 3/4; do them before Phase 5 so all live slices share one model |
 
 ## Verification commands
 

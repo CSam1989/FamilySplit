@@ -11,6 +11,29 @@
 
 ---
 
+## Vertical slice architecture (enforced everywhere — use for all backend work)
+
+The backend is migrating from the layered `FamilySplit.Application` service layer to **vertical slices** under `src/Features/FamilySplit.Features.{Slice}/`, each registered via one `IFeatureModule`. Full plan: `docs/vertical-slice-refactor-plan.md`. **Do not add new code to `FamilySplit.Application`** — add a slice. Migrated so far: Expenses, Dashboard. The **business-logic / data-access separation below is mandatory and enforced by NetArchTest on every feature assembly** — suggestions that put `AppDbContext` in a command handler will fail the build.
+
+Inside a slice, **business logic and data access are separate, separately-testable layers (ADR-001):**
+
+| Layer | Class | EF? | Test |
+|---|---|---|---|
+| **Query** (read) | `{UseCase}QueryHandler` — `AsNoTracking` projections | **Yes** (`AppDbContext`) | Testcontainers |
+| **Command** (write, business logic) | `{UseCase}CommandHandler` | **No** | **Moq over `I{Slice}Data`** |
+| **Data gateway** (write-side data access) | `{Slice}Data : I{Slice}Data` in `Data/` | **Yes** (`internal sealed`) | Testcontainers |
+| **Pure** | calculators / guards in `Shared/`/`Common` | No | plain unit |
+
+**Rules to enforce on every suggestion:**
+- A **command handler must depend on `I{Slice}Data`, never `AppDbContext`/`DbSet<>`, and must never call `SaveChangesAsync`.** All reads return plain records; all writes go through `I{Slice}Data` persist methods (which own `Add`/`Update`/`Remove` + `SaveChangesAsync` + the atomic audit flush).
+- `I{Slice}Data` reads return **plain records/DTOs — never tracked entities or `IQueryable`**.
+- DB-touching guards used by command handlers are injected as interfaces (`IGroupMembershipGuard`) so they're mockable.
+- Query-only slices have **no `I{Slice}Data`** — the query handler is the data access.
+- Handlers are `sealed`, scoped, namespace `FamilySplit.Features.{Slice}.{UseCase}`.
+- **Strict-CQRS responses:** create → `201` + `Location` + `{ "id": "<guid>" }`; update/delete/state-transition → `204`; the client re-queries. (Read endpoints keep their existing JSON.)
+
+---
+
 ## Logging standards (enforce on every suggestion)
 
 ### Log levels
@@ -187,8 +210,9 @@ This rule applies to: labels, button text, dialog titles, confirmation messages,
 
 | Change | Where to add tests |
 |---|---|
-| New service method / business rule | `FamilySplit.UnitTests` (if pure logic) + `FamilySplit.IntegrationTests` (endpoint) |
-| New validator | `FamilySplit.UnitTests` — one test per rule + happy path |
+| New **command handler** (business logic) | `FamilySplit.UnitTests` — **mock `I{Slice}Data`** (Moq), no DB |
+| New **query handler** / **`{Slice}Data`** method (data access) | `FamilySplit.IntegrationTests` — **Testcontainers** (+ endpoint test) |
+| New validator / pure calculator | `FamilySplit.UnitTests` — one test per rule + happy path (plain data) |
 | New shared Blazor component | `FamilySplit.Client.UnitTests` — bUnit render tests per prop variant |
 | New page with permission guards | `FamilySplit.Client.UnitTests` — bUnit test with mocked Fluxor state |
 | New user flow | `FamilySplit.E2ETests` — Playwright flow test |
@@ -196,7 +220,7 @@ This rule applies to: labels, button text, dialog titles, confirmation messages,
 
 ### Unit tests — server (`FamilySplit.UnitTests`)
 
-Cover calculators, validators, business guards — **no DB, no HTTP**.
+Cover calculators, validators, business guards, and **command handlers** — **no DB, no HTTP**. Command handlers are tested by mocking `I{Slice}Data` (and `IGroupMembershipGuard`) with Moq: `Setup` the reads, act, then `Verify` the right `Persist…Async` was/​wasn't called and assert the returned id. **Never** use `AppDbContext` or the InMemory provider in a unit test.
 
 ```csharp
 public class CreateActivityValidatorTests
@@ -238,7 +262,7 @@ Do NOT add `global using Bunit;` — it conflicts with xUnit v3's `TestContext`.
 
 ### Integration tests (`FamilySplit.IntegrationTests`)
 
-Derive from `IntegrationTestBase` (opens Testcontainers Postgres, starts API in-process via `CustomWebApplicationFactory`, seeds a caller user, mints a JWT). Every test method runs inside a transaction that rolls back on completion.
+Derive from `IntegrationTestBase` (opens Testcontainers Postgres, starts API in-process via `CustomWebApplicationFactory`, seeds a caller user, mints a JWT). Every test method runs inside a transaction that rolls back on completion. **All data-access code lives here too** — query handlers and `{Slice}Data` gateways are verified against the real Postgres (through the endpoint, or resolved directly from the test `AppDbContext`). The InMemory provider is never used for data-access tests.
 
 ```csharp
 [Trait("Category", "Integration")]

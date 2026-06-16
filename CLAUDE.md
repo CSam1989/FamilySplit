@@ -18,10 +18,24 @@ FamilySplit is a family expense-splitting app where costs are divided by **age-w
 src/
 ├── FamilySplit.Domain          # Entities, enums — no dependencies
 ├── FamilySplit.Infrastructure  # EF Core DbContext, migrations, entity configs
-├── FamilySplit.Application     # Service layer, DTOs, validators
-├── FamilySplit.Api             # ASP.NET Core Minimal API host
+├── FamilySplit.Common          # Truly-shared code (WeightCalculator, AuditService, guards, IFeatureModule, exceptions)
+├── Features/                   # Vertical slices — one class-library project per feature (target architecture)
+│   ├── FamilySplit.Features.Expenses
+│   ├── FamilySplit.Features.Dashboard
+│   └── …                       # one per slice as phases land
+├── FamilySplit.Application     # ⚠️ LEGACY service layer — being dissolved slice-by-slice into Features/
+├── FamilySplit.Api             # ASP.NET Core Minimal API host (thin — composes feature modules)
 └── FamilySplit.Client          # Blazor WebAssembly SPA
 ```
+
+> **🏗️ Architecture in transition — read this first.** The backend is migrating from the layered
+> `FamilySplit.Application` service layer to **vertical slices** under `src/Features/`, each split
+> CQRS-style with a **business-logic / data-access seam** (ADR-001). The authoritative tracker is
+> [`docs/vertical-slice-refactor-plan.md`](docs/vertical-slice-refactor-plan.md). Slices already
+> migrated: **Expenses**, **Dashboard**. Sections below that describe `FamilySplit.Application`
+> services still document live code for the **un-migrated** slices, but **new feature work must
+> follow the slice conventions** in the [Vertical Slice Architecture](#vertical-slice-architecture)
+> section, not the legacy service pattern.
 
 ---
 
@@ -165,7 +179,53 @@ All endpoints except `/auth/*`, `/health`, and Scalar/OpenAPI require a valid JW
 
 ---
 
+## Vertical Slice Architecture
+
+> **This is the architecture for all backend work — the business-logic / data-access separation is
+> mandatory and enforced by NetArchTest on every feature assembly (the build goes red otherwise).**
+> Full tracker + per-phase plan: [`docs/vertical-slice-refactor-plan.md`](docs/vertical-slice-refactor-plan.md).
+> The legacy `FamilySplit.Application` service layer (documented below) is the *only* place exempt — and
+> only because it is being deleted slice-by-slice; once a slice migrates, its code is bound by these rules.
+
+Each feature is a class-library project under `src/Features/FamilySplit.Features.{Slice}/` that
+references only `Domain`, `Infrastructure`, and `Common`. It registers itself via one
+`IFeatureModule` (`RegisterServices` + `MapEndpoints`); the `Api` host holds an explicit array of
+modules — no MediatR, no reflection. Inside each slice, **business logic and data access are
+separate, separately-testable layers (ADR-001):**
+
+| Layer | Class(es) | Touches EF? | Tested by |
+|---|---|---|---|
+| **Query** (read) = data access | `{UseCase}QueryHandler` — `AsNoTracking` projections to DTOs | **Yes** (`AppDbContext`) | **Testcontainers** (real Postgres) |
+| **Command** (write) = business logic | `{UseCase}CommandHandler` — validation → guards → rules → calculators | **No** | **Moq** over `I{Slice}Data` (no DB) |
+| **Data gateway** (write-side data access) | `{Slice}Data : I{Slice}Data` in `Data/` — reads (plain records) + persist (`Add`/`Update`/`Remove` + `SaveChangesAsync` + atomic audit flush) | **Yes** (`internal sealed`) | **Testcontainers** |
+| **Pure** | `SplitCalculator`, `BalanceCalculator`, `WeightCalculator`, … in `Shared/`/`Common` | No | plain unit tests |
+
+**Hard rules — enforced everywhere by NetArchTest (no per-slice opt-out; see the refactor plan's *Architecture rules*):**
+- A **command handler never references `AppDbContext`, `DbSet<>`, or `SaveChangesAsync`** — all data goes through the injected `I{Slice}Data` (and DB-touching guards via `IGroupMembershipGuard`). This is what makes business logic mockable.
+- The **`{Slice}Data` gateway is the only write-side EF** and the only place audit entries are flushed (atomic with the mutation, per *Audit logging* below). Reads it exposes return **plain records/DTOs — never tracked entities or `IQueryable`** so tracking never leaks into business logic.
+- Query-only slices (e.g. Dashboard, Users) have **no `I{Slice}Data`** — their query handler *is* the data access.
+- Handlers are `sealed`, registered scoped, namespace `FamilySplit.Features.{Slice}.{UseCase}` (gateway: `…​.{Slice}.Data`). Happy path at the bottom, early-return guards.
+
+**Strict-CQRS response shapes (wire-format change vs. the legacy services):** create → `201 Created` + `Location` + `{ "id": "<guid>" }`; update/delete/state-transition/generate → `204 No Content`. The client re-queries after mutating. Documented exceptions: Join group → `200` + `{ "id": "<groupId>" }`; RegenerateInviteCode (verify per Phase 6). Read endpoints keep their existing JSON shapes (the wire-format lock).
+
+```
+FamilySplit.Features.Expenses/
+├── List/                 # Query  → ListExpensesQueryHandler (AppDbContext)
+├── GetDetail/            # Query  → GetExpenseDetailQueryHandler (AppDbContext)
+├── Create/              # Command → CreateExpenseCommandHandler (IExpenseData, no EF) + Validator
+├── Update/  Delete/     # Command → …
+├── Data/                # IExpenseData (public) + ExpenseData (internal sealed, the only write-side EF)
+├── Shared/              # SplitCalculator, ExpenseReshuffleRequired, shared DTOs (pure)
+└── ExpensesModule.cs
+```
+
+---
+
 ## Application Layer (FamilySplit.Application)
+
+> ⚠️ **Legacy layer — being migrated to vertical slices** (see the section above and
+> [`docs/vertical-slice-refactor-plan.md`](docs/vertical-slice-refactor-plan.md)). The services
+> below still back the **un-migrated** endpoints; **do not add new services here** — add a slice.
 
 ### Services
 
@@ -694,6 +754,16 @@ public async Task<Foo> CreateAsync(...)
 
 **Priority:** Integration and E2E tests catch the highest-value bugs. Write them first. Unit tests cover edge cases in pure logic that would be expensive to verify end-to-end.
 
+**Test strategy by layer (vertical slices — ADR-001).** Map each layer to its tier; this is the whole point of the business-logic / data-access split:
+
+| Code under test | Project | How |
+|---|---|---|
+| **Command handlers** (business logic) | `FamilySplit.UnitTests` | **Moq over `I{Slice}Data`** + `IGroupMembershipGuard` — **no `AppDbContext`, no InMemory provider**. Assert the returned id, the calculator output baked into the persisted entity, and `Verify(...)` the right `Persist…Async` was (or wasn't) called. |
+| **Validators & pure calculators** | `FamilySplit.UnitTests` | plain unit tests — they take plain data, no mocks |
+| **`{Slice}Data` gateway & query handlers** (data access) | `FamilySplit.IntegrationTests` | **Testcontainers** (real Postgres) — seed, run, assert persisted/projected rows; this is where EF-Core-10 translation, filtered indexes and soft-delete filters are verified |
+
+Do **not** unit-test a query handler or `{Slice}Data` with the InMemory provider — those are data access and belong in Testcontainers. Do **not** spin up a `DbContext` to test a command handler — mock `I{Slice}Data`.
+
 **DB isolation strategy — integration tests:** each test runs inside a transaction that is rolled back in `DisposeAsync`. A single externally-opened `NpgsqlConnection` (pooling disabled) is shared between the test and every `AppDbContext` the API resolves. Both sides see the same physical connection, so the API's writes live inside the test's `BeginTransaction()` and vanish on rollback. If this proves brittle, fall back to **Respawn** (`Respawner.ResetAsync()`). The base class documents which strategy is active.
 
 ---
@@ -702,8 +772,11 @@ public async Task<Foo> CreateAsync(...)
 
 | Change | What to add |
 |---|---|
-| New service method or business rule | Unit test in `FamilySplit.UnitTests` if the logic is pure; integration test in `FamilySplit.IntegrationTests` for the endpoint |
+| New **command handler** (business logic) | Unit test in `FamilySplit.UnitTests` mocking `I{Slice}Data` (Moq) — no DB |
+| New **query handler** or **`{Slice}Data`** method (data access) | Testcontainers test in `FamilySplit.IntegrationTests` + endpoint integration test |
+| New **`I{Slice}Data`** method | Add to the gateway's Testcontainers test; mock it in the consuming command's unit test |
 | New validator | Validator tests in `FamilySplit.UnitTests` — one test per rule + a happy-path test |
+| New pure calculator / guard | Unit test in `FamilySplit.UnitTests` with plain data |
 | New shared Blazor component | bUnit tests in `FamilySplit.Client.UnitTests` — render test per prop variant |
 | New page with permission guards | bUnit test in `FamilySplit.Client.UnitTests` verifying hidden controls |
 | New user flow | E2E flow test in `FamilySplit.E2ETests` |
@@ -715,9 +788,11 @@ public async Task<Foo> CreateAsync(...)
 
 Target: pure logic with no database or HTTP dependency.
 
-**What to test:** `WeightCalculator`, `SplitCalculator`, `BalanceCalculator`, `SettlementOptimiser`, `ParticipantSeeder`, all `AbstractValidator<T>` validators, extracted business guards (`SettlementStateMachine`, `ExpenseReshuffleRequired`).
+**What to test:** `WeightCalculator`, `SplitCalculator`, `BalanceCalculator`, `SettlementOptimiser`, `ParticipantSeeder`, all `AbstractValidator<T>` validators, extracted business guards (`SettlementStateMachine`, `ExpenseReshuffleRequired`), and — in the vertical-slice model — **command handlers with a mocked `I{Slice}Data`** (see below).
 
-**Design rule:** any logic that needs to be unit-tested **must live in a dedicated method** (static where possible). Service methods call these helpers; tests call the helpers directly.
+**Command-handler unit test (slice model):** inject `Mock<I{Slice}Data>` + `Mock<IGroupMembershipGuard>`; `Setup` the reads to return the records the handler needs; act; assert the returned id and `Verify(d => d.Persist…Async(It.Is<Expense>(e => /* shares/weights correct */), …), Times.Once)`. On a guard/validation failure, assert the exception **and** `Verify(..., Times.Never)`. No `AppDbContext`, no InMemory provider.
+
+**Design rule:** any logic that needs to be unit-tested **must live in a dedicated method** (static where possible) or in a command handler over the mockable `I{Slice}Data` seam — never entangled with `AppDbContext`. Pure helpers: tests call them directly.
 
 ```csharp
 // Application/Core/WeightCalculator.cs — static, no dependencies
@@ -779,7 +854,7 @@ For pages that use Fluxor state, register `Mock<IState<TState>>` and `Mock<IDisp
 
 ### Integration tests (FamilySplit.IntegrationTests)
 
-Target: full server stack — HTTP → minimal API endpoint → service → real PostgreSQL → HTTP response.
+Target: full server stack — HTTP → minimal API endpoint → handler → real PostgreSQL → HTTP response. **This is also the home of all data-access tests in the vertical-slice model** — query handlers and `{Slice}Data` gateways are exercised against the real Postgres here (either end-to-end through the endpoint, or by resolving the gateway/handler directly from the test's `AppDbContext`). It is the **only** place the read/persist side is verified — never the InMemory provider.
 
 **These are the most important tests.**
 
