@@ -12,6 +12,7 @@ using FamilySplit.Common.Modules;
 using FamilySplit.Common.Notifications;
 using FamilySplit.Features.Dashboard;
 using FamilySplit.Features.Expenses;
+using FamilySplit.Features.Users;
 using FamilySplit.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
@@ -160,7 +161,7 @@ builder.Services.AddFamilySplitApplication();
 builder.Services.AddFamilySplitInfrastructure(builder.Configuration, builder.Environment);
 
 // Feature modules (populated slice by slice).
-IFeatureModule[] modules = [ new ExpensesModule(), new DashboardModule() ];
+IFeatureModule[] modules = [ new ExpensesModule(), new DashboardModule(), new UsersModule() ];
 foreach (var m in modules) m.RegisterServices(builder.Services, builder.Configuration);
 
 // --- Auth: JwtBearer + OAuth handler placeholders ---------------------------------
@@ -319,7 +320,7 @@ foreach (var m in modules) m.MapEndpoints(app);
 
 // --- Endpoint groups --------------------------------------------------------------
 app.MapAuthEndpoints();
-app.MapUserEndpoints();
+// Users: GET /whoami — migrated to UsersModule (vertical slice)
 app.MapFamilyMemberEndpoints();   // GET /users/me/profile
 app.MapAdminEndpoints();          // /admin/families — global-admin CRUD
 app.MapFamilyEndpoints();         // /families/mine — own-family management

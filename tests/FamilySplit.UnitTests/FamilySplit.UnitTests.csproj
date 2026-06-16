@@ -32,6 +32,7 @@
     <ProjectReference Include="..\..\src\FamilySplit.Infrastructure\FamilySplit.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Features\FamilySplit.Features.Dashboard\FamilySplit.Features.Dashboard.csproj" />
     <ProjectReference Include="..\..\src\Features\FamilySplit.Features.Expenses\FamilySplit.Features.Expenses.csproj" />
+    <ProjectReference Include="..\..\src\Features\FamilySplit.Features.Users\FamilySplit.Features.Users.csproj" />
   </ItemGroup>
 
 </Project>
