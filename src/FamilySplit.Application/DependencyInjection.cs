@@ -17,7 +17,8 @@ public static class DependencyInjection
         services.AddScoped<Families.FamilyService>();
 
         // ── Group operations ──────────────────────────────────────────────────
-        services.AddScoped<Groups.GroupService>();
+        // Migrated to FamilySplit.Features.Groups (vertical slice) — registered
+        // via GroupsModule in the API host.
 
         // ── Phase 4: Activities ───────────────────────────────────────────────
         services.AddScoped<Core.ParticipantSeeder>();

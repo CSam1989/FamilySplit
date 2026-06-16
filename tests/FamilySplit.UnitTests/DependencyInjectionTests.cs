@@ -4,7 +4,6 @@ using FamilySplit.Application.Admin;
 using FamilySplit.Application.Auth;
 using FamilySplit.Application.Core;
 using FamilySplit.Application.Families;
-using FamilySplit.Application.Groups;
 using FamilySplit.Application.Push;
 using FamilySplit.Application.Settlements;
 using FamilySplit.Common;
@@ -35,7 +34,8 @@ public class DependencyInjectionTests
 
         services.Should().Contain(sd => sd.ServiceType == typeof(AdminService) && sd.Lifetime == ServiceLifetime.Scoped);
         services.Should().Contain(sd => sd.ServiceType == typeof(FamilyService) && sd.Lifetime == ServiceLifetime.Scoped);
-        services.Should().Contain(sd => sd.ServiceType == typeof(GroupService) && sd.Lifetime == ServiceLifetime.Scoped);
+        // Groups migrated to FamilySplit.Features.Groups (GroupsModule) — its DI
+        // registration is covered by GroupsEndpointsTests.RegisterServices_RegistersAllHandlersAsScoped.
         services.Should().Contain(sd => sd.ServiceType == typeof(ParticipantSeeder) && sd.Lifetime == ServiceLifetime.Scoped);
         services.Should().Contain(sd => sd.ServiceType == typeof(ActivityService) && sd.Lifetime == ServiceLifetime.Scoped);
         // Expenses migrated to FamilySplit.Features.Expenses (ExpensesModule) — its DI

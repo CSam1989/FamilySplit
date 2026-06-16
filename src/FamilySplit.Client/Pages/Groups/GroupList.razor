@@ -109,29 +109,10 @@ else
     private void GoToDetail(Guid groupId) =>
         Nav.NavigateTo($"/groups/{groupId}");
 
-    private bool _pendingNavigation;
-    private Guid? _navBaselineGroupId;
-
-    protected override void OnAfterRender(bool firstRender)
-    {
-        if (!_pendingNavigation || State.Value.IsLoading) return;
-
-        // The create/join failed — stop pending so the error banner is shown
-        // instead of silently navigating into a stale previously-selected group.
-        if (State.Value.ErrorMessage is not null)
-        {
-            _pendingNavigation = false;
-            return;
-        }
-
-        // Navigate only when a genuinely NEW group was selected by the success reducer.
-        if (State.Value.SelectedGroup is { } g && g.Id != _navBaselineGroupId)
-        {
-            _pendingNavigation = false;
-            Nav.NavigateTo($"/groups/{g.Id}");
-        }
-    }
-
+    // Strict CQRS: the create/join effects re-query the list and navigate to the new
+    // group's detail page themselves once the command succeeds — the dialogs only
+    // dispatch the action. On failure the effect keeps us on this page and surfaces the
+    // error banner instead of navigating.
     private async Task OpenCreateDialog()
     {
         var dialog = await DialogService.ShowAsync<CreateGroupDialog>(_t.CreateGroup);
@@ -139,8 +120,6 @@ else
 
         if (result is { Canceled: false, Data: CreateGroupFormModel form })
         {
-            _navBaselineGroupId = State.Value.SelectedGroup?.Id;
-            _pendingNavigation = true;
             Dispatcher.Dispatch(new CreateGroupAction(
                 new CreateGroupRequest(form.Name, form.Description)));
         }
@@ -153,8 +132,6 @@ else
 
         if (result is { Canceled: false, Data: string inviteCode })
         {
-            _navBaselineGroupId = State.Value.SelectedGroup?.Id;
-            _pendingNavigation = true;
             Dispatcher.Dispatch(new JoinGroupAction(new JoinGroupRequest(inviteCode)));
         }
     }

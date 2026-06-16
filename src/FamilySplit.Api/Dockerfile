@@ -19,6 +19,7 @@ COPY ["src/FamilySplit.Application/FamilySplit.Application.csproj", "src/FamilyS
 COPY ["src/FamilySplit.Infrastructure/FamilySplit.Infrastructure.csproj", "src/FamilySplit.Infrastructure/"]
 COPY ["src/Features/FamilySplit.Features.Dashboard/FamilySplit.Features.Dashboard.csproj", "src/Features/FamilySplit.Features.Dashboard/"]
 COPY ["src/Features/FamilySplit.Features.Expenses/FamilySplit.Features.Expenses.csproj", "src/Features/FamilySplit.Features.Expenses/"]
+COPY ["src/Features/FamilySplit.Features.Groups/FamilySplit.Features.Groups.csproj", "src/Features/FamilySplit.Features.Groups/"]
 COPY ["src/Features/FamilySplit.Features.Users/FamilySplit.Features.Users.csproj", "src/Features/FamilySplit.Features.Users/"]
 COPY ["src/FamilySplit.Api/FamilySplit.Api.csproj", "src/FamilySplit.Api/"]
 RUN dotnet restore "src/FamilySplit.Api/FamilySplit.Api.csproj"

@@ -52,10 +52,10 @@ public class IGroupClientTests
     }
 
     [Fact]
-    public async Task CreateAsync_ReturnsCreatedGroup()
+    public async Task CreateAsync_ReturnsCreatedId()
     {
         var request = new CreateGroupRequest("New", "desc");
-        var expected = MakeDetail();
+        var expected = new CreatedResponse(Guid.NewGuid());
         _mock.Setup(c => c.CreateAsync(request)).ReturnsAsync(expected);
 
         var result = await _mock.Object.CreateAsync(request);
@@ -65,24 +65,22 @@ public class IGroupClientTests
     }
 
     [Fact]
-    public async Task UpdateAsync_ReturnsUpdatedGroup()
+    public async Task UpdateAsync_CompletesSuccessfully()
     {
         var groupId = Guid.NewGuid();
         var request = new UpdateGroupRequest("Updated", null);
-        var expected = MakeDetail(groupId);
-        _mock.Setup(c => c.UpdateAsync(groupId, request)).ReturnsAsync(expected);
+        _mock.Setup(c => c.UpdateAsync(groupId, request)).Returns(Task.CompletedTask);
 
-        var result = await _mock.Object.UpdateAsync(groupId, request);
+        await _mock.Object.UpdateAsync(groupId, request);
 
-        result.Should().Be(expected);
         _mock.Verify(c => c.UpdateAsync(groupId, request), Times.Once);
     }
 
     [Fact]
-    public async Task JoinAsync_ReturnsJoinedGroup()
+    public async Task JoinAsync_ReturnsJoinedGroupId()
     {
         var request = new JoinGroupRequest("INVITE");
-        var expected = MakeDetail();
+        var expected = new CreatedResponse(Guid.NewGuid());
         _mock.Setup(c => c.JoinAsync(request)).ReturnsAsync(expected);
 
         var result = await _mock.Object.JoinAsync(request);
@@ -92,15 +90,13 @@ public class IGroupClientTests
     }
 
     [Fact]
-    public async Task RegenerateInviteCodeAsync_ReturnsNewInviteCode()
+    public async Task RegenerateInviteCodeAsync_CompletesSuccessfully()
     {
         var groupId = Guid.NewGuid();
-        var expected = new RegenerateInviteCodeResponse("NEWINVITE");
-        _mock.Setup(c => c.RegenerateInviteCodeAsync(groupId)).ReturnsAsync(expected);
+        _mock.Setup(c => c.RegenerateInviteCodeAsync(groupId)).Returns(Task.CompletedTask);
 
-        var result = await _mock.Object.RegenerateInviteCodeAsync(groupId);
+        await _mock.Object.RegenerateInviteCodeAsync(groupId);
 
-        result.Should().Be(expected);
         _mock.Verify(c => c.RegenerateInviteCodeAsync(groupId), Times.Once);
     }
 

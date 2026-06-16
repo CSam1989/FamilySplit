@@ -99,15 +99,13 @@ public class GroupReducersTests
     }
 
     [Fact]
-    public void OnCreateSuccess_SetsSelectedGroupAndClearsLoading()
+    public void OnCreateSuccess_ClearsLoading()
     {
         var state = DefaultState with { IsLoading = true };
-        var detail = CreateDetailDto();
 
-        var result = GroupReducers.OnCreateSuccess(state, new CreateGroupSuccessAction(detail));
+        var result = GroupReducers.OnCreateSuccess(state);
 
         result.IsLoading.Should().BeFalse();
-        result.SelectedGroup.Should().BeSameAs(detail);
     }
 
     [Fact]
@@ -133,15 +131,13 @@ public class GroupReducersTests
     }
 
     [Fact]
-    public void OnUpdateSuccess_SetsSelectedGroupAndClearsLoading()
+    public void OnUpdateSuccess_ClearsLoading()
     {
         var state = DefaultState with { IsLoading = true };
-        var detail = CreateDetailDto();
 
-        var result = GroupReducers.OnUpdateSuccess(state, new UpdateGroupSuccessAction(detail));
+        var result = GroupReducers.OnUpdateSuccess(state);
 
         result.IsLoading.Should().BeFalse();
-        result.SelectedGroup.Should().BeSameAs(detail);
     }
 
     [Fact]
@@ -167,15 +163,13 @@ public class GroupReducersTests
     }
 
     [Fact]
-    public void OnJoinSuccess_SetsSelectedGroupAndClearsLoading()
+    public void OnJoinSuccess_ClearsLoading()
     {
         var state = DefaultState with { IsLoading = true };
-        var detail = CreateDetailDto();
 
-        var result = GroupReducers.OnJoinSuccess(state, new JoinGroupSuccessAction(detail));
+        var result = GroupReducers.OnJoinSuccess(state);
 
         result.IsLoading.Should().BeFalse();
-        result.SelectedGroup.Should().BeSameAs(detail);
     }
 
     [Fact]
@@ -201,36 +195,15 @@ public class GroupReducersTests
     }
 
     [Fact]
-    public void OnRegenerateSuccess_SelectedGroupMatches_UpdatesInviteCode()
+    public void OnRegenerateSuccess_ClearsLoading_AndPreservesSelectedGroup()
     {
+        // Strict CQRS: the reducer no longer patches the invite code — the follow-up
+        // LoadGroupDetailAction re-fetches it. It only clears the loading flag and
+        // leaves the existing SelectedGroup untouched until the re-query lands.
         var detail = CreateDetailDto();
         var state = DefaultState with { IsLoading = true, SelectedGroup = detail };
 
-        var result = GroupReducers.OnRegenerateSuccess(state, new RegenerateInviteCodeSuccessAction(detail.Id, "NEW_CODE"));
-
-        result.IsLoading.Should().BeFalse();
-        result.SelectedGroup.Should().NotBeNull();
-        result.SelectedGroup!.InviteCode.Should().Be("NEW_CODE");
-    }
-
-    [Fact]
-    public void OnRegenerateSuccess_SelectedGroupNull_ReturnsStateWithLoadingFalse()
-    {
-        var state = DefaultState with { IsLoading = true, SelectedGroup = null };
-
-        var result = GroupReducers.OnRegenerateSuccess(state, new RegenerateInviteCodeSuccessAction(Guid.NewGuid(), "NEW"));
-
-        result.IsLoading.Should().BeFalse();
-        result.SelectedGroup.Should().BeNull();
-    }
-
-    [Fact]
-    public void OnRegenerateSuccess_SelectedGroupIdMismatch_ReturnsStateWithLoadingFalse()
-    {
-        var detail = CreateDetailDto();
-        var state = DefaultState with { IsLoading = true, SelectedGroup = detail };
-
-        var result = GroupReducers.OnRegenerateSuccess(state, new RegenerateInviteCodeSuccessAction(Guid.NewGuid(), "NEW"));
+        var result = GroupReducers.OnRegenerateSuccess(state);
 
         result.IsLoading.Should().BeFalse();
         result.SelectedGroup.Should().BeSameAs(detail);

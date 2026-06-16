@@ -12,6 +12,7 @@ using FamilySplit.Common.Modules;
 using FamilySplit.Common.Notifications;
 using FamilySplit.Features.Dashboard;
 using FamilySplit.Features.Expenses;
+using FamilySplit.Features.Groups;
 using FamilySplit.Features.Users;
 using FamilySplit.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -161,7 +162,7 @@ builder.Services.AddFamilySplitApplication();
 builder.Services.AddFamilySplitInfrastructure(builder.Configuration, builder.Environment);
 
 // Feature modules (populated slice by slice).
-IFeatureModule[] modules = [ new ExpensesModule(), new DashboardModule(), new UsersModule() ];
+IFeatureModule[] modules = [ new ExpensesModule(), new DashboardModule(), new UsersModule(), new GroupsModule() ];
 foreach (var m in modules) m.RegisterServices(builder.Services, builder.Configuration);
 
 // --- Auth: JwtBearer + OAuth handler placeholders ---------------------------------
@@ -324,8 +325,7 @@ app.MapAuthEndpoints();
 app.MapFamilyMemberEndpoints();   // GET /users/me/profile
 app.MapAdminEndpoints();          // /admin/families — global-admin CRUD
 app.MapFamilyEndpoints();         // /families/mine — own-family management
-app.MapGroupEndpoints();          // /groups — CRUD + join + invite-code
-app.MapGroupMemberEndpoints();    // no-op stub (members managed via Family endpoints)
+// Groups: /groups — CRUD + join + invite-code + leave — migrated to GroupsModule (vertical slice)
 app.MapActivityEndpoints();       // /groups/{groupId}/activities — CRUD + participants + close
 // Expenses: /groups/{groupId}/activities/{activityId}/expenses — migrated to ExpensesModule (vertical slice)
 app.MapSettlementEndpoints();     // /groups/{groupId}/activities/{activityId}/settlements — Phase 6

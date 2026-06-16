@@ -55,8 +55,12 @@ public class GroupEffects
     {
         try
         {
-            var group = await _client.CreateAsync(action.Request);
-            dispatcher.Dispatch(new CreateGroupSuccessAction(group));
+            // Strict CQRS: the command returns only the new id; navigate to the new
+            // group's detail page (which loads itself) and refresh the list.
+            var created = await _client.CreateAsync(action.Request);
+            dispatcher.Dispatch(new CreateGroupSuccessAction(created.Id));
+            dispatcher.Dispatch(new LoadGroupsAction());
+            _nav.NavigateTo($"/groups/{created.Id}");
         }
         catch (Exception ex)
         {
@@ -70,8 +74,12 @@ public class GroupEffects
     {
         try
         {
-            var group = await _client.UpdateAsync(action.GroupId, action.Request);
-            dispatcher.Dispatch(new UpdateGroupSuccessAction(group));
+            // Strict CQRS: the command returns 204; re-query the detail (and the list,
+            // which shows the name) for the updated data.
+            await _client.UpdateAsync(action.GroupId, action.Request);
+            dispatcher.Dispatch(new UpdateGroupSuccessAction(action.GroupId));
+            dispatcher.Dispatch(new LoadGroupDetailAction(action.GroupId));
+            dispatcher.Dispatch(new LoadGroupsAction());
         }
         catch (Exception ex)
         {
@@ -85,8 +93,12 @@ public class GroupEffects
     {
         try
         {
-            var group = await _client.JoinAsync(action.Request);
-            dispatcher.Dispatch(new JoinGroupSuccessAction(group));
+            // Documented exception: join returns the joined group id; navigate to its
+            // detail page (which loads itself) and refresh the list.
+            var joined = await _client.JoinAsync(action.Request);
+            dispatcher.Dispatch(new JoinGroupSuccessAction(joined.Id));
+            dispatcher.Dispatch(new LoadGroupsAction());
+            _nav.NavigateTo($"/groups/{joined.Id}");
         }
         catch (Exception ex)
         {
@@ -100,8 +112,11 @@ public class GroupEffects
     {
         try
         {
-            var response = await _client.RegenerateInviteCodeAsync(action.GroupId);
-            dispatcher.Dispatch(new RegenerateInviteCodeSuccessAction(action.GroupId, response.InviteCode));
+            // Strict CQRS: the command returns 204; re-query the detail so the freshly
+            // rotated invite code is picked up from GroupDetailDto.InviteCode.
+            await _client.RegenerateInviteCodeAsync(action.GroupId);
+            dispatcher.Dispatch(new RegenerateInviteCodeSuccessAction(action.GroupId));
+            dispatcher.Dispatch(new LoadGroupDetailAction(action.GroupId));
         }
         catch (Exception ex)
         {
