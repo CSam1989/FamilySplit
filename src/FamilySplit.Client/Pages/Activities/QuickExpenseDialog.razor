@@ -346,23 +346,25 @@
         _creatingActivity = true;
         try
         {
+            var activityName = _newActivityName.Trim();
+
+            // Strict CQRS: the create command returns only the new id; re-query the list.
             var created = await ActivityClient.CreateAsync(
                 _selectedGroupId.Value,
-                new CreateActivityRequest(_newActivityName.Trim(), null));
+                new CreateActivityRequest(activityName, null));
 
             // Keep the store in sync
-            Dispatcher.Dispatch(new CreateActivitySuccessAction(created));
+            Dispatcher.Dispatch(new CreateActivitySuccessAction(created.Id));
             Dispatcher.Dispatch(new LoadActivitiesAction(_selectedGroupId.Value));
 
-            // Add to local list and auto-select
+            // Add to local list and auto-select. A fresh activity has no participants
+            // or sub-activities yet; the store re-query supplies the authoritative data.
             var summary = new ActivitySummaryDto(
-                created.Id, created.GroupId, created.Name, created.Description,
-                created.Status, created.ParentActivityId,
-                created.Participants.Count, created.SubActivities.Count,
-                created.CreatedAt, created.ClosedAt);
+                created.Id, _selectedGroupId.Value, activityName, null,
+                ActivityStatus.Open, null, 0, 0, DateTimeOffset.UtcNow, null);
             _activities.Insert(0, summary);
             _selectedActivityId   = created.Id;
-            _selectedActivityName = created.Name;
+            _selectedActivityName = activityName;
             _newActivityName      = string.Empty;
             _showNewActivityForm  = false;
         }

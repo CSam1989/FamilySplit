@@ -10,6 +10,7 @@ using FamilySplit.Application;
 using FamilySplit.Common;
 using FamilySplit.Common.Modules;
 using FamilySplit.Common.Notifications;
+using FamilySplit.Features.Activities;
 using FamilySplit.Features.Dashboard;
 using FamilySplit.Features.Expenses;
 using FamilySplit.Features.Groups;
@@ -162,7 +163,7 @@ builder.Services.AddFamilySplitApplication();
 builder.Services.AddFamilySplitInfrastructure(builder.Configuration, builder.Environment);
 
 // Feature modules (populated slice by slice).
-IFeatureModule[] modules = [ new ExpensesModule(), new DashboardModule(), new UsersModule(), new GroupsModule() ];
+IFeatureModule[] modules = [ new ExpensesModule(), new DashboardModule(), new UsersModule(), new GroupsModule(), new ActivitiesModule() ];
 foreach (var m in modules) m.RegisterServices(builder.Services, builder.Configuration);
 
 // --- Auth: JwtBearer + OAuth handler placeholders ---------------------------------
@@ -326,7 +327,7 @@ app.MapFamilyMemberEndpoints();   // GET /users/me/profile
 app.MapAdminEndpoints();          // /admin/families — global-admin CRUD
 app.MapFamilyEndpoints();         // /families/mine — own-family management
 // Groups: /groups — CRUD + join + invite-code + leave — migrated to GroupsModule (vertical slice)
-app.MapActivityEndpoints();       // /groups/{groupId}/activities — CRUD + participants + close
+// Activities: /groups/{groupId}/activities — CRUD + participants + close — migrated to ActivitiesModule (vertical slice)
 // Expenses: /groups/{groupId}/activities/{activityId}/expenses — migrated to ExpensesModule (vertical slice)
 app.MapSettlementEndpoints();     // /groups/{groupId}/activities/{activityId}/settlements — Phase 6
 // Dashboard: /dashboard/stats — migrated to DashboardModule (vertical slice)

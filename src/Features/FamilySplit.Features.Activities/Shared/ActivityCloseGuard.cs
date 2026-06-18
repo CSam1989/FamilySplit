@@ -1,8 +1,8 @@
 using FamilySplit.Domain.Enums;
 
-namespace FamilySplit.Application.Activities;
+namespace FamilySplit.Features.Activities.Shared;
 
-/// <summary>Pure guards for the activity close operation.</summary>
+/// <summary>Pure guards for the activity close operation (no EF — unit-tested directly).</summary>
 public static class ActivityCloseGuard
 {
     /// <summary>Returns true when the activity is in a state that can be closed.</summary>

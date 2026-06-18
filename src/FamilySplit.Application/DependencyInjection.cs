@@ -20,9 +20,9 @@ public static class DependencyInjection
         // Migrated to FamilySplit.Features.Groups (vertical slice) — registered
         // via GroupsModule in the API host.
 
-        // ── Phase 4: Activities ───────────────────────────────────────────────
-        services.AddScoped<Core.ParticipantSeeder>();
-        services.AddScoped<Activities.ActivityService>();
+        // ── Activities ────────────────────────────────────────────────────────
+        // Migrated to FamilySplit.Features.Activities (vertical slice) — registered
+        // via ActivitiesModule in the API host.
 
         // ── Expenses ──────────────────────────────────────────────────────────
         // Migrated to FamilySplit.Features.Expenses (vertical slice) — registered
