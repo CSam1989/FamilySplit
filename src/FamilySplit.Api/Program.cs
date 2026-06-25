@@ -11,9 +11,11 @@ using FamilySplit.Common;
 using FamilySplit.Common.Modules;
 using FamilySplit.Common.Notifications;
 using FamilySplit.Features.Activities;
+using FamilySplit.Features.Admin;
 using FamilySplit.Features.Dashboard;
 using FamilySplit.Features.Expenses;
 using FamilySplit.Features.Groups;
+using FamilySplit.Features.Settlements;
 using FamilySplit.Features.Users;
 using FamilySplit.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -163,7 +165,7 @@ builder.Services.AddFamilySplitApplication();
 builder.Services.AddFamilySplitInfrastructure(builder.Configuration, builder.Environment);
 
 // Feature modules (populated slice by slice).
-IFeatureModule[] modules = [ new ExpensesModule(), new DashboardModule(), new UsersModule(), new GroupsModule(), new ActivitiesModule() ];
+IFeatureModule[] modules = [ new ExpensesModule(), new DashboardModule(), new UsersModule(), new GroupsModule(), new ActivitiesModule(), new SettlementsModule(), new AdminModule() ];
 foreach (var m in modules) m.RegisterServices(builder.Services, builder.Configuration);
 
 // --- Auth: JwtBearer + OAuth handler placeholders ---------------------------------
@@ -324,12 +326,12 @@ foreach (var m in modules) m.MapEndpoints(app);
 app.MapAuthEndpoints();
 // Users: GET /whoami — migrated to UsersModule (vertical slice)
 app.MapFamilyMemberEndpoints();   // GET /users/me/profile
-app.MapAdminEndpoints();          // /admin/families — global-admin CRUD
+// Admin: /admin — global-admin family + member CRUD + group management — migrated to AdminModule (vertical slice)
 app.MapFamilyEndpoints();         // /families/mine — own-family management
 // Groups: /groups — CRUD + join + invite-code + leave — migrated to GroupsModule (vertical slice)
 // Activities: /groups/{groupId}/activities — CRUD + participants + close — migrated to ActivitiesModule (vertical slice)
 // Expenses: /groups/{groupId}/activities/{activityId}/expenses — migrated to ExpensesModule (vertical slice)
-app.MapSettlementEndpoints();     // /groups/{groupId}/activities/{activityId}/settlements — Phase 6
+// Settlements: /groups/{groupId}/activities/{activityId}/settlements (+ balances, group/pending lists) — migrated to SettlementsModule (vertical slice)
 // Dashboard: /dashboard/stats — migrated to DashboardModule (vertical slice)
 app.MapPushEndpoints();           // /push — VAPID subscription management
 

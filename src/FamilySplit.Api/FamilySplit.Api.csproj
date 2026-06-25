@@ -24,9 +24,11 @@
     <ProjectReference Include="..\FamilySplit.Common\FamilySplit.Common.csproj" />
     <ProjectReference Include="..\FamilySplit.Infrastructure\FamilySplit.Infrastructure.csproj" />
     <ProjectReference Include="..\Features\FamilySplit.Features.Activities\FamilySplit.Features.Activities.csproj" />
+    <ProjectReference Include="..\Features\FamilySplit.Features.Admin\FamilySplit.Features.Admin.csproj" />
     <ProjectReference Include="..\Features\FamilySplit.Features.Dashboard\FamilySplit.Features.Dashboard.csproj" />
     <ProjectReference Include="..\Features\FamilySplit.Features.Expenses\FamilySplit.Features.Expenses.csproj" />
     <ProjectReference Include="..\Features\FamilySplit.Features.Groups\FamilySplit.Features.Groups.csproj" />
+    <ProjectReference Include="..\Features\FamilySplit.Features.Settlements\FamilySplit.Features.Settlements.csproj" />
     <ProjectReference Include="..\Features\FamilySplit.Features.Users\FamilySplit.Features.Users.csproj" />
   </ItemGroup>
 

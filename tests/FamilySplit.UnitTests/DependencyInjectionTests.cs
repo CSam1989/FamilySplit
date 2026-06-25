@@ -1,9 +1,7 @@
 using FamilySplit.Application;
-using FamilySplit.Application.Admin;
 using FamilySplit.Application.Auth;
 using FamilySplit.Application.Families;
 using FamilySplit.Application.Push;
-using FamilySplit.Application.Settlements;
 using FamilySplit.Common;
 using FamilySplit.Common.Auditing;
 using FamilySplit.Common.Security;
@@ -30,7 +28,8 @@ public class DependencyInjectionTests
         // Assert
         result.Should().BeSameAs(services);
 
-        services.Should().Contain(sd => sd.ServiceType == typeof(AdminService) && sd.Lifetime == ServiceLifetime.Scoped);
+        // Admin migrated to FamilySplit.Features.Admin (AdminModule) — its DI
+        // registration is covered by AdminEndpointsTests.RegisterServices_RegistersServiceAsScoped.
         services.Should().Contain(sd => sd.ServiceType == typeof(FamilyService) && sd.Lifetime == ServiceLifetime.Scoped);
         // Groups migrated to FamilySplit.Features.Groups (GroupsModule) — its DI
         // registration is covered by GroupsEndpointsTests.RegisterServices_RegistersAllHandlersAsScoped.
@@ -38,7 +37,8 @@ public class DependencyInjectionTests
         // registration is covered by ActivitiesEndpointsTests.RegisterServices_RegistersServiceAsScoped.
         // Expenses migrated to FamilySplit.Features.Expenses (ExpensesModule) — its DI
         // registration is covered by ExpenseEndpointsTests.RegisterServices_RegistersAllHandlersAsScoped.
-        services.Should().Contain(sd => sd.ServiceType == typeof(SettlementService) && sd.Lifetime == ServiceLifetime.Scoped);
+        // Settlements migrated to FamilySplit.Features.Settlements (SettlementsModule) — its DI
+        // registration is covered by SettlementsEndpointsTests.RegisterServices_RegistersAllHandlersAsScoped.
         // Dashboard migrated to FamilySplit.Features.Dashboard (DashboardModule) — its DI
         // registration is covered by DashboardEndpointsTests.RegisterServices_RegistersHandlerAsScoped.
         services.Should().Contain(sd => sd.ServiceType == typeof(RefreshTokenService) && sd.Lifetime == ServiceLifetime.Scoped);

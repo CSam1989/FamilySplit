@@ -1,20 +1,35 @@
-using FamilySplit.Api.Endpoints;
-using FamilySplit.Application.Settlements;
+using FamilySplit.Features.Settlements;
+using FamilySplit.Features.Settlements.ConfirmReceived;
+using FamilySplit.Features.Settlements.ConfirmSent;
+using FamilySplit.Features.Settlements.Data;
+using FamilySplit.Features.Settlements.Generate;
+using FamilySplit.Features.Settlements.GetBalances;
+using FamilySplit.Features.Settlements.GetDetail;
+using FamilySplit.Features.Settlements.List;
+using FamilySplit.Features.Settlements.ListForGroup;
+using FamilySplit.Features.Settlements.ListMyPending;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace FamilySplit.UnitTests.Endpoints;
 
-public class SettlementEndpointsTests
+/// <summary>
+/// Per-module DI + route-mapping test for the Settlements slice (mirrors <see cref="ActivitiesEndpointsTests"/>).
+/// Verifies that <see cref="SettlementsModule"/> registers the data seam + every handler as Scoped and
+/// maps the eight routes with the correct verbs / patterns. The slice has no validators (commands take
+/// only route ids).
+/// </summary>
+public class SettlementsEndpointsTests
 {
     private static WebApplication CreateApp()
     {
         var builder = WebApplication.CreateBuilder();
-        builder.Services.AddScoped<SettlementService>(sp =>
-            throw new InvalidOperationException("Should not be resolved in unit tests"));
-        var app = builder.Build();
-        return app;
+        new SettlementsModule().RegisterServices(builder.Services, builder.Configuration);
+        return builder.Build();
     }
 
     private static List<RouteEndpoint> GetEndpoints(WebApplication app)
@@ -26,58 +41,93 @@ public class SettlementEndpointsTests
             .ToList();
     }
 
-    [Fact]
-    public void MapSettlementEndpoints_Called_ReturnsTheSameWebApplication()
+    // ── RegisterServices ──────────────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData(typeof(ISettlementData))]
+    [InlineData(typeof(GetBalancesQueryHandler))]
+    [InlineData(typeof(ListSettlementsQueryHandler))]
+    [InlineData(typeof(GetSettlementDetailQueryHandler))]
+    [InlineData(typeof(ListForGroupQueryHandler))]
+    [InlineData(typeof(ListMyPendingQueryHandler))]
+    [InlineData(typeof(GenerateSettlementsCommandHandler))]
+    [InlineData(typeof(ConfirmSentCommandHandler))]
+    [InlineData(typeof(ConfirmReceivedCommandHandler))]
+    public void RegisterServices_RegistersServiceAsScoped(Type serviceType)
     {
-        var app = CreateApp();
+        var services = new ServiceCollection();
+        new SettlementsModule().RegisterServices(services, new ConfigurationBuilder().Build());
 
-        var result = app.MapSettlementEndpoints();
-
-        result.Should().BeSameAs(app);
+        services.Should().Contain(d =>
+            d.ServiceType == serviceType && d.Lifetime == ServiceLifetime.Scoped);
     }
 
     [Fact]
-    public void MapSettlementEndpoints_Called_RegistersEightEndpoints()
+    public void RegisterServices_RegistersSettlementDataImplementationAsSettlementData()
+    {
+        var services = new ServiceCollection();
+        new SettlementsModule().RegisterServices(services, new ConfigurationBuilder().Build());
+
+        services.Should().Contain(d =>
+            d.ServiceType == typeof(ISettlementData)
+            && d.ImplementationType == typeof(SettlementData)
+            && d.Lifetime == ServiceLifetime.Scoped);
+    }
+
+    // ── MapEndpoints ──────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void MapEndpoints_RegistersExactlyEightEndpoints()
     {
         var app = CreateApp();
 
-        app.MapSettlementEndpoints();
+        new SettlementsModule().MapEndpoints(app);
 
         GetEndpoints(app).Should().HaveCount(8);
     }
 
     [Theory]
-    [InlineData("GET", "/groups/{groupId:guid}/activities/{activityId:guid}/settlements/")]
-    [InlineData("POST", "/groups/{groupId:guid}/activities/{activityId:guid}/settlements/")]
-    [InlineData("GET", "/groups/{groupId:guid}/activities/{activityId:guid}/settlements/{settlementId:guid}")]
-    [InlineData("POST", "/groups/{groupId:guid}/activities/{activityId:guid}/settlements/{settlementId:guid}/confirm-sent")]
-    [InlineData("POST", "/groups/{groupId:guid}/activities/{activityId:guid}/settlements/{settlementId:guid}/confirm-received")]
-    [InlineData("GET", "/settlements/pending")]
-    [InlineData("GET", "/groups/{groupId:guid}/settlements")]
-    [InlineData("GET", "/groups/{groupId:guid}/activities/{activityId:guid}/balances/")]
-    public void MapSettlementEndpoints_Called_RegistersEndpoint(string httpMethod, string expectedPattern)
+    [InlineData("/groups/{groupId:guid}/activities/{activityId:guid}/settlements/", "GET")]                          // List
+    [InlineData("/groups/{groupId:guid}/activities/{activityId:guid}/settlements/", "POST")]                         // Generate
+    [InlineData("/groups/{groupId:guid}/activities/{activityId:guid}/settlements/{settlementId:guid}", "GET")]       // GetDetail
+    [InlineData("/groups/{groupId:guid}/activities/{activityId:guid}/settlements/{settlementId:guid}/confirm-sent", "POST")]
+    [InlineData("/groups/{groupId:guid}/activities/{activityId:guid}/settlements/{settlementId:guid}/confirm-received", "POST")]
+    [InlineData("/settlements/pending", "GET")]                                                                      // ListMyPending
+    [InlineData("/groups/{groupId:guid}/settlements", "GET")]                                                        // ListForGroup
+    [InlineData("/groups/{groupId:guid}/activities/{activityId:guid}/balances/", "GET")]                             // GetBalances
+    public void MapEndpoints_RegistersRouteWithVerb(string rawPattern, string verb)
     {
         var app = CreateApp();
 
-        app.MapSettlementEndpoints();
+        new SettlementsModule().MapEndpoints(app);
 
-        var endpoints = GetEndpoints(app);
-        endpoints.Should().Contain(e =>
-            e.DisplayName!.Contains($"HTTP: {httpMethod} {expectedPattern}"));
+        GetEndpoints(app).Should().Contain(e =>
+            e.RoutePattern.RawText == rawPattern
+            && e.Metadata.GetMetadata<IHttpMethodMetadata>()!.HttpMethods.Contains(verb));
     }
 
     [Fact]
-    public void MapSettlementEndpoints_Called_AllEndpointsHaveDisplayName()
+    public void MapEndpoints_AllEndpointsCarrySettlementsTag()
     {
         var app = CreateApp();
 
-        app.MapSettlementEndpoints();
+        new SettlementsModule().MapEndpoints(app);
 
         var endpoints = GetEndpoints(app);
         endpoints.Should().NotBeEmpty();
-        foreach (var endpoint in endpoints)
-        {
-            endpoint.DisplayName.Should().NotBeNullOrEmpty();
-        }
+        endpoints.Should().AllSatisfy(e =>
+            e.Metadata.GetMetadata<ITagsMetadata>()!.Tags.Should().Contain("Settlements"));
+    }
+
+    [Fact]
+    public void MapEndpoints_AllEndpointsHaveDisplayName()
+    {
+        var app = CreateApp();
+
+        new SettlementsModule().MapEndpoints(app);
+
+        var endpoints = GetEndpoints(app);
+        endpoints.Should().NotBeEmpty();
+        endpoints.Should().AllSatisfy(e => e.DisplayName.Should().NotBeNullOrEmpty());
     }
 }

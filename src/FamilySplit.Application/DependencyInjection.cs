@@ -11,7 +11,8 @@ public static class DependencyInjection
         services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly);
 
         // ── Global-admin operations ────────────────────────────────────────────
-        services.AddScoped<Admin.AdminService>();
+        // Migrated to FamilySplit.Features.Admin (vertical slice) — registered
+        // via AdminModule in the API host.
 
         // ── Own-family management (family admin) ──────────────────────────────
         services.AddScoped<Families.FamilyService>();
@@ -28,8 +29,9 @@ public static class DependencyInjection
         // Migrated to FamilySplit.Features.Expenses (vertical slice) — registered
         // via ExpensesModule in the API host.
 
-        // ── Phase 6: Settlements ──────────────────────────────────────────────
-        services.AddScoped<Settlements.SettlementService>();
+        // ── Settlements ───────────────────────────────────────────────────────
+        // Migrated to FamilySplit.Features.Settlements (vertical slice) — registered
+        // via SettlementsModule in the API host.
 
         // ── Dashboard stats ───────────────────────────────────────────────────
         // Migrated to FamilySplit.Features.Dashboard (vertical slice) — registered

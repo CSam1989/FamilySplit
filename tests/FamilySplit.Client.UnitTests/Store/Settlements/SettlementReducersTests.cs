@@ -91,16 +91,14 @@ public class SettlementReducersTests
     }
 
     [Fact]
-    public void OnGenerateSuccess_SetsSettlements_ClearsGenerating()
+    public void OnGenerateSuccess_ClearsGenerating()
     {
+        // Strict CQRS: 204 + re-query — the success reducer only clears the flag.
         var state = _initial with { IsGenerating = true };
-        var settlements = new List<SettlementSummaryDto>();
-        var action = new GenerateSettlementsSuccessAction(settlements);
 
-        var result = SettlementReducers.OnGenerateSuccess(state, action);
+        var result = SettlementReducers.OnGenerateSuccess(state);
 
         result.IsGenerating.Should().BeFalse();
-        result.Settlements.Should().BeSameAs(settlements);
     }
 
     [Fact]
@@ -171,50 +169,14 @@ public class SettlementReducersTests
     }
 
     [Fact]
-    public void OnConfirmSentSuccess_UpdatesSelectedAndLists()
+    public void OnConfirmSentSuccess_ClearsLoading()
     {
-        var id = Guid.NewGuid();
-        var otherId = Guid.NewGuid();
-        var state = _initial with
-        {
-            IsLoading = true,
-            Settlements = [CreateSummary(id), CreateSummary(otherId)],
-            GroupSettlements = [CreateGroupSummary(id), CreateGroupSummary(otherId)],
-            MyPendingSettlements = [CreateGroupSummary(id)],
-        };
-        var updatedDetail = CreateDetail(id, SettlementStatus.PayerSent);
-        var action = new ConfirmSentSuccessAction(updatedDetail);
+        // Strict CQRS: 204 + re-query (detail / list / group / pending). The reducer only clears the flag.
+        var state = _initial with { IsLoading = true };
 
-        var result = SettlementReducers.OnConfirmSentSuccess(state, action);
+        var result = SettlementReducers.OnConfirmSentSuccess(state);
 
         result.IsLoading.Should().BeFalse();
-        result.SelectedSettlement.Should().BeSameAs(updatedDetail);
-        result.Settlements.Should().HaveCount(2);
-        result.Settlements.First(s => s.Id == id).Status.Should().Be(SettlementStatus.PayerSent);
-        result.Settlements.First(s => s.Id == otherId).Status.Should().Be(SettlementStatus.Proposed);
-        result.GroupSettlements.First(s => s.Id == id).Status.Should().Be(SettlementStatus.PayerSent);
-        result.MyPendingSettlements.First(s => s.Id == id).Status.Should().Be(SettlementStatus.PayerSent);
-    }
-
-    [Fact]
-    public void OnConfirmSentSuccess_NoMatchingId_LeavesListsUnchanged()
-    {
-        var otherId = Guid.NewGuid();
-        var state = _initial with
-        {
-            IsLoading = true,
-            Settlements = [CreateSummary(otherId)],
-            GroupSettlements = [CreateGroupSummary(otherId)],
-            MyPendingSettlements = [CreateGroupSummary(otherId)],
-        };
-        var detail = CreateDetail(Guid.NewGuid(), SettlementStatus.PayerSent);
-        var action = new ConfirmSentSuccessAction(detail);
-
-        var result = SettlementReducers.OnConfirmSentSuccess(state, action);
-
-        result.Settlements.First().Status.Should().Be(SettlementStatus.Proposed);
-        result.GroupSettlements.First().Status.Should().Be(SettlementStatus.Proposed);
-        result.MyPendingSettlements.First().Status.Should().Be(SettlementStatus.Proposed);
     }
 
     [Fact]
@@ -239,52 +201,14 @@ public class SettlementReducersTests
     }
 
     [Fact]
-    public void OnConfirmReceivedSuccess_UpdatesSelectedAndRemovesFromGroupAndPending()
+    public void OnConfirmReceivedSuccess_ClearsLoading()
     {
-        var id = Guid.NewGuid();
-        var otherId = Guid.NewGuid();
-        var state = _initial with
-        {
-            IsLoading = true,
-            Settlements = [CreateSummary(id), CreateSummary(otherId)],
-            GroupSettlements = [CreateGroupSummary(id), CreateGroupSummary(otherId)],
-            MyPendingSettlements = [CreateGroupSummary(id), CreateGroupSummary(otherId)],
-        };
-        var updatedDetail = CreateDetail(id, SettlementStatus.Completed);
-        var action = new ConfirmReceivedSuccessAction(updatedDetail);
+        // Strict CQRS: 204 + re-query (detail / list / activity / group / pending). The reducer only clears the flag.
+        var state = _initial with { IsLoading = true };
 
-        var result = SettlementReducers.OnConfirmReceivedSuccess(state, action);
+        var result = SettlementReducers.OnConfirmReceivedSuccess(state);
 
         result.IsLoading.Should().BeFalse();
-        result.SelectedSettlement.Should().BeSameAs(updatedDetail);
-        result.Settlements.Should().HaveCount(2);
-        result.Settlements.First(s => s.Id == id).Status.Should().Be(SettlementStatus.Completed);
-        result.Settlements.First(s => s.Id == otherId).Status.Should().Be(SettlementStatus.Proposed);
-        result.GroupSettlements.Should().HaveCount(1);
-        result.GroupSettlements.Should().NotContain(s => s.Id == id);
-        result.MyPendingSettlements.Should().HaveCount(1);
-        result.MyPendingSettlements.Should().NotContain(s => s.Id == id);
-    }
-
-    [Fact]
-    public void OnConfirmReceivedSuccess_NoMatchingId_LeavesSettlementsUnchanged()
-    {
-        var otherId = Guid.NewGuid();
-        var state = _initial with
-        {
-            IsLoading = true,
-            Settlements = [CreateSummary(otherId)],
-            GroupSettlements = [CreateGroupSummary(otherId)],
-            MyPendingSettlements = [CreateGroupSummary(otherId)],
-        };
-        var detail = CreateDetail(Guid.NewGuid(), SettlementStatus.Completed);
-        var action = new ConfirmReceivedSuccessAction(detail);
-
-        var result = SettlementReducers.OnConfirmReceivedSuccess(state, action);
-
-        result.Settlements.First().Status.Should().Be(SettlementStatus.Proposed);
-        result.GroupSettlements.Should().HaveCount(1);
-        result.MyPendingSettlements.Should().HaveCount(1);
     }
 
     [Fact]

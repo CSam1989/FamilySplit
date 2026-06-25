@@ -51,9 +51,10 @@ public class SettlementEffects
     {
         try
         {
-            var settlements = await _client.GenerateAsync(action.GroupId, action.ActivityId);
-            dispatcher.Dispatch(new GenerateSettlementsSuccessAction(settlements));
-            // Refresh the activity so its status (possibly now Settled) is up to date.
+            await _client.GenerateAsync(action.GroupId, action.ActivityId);
+            dispatcher.Dispatch(new GenerateSettlementsSuccessAction());
+            // Strict CQRS: re-query the list, and refresh the activity (status may now be Settled).
+            dispatcher.Dispatch(new LoadSettlementsAction(action.GroupId, action.ActivityId));
             dispatcher.Dispatch(new LoadActivityDetailAction(action.GroupId, action.ActivityId));
         }
         catch (Exception ex)
@@ -83,8 +84,13 @@ public class SettlementEffects
     {
         try
         {
-            var settlement = await _client.ConfirmSentAsync(action.GroupId, action.ActivityId, action.SettlementId);
-            dispatcher.Dispatch(new ConfirmSentSuccessAction(settlement));
+            await _client.ConfirmSentAsync(action.GroupId, action.ActivityId, action.SettlementId);
+            dispatcher.Dispatch(new ConfirmSentSuccessAction());
+            // Strict CQRS: re-query the detail (open dialog) and every list the new status affects.
+            dispatcher.Dispatch(new LoadSettlementDetailAction(action.GroupId, action.ActivityId, action.SettlementId));
+            dispatcher.Dispatch(new LoadSettlementsAction(action.GroupId, action.ActivityId));
+            dispatcher.Dispatch(new LoadGroupSettlementsAction(action.GroupId));
+            dispatcher.Dispatch(new LoadMyPendingSettlementsAction());
         }
         catch (Exception ex)
         {
@@ -98,12 +104,13 @@ public class SettlementEffects
     {
         try
         {
-            var settlement = await _client.ConfirmReceivedAsync(action.GroupId, action.ActivityId, action.SettlementId);
-            dispatcher.Dispatch(new ConfirmReceivedSuccessAction(settlement));
-            // Reload settlements list so statuses update; also reload activity (may become Settled).
+            await _client.ConfirmReceivedAsync(action.GroupId, action.ActivityId, action.SettlementId);
+            dispatcher.Dispatch(new ConfirmReceivedSuccessAction());
+            // Strict CQRS: re-query the detail (open dialog), the settlements list, and the activity
+            // (may now be Settled); plus the group-level and dashboard lists.
+            dispatcher.Dispatch(new LoadSettlementDetailAction(action.GroupId, action.ActivityId, action.SettlementId));
             dispatcher.Dispatch(new LoadSettlementsAction(action.GroupId, action.ActivityId));
             dispatcher.Dispatch(new LoadActivityDetailAction(action.GroupId, action.ActivityId));
-            // Refresh group-level and dashboard lists.
             dispatcher.Dispatch(new LoadGroupSettlementsAction(action.GroupId));
             dispatcher.Dispatch(new LoadMyPendingSettlementsAction());
         }

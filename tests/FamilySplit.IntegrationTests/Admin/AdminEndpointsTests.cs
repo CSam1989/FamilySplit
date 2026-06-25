@@ -108,7 +108,7 @@ public sealed class AdminCreateFamilyTests : AdminTestBase
     public AdminCreateFamilyTests(PostgresContainerFixture fixture) : base(fixture) { }
 
     [Fact]
-    public async Task CreateFamily_ValidRequest_Returns201WithFamilyName()
+    public async Task CreateFamily_ValidRequest_Returns201WithIdAndFamilyAppearsInGet()
     {
         // Arrange
         var ct = TestContext.Current.CancellationToken;
@@ -116,7 +116,7 @@ public sealed class AdminCreateFamilyTests : AdminTestBase
 
         var payload = JsonContent.Create(new { name = "Admin Created Family" });
 
-        // Act
+        // Act — strict CQRS: create returns 201 + { id }, the client re-queries
         var response = await Client.PostAsync("/admin/families", payload, ct);
 
         // Assert
@@ -124,8 +124,15 @@ public sealed class AdminCreateFamilyTests : AdminTestBase
 
         var body = await response.Content.ReadAsStringAsync(ct);
         using var doc = JsonDocument.Parse(body);
-        doc.RootElement.GetProperty("name").GetString().Should().Be("Admin Created Family");
-        doc.RootElement.GetProperty("id").GetGuid().Should().NotBeEmpty();
+        var newId = doc.RootElement.GetProperty("id").GetGuid();
+        newId.Should().NotBeEmpty();
+
+        // Follow-up GET shows the created family with its name.
+        var getResponse = await Client.GetAsync($"/admin/families/{newId}", ct);
+        getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var getBody = await getResponse.Content.ReadAsStringAsync(ct);
+        using var getDoc = JsonDocument.Parse(getBody);
+        getDoc.RootElement.GetProperty("name").GetString().Should().Be("Admin Created Family");
     }
 
     [Fact]
@@ -233,13 +240,13 @@ public sealed class AdminAddFamilyMemberTests : AdminTestBase
         var response = await Client.PostAsync(
             $"/admin/families/{CallerFamilyId}/members", payload, ct);
 
-        // Assert
+        // Assert — strict CQRS: 201 + { id }; the member's fields are verified via the follow-up GET
         response.StatusCode.Should().Be(HttpStatusCode.Created);
 
         var body = await response.Content.ReadAsStringAsync(ct);
         using var doc = JsonDocument.Parse(body);
         var newMemberId = doc.RootElement.GetProperty("id").GetGuid();
-        doc.RootElement.GetProperty("displayName").GetString().Should().Be("New Admin Member");
+        newMemberId.Should().NotBeEmpty();
 
         // Verify the member appears in GET /admin/families/{id}
         var getResponse = await Client.GetAsync($"/admin/families/{CallerFamilyId}", ct);
@@ -264,7 +271,7 @@ public sealed class AdminUpdateFamilyMemberTests : AdminTestBase
     public AdminUpdateFamilyMemberTests(PostgresContainerFixture fixture) : base(fixture) { }
 
     [Fact]
-    public async Task UpdateMember_GlobalAdmin_Returns200WithUpdatedFields()
+    public async Task UpdateMember_GlobalAdmin_Returns204AndGetReflectsUpdatedFields()
     {
         // Arrange
         var ct = TestContext.Current.CancellationToken;
@@ -279,18 +286,22 @@ public sealed class AdminUpdateFamilyMemberTests : AdminTestBase
             isAdmin = true
         });
 
-        // Act
+        // Act — strict CQRS: update returns 204, the client re-queries
         var response = await Client.PutAsync(
             $"/admin/families/{CallerFamilyId}/members/{CallerMemberId}", payload, ct);
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
-        var body = await response.Content.ReadAsStringAsync(ct);
-        using var doc = JsonDocument.Parse(body);
-        doc.RootElement.GetProperty("displayName").GetString().Should().Be("Updated By Admin");
-        doc.RootElement.GetProperty("isAdmin").GetBoolean().Should().BeTrue();
-        doc.RootElement.GetProperty("dateOfBirth").GetString().Should().Be("2000-06-15");
+        var getResponse = await Client.GetAsync($"/admin/families/{CallerFamilyId}", ct);
+        getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var getBody = await getResponse.Content.ReadAsStringAsync(ct);
+        using var getDoc = JsonDocument.Parse(getBody);
+        var member = getDoc.RootElement.GetProperty("members").EnumerateArray()
+            .First(m => m.GetProperty("id").GetGuid() == CallerMemberId);
+        member.GetProperty("displayName").GetString().Should().Be("Updated By Admin");
+        member.GetProperty("isAdmin").GetBoolean().Should().BeTrue();
+        member.GetProperty("dateOfBirth").GetString().Should().Be("2000-06-15");
     }
 
     [Fact]
