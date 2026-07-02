@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.DataProtection;
 
-namespace FamilySplit.Api.Auth;
+namespace FamilySplit.Features.Auth.Shared;
 
 /// <summary>
 /// Holds the per-login PKCE state. Lives inside an encrypted, HttpOnly,

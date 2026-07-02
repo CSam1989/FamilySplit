@@ -1,9 +1,9 @@
-using FamilySplit.Api.Auth;
+using FamilySplit.Features.Auth.Shared;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Moq;
 
-namespace FamilySplit.UnitTests.Auth;
+namespace FamilySplit.UnitTests.Features.Auth.Shared;
 
 public class PkceFlowTests
 {

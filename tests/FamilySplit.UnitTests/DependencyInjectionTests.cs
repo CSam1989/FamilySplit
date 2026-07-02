@@ -1,5 +1,4 @@
 using FamilySplit.Application;
-using FamilySplit.Application.Auth;
 using FamilySplit.Common;
 using FamilySplit.Common.Auditing;
 using FamilySplit.Common.Security;
@@ -42,7 +41,8 @@ public class DependencyInjectionTests
         // registration is covered by DashboardEndpointsTests.RegisterServices_RegistersHandlerAsScoped.
         // Notifications migrated to FamilySplit.Features.Notifications (NotificationsModule) — its DI
         // registration is covered by NotificationsEndpointsTests.RegisterServices_RegistersServiceAsScoped.
-        services.Should().Contain(sd => sd.ServiceType == typeof(RefreshTokenService) && sd.Lifetime == ServiceLifetime.Scoped);
+        // Auth migrated to FamilySplit.Features.Auth (AuthModule) — its DI registration
+        // is covered by AuthEndpointsTests.RegisterServices_RegistersRefreshTokenDataAsScoped etc.
     }
 
     [Fact]

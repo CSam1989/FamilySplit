@@ -38,8 +38,9 @@ public static class DependencyInjection
         // Migrated to FamilySplit.Features.Dashboard (vertical slice) — registered
         // via DashboardModule in the API host.
 
-        // ── Auth: refresh token rotation / revocation ─────────────────────────
-        services.AddScoped<Auth.RefreshTokenService>();
+        // ── Auth ──────────────────────────────────────────────────────────────
+        // Migrated to FamilySplit.Features.Auth (vertical slice) — registered
+        // via AuthModule in the API host.
 
         // ── VAPID push / notifications ──────────────────────────────────────────
         // Migrated to FamilySplit.Features.Notifications (vertical slice) — registered

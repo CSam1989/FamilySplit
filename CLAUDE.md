@@ -32,9 +32,9 @@ src/
 > `FamilySplit.Application` service layer to **vertical slices** under `src/Features/`, each split
 > CQRS-style with a **business-logic / data-access seam** (ADR-001). The authoritative tracker is
 > [`docs/vertical-slice-refactor-plan.md`](docs/vertical-slice-refactor-plan.md). Slices already
-> migrated: **Expenses**, **Dashboard**, **Users**, **Groups**, **Activities**, **Settlements**, **Admin**, **Families**, **Notifications**.
-> Sections below that describe `FamilySplit.Application`
-> services still document live code for the **un-migrated** slice (Auth), but **new feature work must
+> migrated: **Expenses**, **Dashboard**, **Users**, **Groups**, **Activities**, **Settlements**, **Admin**, **Families**, **Notifications**, **Auth**.
+> `FamilySplit.Application` now holds no live services — all slices have migrated (deletion of the
+> empty legacy project itself is tracked as Phase 13). **New feature work must
 > follow the slice conventions** in the [Vertical Slice Architecture](#vertical-slice-architecture)
 > section, not the legacy service pattern.
 
@@ -54,7 +54,7 @@ src/
 - A `FamilyMember` always belongs to exactly one `Family` (`FamilyMember.FamilyId` is required, FK with Cascade delete).
 - A `FamilyMember` can exist **without** a `User` (e.g., a child with no account).
 - A `User` can only log in if a `FamilyMember` with a matching email exists.
-- On first login, `OAuthHandler` matches `User.Email` → `FamilyMember.Email` and sets `FamilyMember.UserId`.
+- On first login, `OAuthData` matches `User.Email` → `FamilyMember.Email` and sets `FamilyMember.UserId`.
 - Email is unique on `FamilyMember` (filtered index — only enforced when email is not null).
 - The `User`↔`FamilyMember` relationship is **1:0..1** (one-to-one optional).
 - `FamilyMember.IsAdmin` — whether this member is an admin of their own Family (can add/update/remove siblings).
@@ -75,7 +75,7 @@ INSERT INTO family_members (id, family_id, display_name, email, is_admin, is_act
 VALUES (gen_random_uuid(), '<family-id from above>', 'Your Name', 'you@example.com', true, true, now());
 ```
 
-**Step 2 — Log in with Google.** `OAuthHandler` will match the email, link `FamilyMember.UserId`, and issue a JWT.
+**Step 2 — Log in with Google.** `OAuthData` will match the email, link `FamilyMember.UserId`, and issue a JWT.
 
 **Step 3 — Promote to global admin:**
 ```sql
@@ -121,9 +121,9 @@ Two-token design — a short-lived **access token** (JWT, 15 minutes) in the WAS
 1. Client calls `GET /auth/login/Google?returnUrl=...`
 2. API generates PKCE flow, stores state in an encrypted HttpOnly cookie, redirects to Google.
 3. Google redirects back to `GET /auth/callback/Google?code=...`
-4. `OAuthHandler` exchanges the code, fetches Google userinfo, upserts the `User` row.
+4. `OAuthData` exchanges the code, fetches Google userinfo, upserts the `User` row.
 5. **FamilyMember check:** looks up `FamilyMember` by email. If none found → redirects to `/not-registered`. If found, links `FamilyMember.UserId = user.Id` (first login only).
-6. `RefreshTokenService.IssueAsync` creates a new `refresh_tokens` row (only the SHA-256 hash is stored). The plaintext secret is dropped into the `fs_refresh` cookie (`HttpOnly; Secure; SameSite=Strict; Path=/auth`). The browser is redirected to `/auth/return` on the client.
+6. `RefreshTokenData.IssueAsync` creates a new `refresh_tokens` row (only the SHA-256 hash is stored). The plaintext secret is dropped into the `fs_refresh` cookie (`HttpOnly; Secure; SameSite=Lax; Path=/auth`). The browser is redirected to `/auth/return` on the client.
 7. `AuthReturn.razor` immediately calls `POST /auth/refresh` with `credentials: 'include'`. The endpoint rotates the refresh row (marks the old `revoked_at`, `replaced_by_token_id` → new row id) and returns `{ token, expiresInSeconds }`.
 8. `AuthService` stores the JWT in memory only. `JwtAuthHandler` attaches it as `Authorization: Bearer …` on every authenticated call.
 
@@ -132,7 +132,7 @@ Two-token design — a short-lived **access token** (JWT, 15 minutes) in the WAS
 - When a JWT call returns 401, `JwtAuthHandler` makes one silent refresh and retries the request once. Persistent 401 → user is treated as signed out.
 - `AuthService.GetTokenAsync` proactively refreshes when the cached JWT has <30 seconds of life left.
 
-**Theft detection:** if `/auth/refresh` is presented with a token whose row is already revoked, `RefreshTokenService` invokes `RevokeAllForUserAsync` — every active session for that user is killed immediately.
+**Theft detection:** if `/auth/refresh` is presented with a token whose row is already revoked, `RefreshTokenData` invokes `RevokeAllForUserAsync` — every active session for that user is killed immediately.
 
 **Sign-out:** `POST /auth/logout` revokes the presented refresh row server-side and clears the cookie. `AuthService.ClearTokenInMemory()` drops the in-memory JWT.
 

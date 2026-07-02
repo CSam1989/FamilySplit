@@ -19,6 +19,7 @@ COPY ["src/FamilySplit.Application/FamilySplit.Application.csproj", "src/FamilyS
 COPY ["src/FamilySplit.Infrastructure/FamilySplit.Infrastructure.csproj", "src/FamilySplit.Infrastructure/"]
 COPY ["src/Features/FamilySplit.Features.Activities/FamilySplit.Features.Activities.csproj", "src/Features/FamilySplit.Features.Activities/"]
 COPY ["src/Features/FamilySplit.Features.Admin/FamilySplit.Features.Admin.csproj", "src/Features/FamilySplit.Features.Admin/"]
+COPY ["src/Features/FamilySplit.Features.Auth/FamilySplit.Features.Auth.csproj", "src/Features/FamilySplit.Features.Auth/"]
 COPY ["src/Features/FamilySplit.Features.Dashboard/FamilySplit.Features.Dashboard.csproj", "src/Features/FamilySplit.Features.Dashboard/"]
 COPY ["src/Features/FamilySplit.Features.Expenses/FamilySplit.Features.Expenses.csproj", "src/Features/FamilySplit.Features.Expenses/"]
 COPY ["src/Features/FamilySplit.Features.Families/FamilySplit.Features.Families.csproj", "src/Features/FamilySplit.Features.Families/"]

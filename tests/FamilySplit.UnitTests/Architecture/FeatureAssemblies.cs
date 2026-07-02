@@ -19,5 +19,6 @@ internal static class FeatureAssemblies
         typeof(FamilySplit.Features.Admin.AdminModule).Assembly,
         typeof(FamilySplit.Features.Families.FamiliesModule).Assembly,
         typeof(FamilySplit.Features.Notifications.NotificationsModule).Assembly,
+        typeof(FamilySplit.Features.Auth.AuthModule).Assembly,
     ];
 }

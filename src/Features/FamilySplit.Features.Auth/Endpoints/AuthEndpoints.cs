@@ -1,12 +1,20 @@
-using FamilySplit.Api.Auth;
-using FamilySplit.Application.Auth;
+using FamilySplit.Common.Routing;
 using FamilySplit.Domain.Entities;
 using FamilySplit.Domain.Enums;
+using FamilySplit.Features.Auth.Data;
+using FamilySplit.Features.Auth.Shared;
+using FamilySplit.Infrastructure;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
-namespace FamilySplit.Api.Endpoints;
+namespace FamilySplit.Features.Auth.Endpoints;
 
-public static class AuthEndpoints
+internal static class AuthEndpoints
 {
     private const string StateCookie = "fs_oauth_state";
     private const string RefreshCookie = "fs_refresh";
@@ -17,9 +25,9 @@ public static class AuthEndpoints
     /// </summary>
     private const string AuthCookiePath = "/auth";
 
-    public static IEndpointRouteBuilder MapAuthEndpoints(this IEndpointRouteBuilder app)
+    internal static IEndpointRouteBuilder MapAuthEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/auth").AllowAnonymous().RequireRateLimiting("auth");
+        var group = app.MapGroup("/auth").AllowAnonymous().RequireRateLimiting(RateLimitPolicies.Auth).WithTags("Auth");
 
         // -----------------------------------------------------------------------------
         // GET /auth/login/Google
@@ -91,8 +99,8 @@ public static class AuthEndpoints
             string? error,
             HttpContext http,
             PkceFlow pkce,
-            OAuthHandler handler,
-            RefreshTokenService refreshTokens,
+            OAuthData oauth,
+            RefreshTokenData refreshTokens,
             ILoggerFactory loggerFactory,
             CancellationToken ct) =>
         {
@@ -127,7 +135,7 @@ public static class AuthEndpoints
             User user;
             try
             {
-                user = await handler.HandleGoogleCallbackAsync(code, flow.CodeVerifier, redirectUri, ct);
+                user = await oauth.HandleGoogleCallbackAsync(code, flow.CodeVerifier, redirectUri, ct);
             }
             catch (NotRegisteredException)
             {
@@ -156,9 +164,9 @@ public static class AuthEndpoints
         // -----------------------------------------------------------------------------
         group.MapPost("/refresh", async (
             HttpContext http,
-            RefreshTokenService refreshTokens,
+            RefreshTokenData refreshTokens,
             JwtFactory jwtFactory,
-            FamilySplit.Infrastructure.AppDbContext db,
+            AppDbContext db,
             CancellationToken ct) =>
         {
             var presented = http.Request.Cookies[RefreshCookie];
@@ -176,14 +184,14 @@ public static class AuthEndpoints
 
             // Accept both a full rotation (new cookie) and a within-window reuse (existing cookie kept).
             // ConcurrentRetry and Rejected both return 401; only Rejected also clears the cookie.
-            if (rotateResult is not RefreshTokenService.RotateResult.Success
-                            and not RefreshTokenService.RotateResult.Reused)
+            if (rotateResult is not RefreshTokenData.RotateResult.Success
+                            and not RefreshTokenData.RotateResult.Reused)
             {
                 // ConcurrentRetry: the browser already holds the correct replacement cookie
                 // from the first winning rotation — clearing it here would remove the only
                 // valid cookie the client has, causing an immediate logged-out state.
                 // Only clear the cookie for genuine failures (Rejected).
-                if (rotateResult is RefreshTokenService.RotateResult.Rejected)
+                if (rotateResult is RefreshTokenData.RotateResult.Rejected)
                     ClearRefreshCookie(http);
 
                 return Results.Unauthorized();
@@ -191,8 +199,8 @@ public static class AuthEndpoints
 
             var userId = rotateResult switch
             {
-                RefreshTokenService.RotateResult.Success s => s.UserId,
-                RefreshTokenService.RotateResult.Reused r => r.UserId,
+                RefreshTokenData.RotateResult.Success s => s.UserId,
+                RefreshTokenData.RotateResult.Reused r => r.UserId,
                 _ => throw new InvalidOperationException("Unhandled RotateResult"),
             };
 
@@ -206,7 +214,7 @@ public static class AuthEndpoints
 
             // Only update the cookie when a new token was issued; for Reused the
             // browser already holds the still-active cookie — touching it is unnecessary.
-            if (rotateResult is RefreshTokenService.RotateResult.Success rotated)
+            if (rotateResult is RefreshTokenData.RotateResult.Success rotated)
                 WriteRefreshCookie(http, rotated.Secret, rotated.ExpiresAt);
 
             var jwt = jwtFactory.Create(user);
@@ -224,7 +232,7 @@ public static class AuthEndpoints
         // -----------------------------------------------------------------------------
         group.MapPost("/logout", async (
             HttpContext http,
-            RefreshTokenService refreshTokens,
+            RefreshTokenData refreshTokens,
             CancellationToken ct) =>
         {
             var presented = http.Request.Cookies[RefreshCookie];

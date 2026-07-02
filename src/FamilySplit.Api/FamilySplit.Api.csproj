@@ -8,13 +8,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
     <PackageReference Include="Scalar.AspNetCore" />
     <PackageReference Include="Serilog.AspNetCore" />
   </ItemGroup>
@@ -25,6 +23,7 @@
     <ProjectReference Include="..\FamilySplit.Infrastructure\FamilySplit.Infrastructure.csproj" />
     <ProjectReference Include="..\Features\FamilySplit.Features.Activities\FamilySplit.Features.Activities.csproj" />
     <ProjectReference Include="..\Features\FamilySplit.Features.Admin\FamilySplit.Features.Admin.csproj" />
+    <ProjectReference Include="..\Features\FamilySplit.Features.Auth\FamilySplit.Features.Auth.csproj" />
     <ProjectReference Include="..\Features\FamilySplit.Features.Dashboard\FamilySplit.Features.Dashboard.csproj" />
     <ProjectReference Include="..\Features\FamilySplit.Features.Expenses\FamilySplit.Features.Expenses.csproj" />
     <ProjectReference Include="..\Features\FamilySplit.Features.Families\FamilySplit.Features.Families.csproj" />
