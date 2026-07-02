@@ -35,6 +35,7 @@
     <ProjectReference Include="..\..\src\Features\FamilySplit.Features.Expenses\FamilySplit.Features.Expenses.csproj" />
     <ProjectReference Include="..\..\src\Features\FamilySplit.Features.Families\FamilySplit.Features.Families.csproj" />
     <ProjectReference Include="..\..\src\Features\FamilySplit.Features.Groups\FamilySplit.Features.Groups.csproj" />
+    <ProjectReference Include="..\..\src\Features\FamilySplit.Features.Notifications\FamilySplit.Features.Notifications.csproj" />
     <ProjectReference Include="..\..\src\Features\FamilySplit.Features.Settlements\FamilySplit.Features.Settlements.csproj" />
     <ProjectReference Include="..\..\src\Features\FamilySplit.Features.Users\FamilySplit.Features.Users.csproj" />
   </ItemGroup>

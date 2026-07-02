@@ -1,10 +1,10 @@
-using FamilySplit.Api.Hubs;
+using FamilySplit.Features.Notifications.Shared;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
-namespace FamilySplit.UnitTests.Hubs;
+namespace FamilySplit.UnitTests.Features.Notifications.Shared;
 
 public class SignalRNotificationServiceTests
 {
@@ -12,13 +12,12 @@ public class SignalRNotificationServiceTests
     private readonly Mock<IHubClients> _clientsMock = new();
     private readonly Mock<IClientProxy> _clientProxyMock = new();
     private readonly Mock<IServiceScopeFactory> _scopeFactoryMock = new();
-    private readonly Mock<ILogger<SignalRNotificationService>> _loggerMock = new();
     private readonly SignalRNotificationService _sut;
 
     public SignalRNotificationServiceTests()
     {
         // VAPID push now runs on a fresh DI scope. These tests cover SignalR delivery;
-        // the scope resolves no PushNotificationService, so the background push throws
+        // the scope resolves no VapidPushSender, so the background push throws
         // and is swallowed by DeliverPushAsync — harmless and out of scope here.
         var scopeMock = new Mock<IServiceScope>();
         var spMock = new Mock<IServiceProvider>();
@@ -31,14 +30,15 @@ public class SignalRNotificationServiceTests
             .Setup(p => p.SendCoreAsync(It.IsAny<string>(), It.IsAny<object?[]>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        _sut = new SignalRNotificationService(_hubMock.Object, _scopeFactoryMock.Object, _loggerMock.Object);
+        _sut = new SignalRNotificationService(
+            _hubMock.Object, _scopeFactoryMock.Object, NullLogger<SignalRNotificationService>.Instance);
     }
 
     [Fact]
     public void Constructor_StoresDependencies()
     {
         var service = new SignalRNotificationService(
-            _hubMock.Object, _scopeFactoryMock.Object, _loggerMock.Object);
+            _hubMock.Object, _scopeFactoryMock.Object, NullLogger<SignalRNotificationService>.Instance);
 
         Assert.NotNull(service);
     }
