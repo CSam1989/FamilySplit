@@ -5,8 +5,10 @@ using FamilySplit.Domain.Entities;
 using FamilySplit.Domain.Enums;
 using FamilySplit.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
-namespace FamilySplit.Api.Auth;
+namespace FamilySplit.Features.Auth.Data;
 
 /// <summary>
 /// Exchanges a Google OAuth authorization code (with PKCE verifier) for an access token,
@@ -17,19 +19,21 @@ namespace FamilySplit.Api.Auth;
 ///   <item>Links them (sets FamilyMember.UserId) on first login.</item>
 ///   <item>Throws <see cref="NotRegisteredException"/> if no matching FamilyMember exists.</item>
 /// </list>
+/// Named "*Data" (not "*Handler") so it satisfies architecture Rule 5 — it mixes an
+/// external HTTP call with a DB upsert, but the DB upsert is what makes it data access.
 /// </summary>
-public class OAuthHandler
+internal sealed class OAuthData
 {
     private readonly AppDbContext _db;
     private readonly IConfiguration _config;
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly ILogger<OAuthHandler> _logger;
+    private readonly ILogger<OAuthData> _logger;
 
-    public OAuthHandler(
+    public OAuthData(
         AppDbContext db,
         IConfiguration config,
         IHttpClientFactory httpClientFactory,
-        ILogger<OAuthHandler> logger)
+        ILogger<OAuthData> logger)
     {
         _db = db;
         _config = config;

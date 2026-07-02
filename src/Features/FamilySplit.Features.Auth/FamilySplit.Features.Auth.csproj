@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>FamilySplit.Features.Auth</RootNamespace>
+    <AssemblyName>FamilySplit.Features.Auth</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- IEndpointRouteBuilder, IServiceCollection extensions, HttpContext etc. live in
+         the shared framework — class libraries must opt in explicitly. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <!-- Auth is a token-exchange protocol, not domain CQRS (no FluentValidation, no
+       I{Slice}Data). RefreshTokenData/OAuthData are *Data-suffixed data-access
+       gateways (Rule 5) consumed directly by the endpoint lambdas. -->
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\FamilySplit.Common\FamilySplit.Common.csproj" />
+    <ProjectReference Include="..\..\FamilySplit.Domain\FamilySplit.Domain.csproj" />
+    <ProjectReference Include="..\..\FamilySplit.Infrastructure\FamilySplit.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="FamilySplit.UnitTests" />
+    <InternalsVisibleTo Include="FamilySplit.IntegrationTests" />
+    <Using Include="FamilySplit.Common.Security" /> <!-- GetUserId() without per-file usings -->
+  </ItemGroup>
+
+</Project>

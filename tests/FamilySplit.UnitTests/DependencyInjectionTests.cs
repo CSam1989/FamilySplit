@@ -1,5 +1,4 @@
 using FamilySplit.Application;
-using FamilySplit.Application.Auth;
 using FamilySplit.Application.Push;
 using FamilySplit.Common;
 using FamilySplit.Common.Auditing;
@@ -41,7 +40,8 @@ public class DependencyInjectionTests
         // registration is covered by SettlementsEndpointsTests.RegisterServices_RegistersAllHandlersAsScoped.
         // Dashboard migrated to FamilySplit.Features.Dashboard (DashboardModule) — its DI
         // registration is covered by DashboardEndpointsTests.RegisterServices_RegistersHandlerAsScoped.
-        services.Should().Contain(sd => sd.ServiceType == typeof(RefreshTokenService) && sd.Lifetime == ServiceLifetime.Scoped);
+        // Auth migrated to FamilySplit.Features.Auth (AuthModule) — its DI registration
+        // is covered by AuthEndpointsTests.RegisterServices_RegistersRefreshTokenDataAsScoped etc.
         services.Should().Contain(sd => sd.ServiceType == typeof(PushNotificationService) && sd.Lifetime == ServiceLifetime.Scoped);
     }
 

@@ -2,13 +2,14 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using FamilySplit.Domain.Entities;
+using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 
-namespace FamilySplit.Api.Auth;
+namespace FamilySplit.Features.Auth.Shared;
 
 /// <summary>
 /// Issues short-lived signed JWTs. Long-lived session persistence is handled
-/// separately by <see cref="FamilySplit.Application.Auth.RefreshTokenService"/>
+/// separately by <see cref="FamilySplit.Features.Auth.Data.RefreshTokenData"/>
 /// — the JWT itself never lives longer than <c>Jwt:LifetimeMinutes</c>
 /// (default 15 minutes).
 /// </summary>

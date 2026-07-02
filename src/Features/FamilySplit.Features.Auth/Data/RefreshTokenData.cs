@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
-namespace FamilySplit.Application.Auth;
+namespace FamilySplit.Features.Auth.Data;
 
 /// <summary>
 /// Issues, rotates, and revokes long-lived refresh tokens. The secret value is
@@ -24,19 +24,27 @@ namespace FamilySplit.Application.Auth;
 /// returned so the caller can issue a fresh JWT without updating the cookie.  Full
 /// rotation still happens once per reuse window, limiting table growth to roughly
 /// <c>24 / (ReuseWindowMinutes / 60)</c> rows per user per day.
+///
+/// Named "*Data" (not the legacy "*Service") because it genuinely is pure data
+/// access — token issue/rotate/revoke against the refresh_tokens table — so it
+/// satisfies architecture Rule 5 (only *QueryHandler/*Data/*Seeder/*Guard may take
+/// AppDbContext). The read-decide-write interleaving inside RotateAsync is
+/// intentionally left exactly as it was pre-migration (see ADR-001 callout in the
+/// vertical-slice refactor plan) — this is genuinely data access, not business
+/// logic that belongs behind I{Slice}Data.
 /// </summary>
-public class RefreshTokenService
+internal sealed class RefreshTokenData
 {
     private const int SecretByteLength = 32; // 256 bits
 
     private readonly AppDbContext _db;
     private readonly IConfiguration _config;
-    private readonly ILogger<RefreshTokenService> _logger;
+    private readonly ILogger<RefreshTokenData> _logger;
 
-    public RefreshTokenService(
+    public RefreshTokenData(
         AppDbContext db,
         IConfiguration config,
-        ILogger<RefreshTokenService> logger)
+        ILogger<RefreshTokenData> logger)
     {
         _db = db;
         _config = config;
@@ -298,7 +306,7 @@ public class RefreshTokenService
     private static byte[] Sha256(string value)
     {
         Span<byte> hash = stackalloc byte[32];
-        SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(value), hash);
+        System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(value), hash);
         return hash.ToArray();
     }
 

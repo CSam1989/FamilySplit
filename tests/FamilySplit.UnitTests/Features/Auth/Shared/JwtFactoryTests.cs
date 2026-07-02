@@ -1,11 +1,11 @@
 using System.IdentityModel.Tokens.Jwt;
-using FamilySplit.Api.Auth;
 using FamilySplit.Domain.Entities;
 using FamilySplit.Domain.Enums;
+using FamilySplit.Features.Auth.Shared;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 
-namespace FamilySplit.UnitTests.Auth;
+namespace FamilySplit.UnitTests.Features.Auth.Shared;
 
 public class JwtFactoryTests
 {
