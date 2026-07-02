@@ -12,6 +12,7 @@
     <Project Path="src/Features/FamilySplit.Features.Admin/FamilySplit.Features.Admin.csproj" />
     <Project Path="src/Features/FamilySplit.Features.Dashboard/FamilySplit.Features.Dashboard.csproj" />
     <Project Path="src/Features/FamilySplit.Features.Expenses/FamilySplit.Features.Expenses.csproj" />
+    <Project Path="src/Features/FamilySplit.Features.Families/FamilySplit.Features.Families.csproj" />
     <Project Path="src/Features/FamilySplit.Features.Groups/FamilySplit.Features.Groups.csproj" />
     <Project Path="src/Features/FamilySplit.Features.Settlements/FamilySplit.Features.Settlements.csproj" />
     <Project Path="src/Features/FamilySplit.Features.Users/FamilySplit.Features.Users.csproj" />

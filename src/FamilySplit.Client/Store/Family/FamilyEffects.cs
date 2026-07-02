@@ -35,8 +35,9 @@ public class FamilyEffects
     {
         try
         {
-            var family = await _client.UpdateFamilyNameAsync(action.Request);
-            dispatcher.Dispatch(new UpdateFamilyNameSuccessAction(family));
+            await _client.UpdateFamilyNameAsync(action.Request);
+            dispatcher.Dispatch(new UpdateFamilyNameSuccessAction());
+            dispatcher.Dispatch(new LoadMyFamilyAction());
         }
         catch (Exception ex)
         {
@@ -50,8 +51,8 @@ public class FamilyEffects
     {
         try
         {
-            var member = await _client.AddMemberAsync(action.Request);
-            dispatcher.Dispatch(new AddFamilyMemberSuccessAction(member));
+            await _client.AddMemberAsync(action.Request);
+            dispatcher.Dispatch(new AddFamilyMemberSuccessAction());
             // Reload the full family to reflect the new member.
             dispatcher.Dispatch(new LoadMyFamilyAction());
         }
@@ -67,8 +68,9 @@ public class FamilyEffects
     {
         try
         {
-            var member = await _client.UpdateMemberAsync(action.MemberId, action.Request);
-            dispatcher.Dispatch(new UpdateFamilyMemberSuccessAction(member));
+            await _client.UpdateMemberAsync(action.MemberId, action.Request);
+            dispatcher.Dispatch(new UpdateFamilyMemberSuccessAction());
+            dispatcher.Dispatch(new LoadMyFamilyAction());
         }
         catch (Exception ex)
         {
@@ -83,7 +85,8 @@ public class FamilyEffects
         try
         {
             await _client.RemoveMemberAsync(action.MemberId);
-            dispatcher.Dispatch(new RemoveFamilyMemberSuccessAction(action.MemberId));
+            dispatcher.Dispatch(new RemoveFamilyMemberSuccessAction());
+            dispatcher.Dispatch(new LoadMyFamilyAction());
         }
         catch (Exception ex)
         {

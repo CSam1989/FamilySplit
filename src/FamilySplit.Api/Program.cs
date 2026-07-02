@@ -14,6 +14,7 @@ using FamilySplit.Features.Activities;
 using FamilySplit.Features.Admin;
 using FamilySplit.Features.Dashboard;
 using FamilySplit.Features.Expenses;
+using FamilySplit.Features.Families;
 using FamilySplit.Features.Groups;
 using FamilySplit.Features.Settlements;
 using FamilySplit.Features.Users;
@@ -165,7 +166,7 @@ builder.Services.AddFamilySplitApplication();
 builder.Services.AddFamilySplitInfrastructure(builder.Configuration, builder.Environment);
 
 // Feature modules (populated slice by slice).
-IFeatureModule[] modules = [ new ExpensesModule(), new DashboardModule(), new UsersModule(), new GroupsModule(), new ActivitiesModule(), new SettlementsModule(), new AdminModule() ];
+IFeatureModule[] modules = [ new ExpensesModule(), new DashboardModule(), new UsersModule(), new GroupsModule(), new ActivitiesModule(), new SettlementsModule(), new AdminModule(), new FamiliesModule() ];
 foreach (var m in modules) m.RegisterServices(builder.Services, builder.Configuration);
 
 // --- Auth: JwtBearer + OAuth handler placeholders ---------------------------------
@@ -325,9 +326,8 @@ foreach (var m in modules) m.MapEndpoints(app);
 // --- Endpoint groups --------------------------------------------------------------
 app.MapAuthEndpoints();
 // Users: GET /whoami — migrated to UsersModule (vertical slice)
-app.MapFamilyMemberEndpoints();   // GET /users/me/profile
 // Admin: /admin — global-admin family + member CRUD + group management — migrated to AdminModule (vertical slice)
-app.MapFamilyEndpoints();         // /families/mine — own-family management
+// Families: /families/mine + GET /users/me/profile — migrated to FamiliesModule (vertical slice)
 // Groups: /groups — CRUD + join + invite-code + leave — migrated to GroupsModule (vertical slice)
 // Activities: /groups/{groupId}/activities — CRUD + participants + close — migrated to ActivitiesModule (vertical slice)
 // Expenses: /groups/{groupId}/activities/{activityId}/expenses — migrated to ExpensesModule (vertical slice)

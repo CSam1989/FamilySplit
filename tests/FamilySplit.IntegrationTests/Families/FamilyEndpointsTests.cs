@@ -58,12 +58,53 @@ public sealed class GetMyFamilyTests : IntegrationTestBase
 
 [Trait("Category", "Integration")]
 [Collection(nameof(IntegrationCollection))]
+public sealed class GetMyProfileTests : IntegrationTestBase
+{
+    public GetMyProfileTests(PostgresContainerFixture fixture) : base(fixture) { }
+
+    [Fact]
+    public async Task GetMyProfile_ReturnsOk_WithCallersOwnProfile()
+    {
+        // Act
+        var ct = TestContext.Current.CancellationToken;
+        var response = await Client.GetAsync("/users/me/profile", ct);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var body = await response.Content.ReadAsStringAsync(ct);
+        using var doc = JsonDocument.Parse(body);
+        doc.RootElement.GetProperty("id").GetGuid().Should().Be(CallerMemberId);
+        doc.RootElement.GetProperty("displayName").GetString().Should().Be("Integration Test User");
+        doc.RootElement.GetProperty("isAdmin").GetBoolean().Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GetMyProfile_Unauthenticated_Returns401()
+    {
+        // Arrange
+        using var anonClient = Factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            HandleCookies = false,
+        });
+
+        // Act
+        var response = await anonClient.GetAsync("/users/me/profile", TestContext.Current.CancellationToken);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+}
+
+[Trait("Category", "Integration")]
+[Collection(nameof(IntegrationCollection))]
 public sealed class UpdateFamilyNameTests : IntegrationTestBase
 {
     public UpdateFamilyNameTests(PostgresContainerFixture fixture) : base(fixture) { }
 
     [Fact]
-    public async Task UpdateFamilyName_AdminCaller_Returns200WithNewName()
+    public async Task UpdateFamilyName_AdminCaller_Returns204AndPersistsNewName()
     {
         // Arrange
         var ct = TestContext.Current.CancellationToken;
@@ -73,9 +114,11 @@ public sealed class UpdateFamilyNameTests : IntegrationTestBase
         var response = await Client.PutAsync("/families/mine", payload, ct);
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
-        var body = await response.Content.ReadAsStringAsync(ct);
+        var getResponse = await Client.GetAsync("/families/mine", ct);
+        getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await getResponse.Content.ReadAsStringAsync(ct);
         using var doc = JsonDocument.Parse(body);
         doc.RootElement.GetProperty("name").GetString().Should().Be("Renamed Family");
     }
@@ -179,7 +222,7 @@ public sealed class AddFamilyMemberTests : IntegrationTestBase
     public AddFamilyMemberTests(PostgresContainerFixture fixture) : base(fixture) { }
 
     [Fact]
-    public async Task AddMember_AdminCaller_Returns201WithNewMember()
+    public async Task AddMember_AdminCaller_Returns201WithIdAndPersistsMember()
     {
         // Arrange
         var ct = TestContext.Current.CancellationToken;
@@ -197,12 +240,22 @@ public sealed class AddFamilyMemberTests : IntegrationTestBase
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Created);
+        response.Headers.Location.Should().NotBeNull();
 
         var body = await response.Content.ReadAsStringAsync(ct);
         using var doc = JsonDocument.Parse(body);
-        doc.RootElement.GetProperty("displayName").GetString().Should().Be("New Child");
-        doc.RootElement.GetProperty("isAdmin").GetBoolean().Should().BeFalse();
-        doc.RootElement.GetProperty("isActive").GetBoolean().Should().BeTrue();
+        var newMemberId = doc.RootElement.GetProperty("id").GetGuid();
+
+        var getResponse = await Client.GetAsync("/families/mine", ct);
+        getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var getBody = await getResponse.Content.ReadAsStringAsync(ct);
+        using var getDoc = JsonDocument.Parse(getBody);
+        var newMember = getDoc.RootElement.GetProperty("members")
+            .EnumerateArray()
+            .First(m => m.GetProperty("id").GetGuid() == newMemberId);
+        newMember.GetProperty("displayName").GetString().Should().Be("New Child");
+        newMember.GetProperty("isAdmin").GetBoolean().Should().BeFalse();
+        newMember.GetProperty("isActive").GetBoolean().Should().BeTrue();
     }
 
     [Fact]
@@ -318,7 +371,7 @@ public sealed class UpdateFamilyMemberTests : IntegrationTestBase
     public UpdateFamilyMemberTests(PostgresContainerFixture fixture) : base(fixture) { }
 
     [Fact]
-    public async Task UpdateMember_AdminUpdatesAnyMember_Returns200()
+    public async Task UpdateMember_AdminUpdatesAnyMember_Returns204AndPersistsChange()
     {
         // Arrange — seed a second (non-admin) member to update
         var ct = TestContext.Current.CancellationToken;
@@ -337,15 +390,19 @@ public sealed class UpdateFamilyMemberTests : IntegrationTestBase
         var response = await Client.PutAsync($"/families/mine/members/{targetMemberId}", payload, ct);
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
-        var body = await response.Content.ReadAsStringAsync(ct);
-        using var doc = JsonDocument.Parse(body);
-        doc.RootElement.GetProperty("displayName").GetString().Should().Be("Updated Name");
+        var getResponse = await Client.GetAsync("/families/mine", ct);
+        var getBody = await getResponse.Content.ReadAsStringAsync(ct);
+        using var getDoc = JsonDocument.Parse(getBody);
+        var updated = getDoc.RootElement.GetProperty("members")
+            .EnumerateArray()
+            .First(m => m.GetProperty("id").GetGuid() == targetMemberId);
+        updated.GetProperty("displayName").GetString().Should().Be("Updated Name");
     }
 
     [Fact]
-    public async Task UpdateMember_NonAdminUpdatesSelf_Returns200()
+    public async Task UpdateMember_NonAdminUpdatesSelf_Returns204AndPersistsChange()
     {
         // Arrange — seed a non-admin user/member and let them update themselves
         var ct = TestContext.Current.CancellationToken;
@@ -378,11 +435,13 @@ public sealed class UpdateFamilyMemberTests : IntegrationTestBase
         var response = await nonAdminClient.PutAsync($"/families/mine/members/{nonAdminMemberId}", payload, ct);
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
-        var body = await response.Content.ReadAsStringAsync(ct);
-        using var doc = JsonDocument.Parse(body);
-        doc.RootElement.GetProperty("displayName").GetString().Should().Be("Self Updated");
+        var getResponse = await nonAdminClient.GetAsync("/users/me/profile", ct);
+        getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var getBody = await getResponse.Content.ReadAsStringAsync(ct);
+        using var getDoc = JsonDocument.Parse(getBody);
+        getDoc.RootElement.GetProperty("displayName").GetString().Should().Be("Self Updated");
     }
 
     [Fact]

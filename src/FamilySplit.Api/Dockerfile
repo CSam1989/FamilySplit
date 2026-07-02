@@ -21,6 +21,7 @@ COPY ["src/Features/FamilySplit.Features.Activities/FamilySplit.Features.Activit
 COPY ["src/Features/FamilySplit.Features.Admin/FamilySplit.Features.Admin.csproj", "src/Features/FamilySplit.Features.Admin/"]
 COPY ["src/Features/FamilySplit.Features.Dashboard/FamilySplit.Features.Dashboard.csproj", "src/Features/FamilySplit.Features.Dashboard/"]
 COPY ["src/Features/FamilySplit.Features.Expenses/FamilySplit.Features.Expenses.csproj", "src/Features/FamilySplit.Features.Expenses/"]
+COPY ["src/Features/FamilySplit.Features.Families/FamilySplit.Features.Families.csproj", "src/Features/FamilySplit.Features.Families/"]
 COPY ["src/Features/FamilySplit.Features.Groups/FamilySplit.Features.Groups.csproj", "src/Features/FamilySplit.Features.Groups/"]
 COPY ["src/Features/FamilySplit.Features.Settlements/FamilySplit.Features.Settlements.csproj", "src/Features/FamilySplit.Features.Settlements/"]
 COPY ["src/Features/FamilySplit.Features.Users/FamilySplit.Features.Users.csproj", "src/Features/FamilySplit.Features.Users/"]

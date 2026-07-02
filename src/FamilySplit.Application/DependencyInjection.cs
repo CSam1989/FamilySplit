@@ -15,7 +15,8 @@ public static class DependencyInjection
         // via AdminModule in the API host.
 
         // ── Own-family management (family admin) ──────────────────────────────
-        services.AddScoped<Families.FamilyService>();
+        // Migrated to FamilySplit.Features.Families (vertical slice) — registered
+        // via FamiliesModule in the API host.
 
         // ── Group operations ──────────────────────────────────────────────────
         // Migrated to FamilySplit.Features.Groups (vertical slice) — registered

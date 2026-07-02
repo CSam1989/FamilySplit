@@ -32,9 +32,9 @@ src/
 > `FamilySplit.Application` service layer to **vertical slices** under `src/Features/`, each split
 > CQRS-style with a **business-logic / data-access seam** (ADR-001). The authoritative tracker is
 > [`docs/vertical-slice-refactor-plan.md`](docs/vertical-slice-refactor-plan.md). Slices already
-> migrated: **Expenses**, **Dashboard**, **Users**, **Groups**, **Activities**, **Settlements**, **Admin**.
+> migrated: **Expenses**, **Dashboard**, **Users**, **Groups**, **Activities**, **Settlements**, **Admin**, **Families**.
 > Sections below that describe `FamilySplit.Application`
-> services still document live code for the **un-migrated** slices (Families, Push, Auth), but **new feature work must
+> services still document live code for the **un-migrated** slices (Push, Auth), but **new feature work must
 > follow the slice conventions** in the [Vertical Slice Architecture](#vertical-slice-architecture)
 > section, not the legacy service pattern.
 
