@@ -1,9 +1,9 @@
 using FamilySplit.Common.Notifications;
-using FamilySplit.Application.Push;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
-namespace FamilySplit.Api.Hubs;
+namespace FamilySplit.Features.Notifications.Shared;
 
 /// <summary>
 /// Composite INotificationService that delivers via two channels:
@@ -19,6 +19,9 @@ namespace FamilySplit.Api.Hubs;
 ///
 /// Both channels fire for every event. There is no server-side coordination needed
 /// because suppression is handled on the client/service-worker side.
+///
+/// Implements the <see cref="INotificationService"/> contract that lives in Common (unchanged) so
+/// Settlements can notify without depending on this slice.
 /// </summary>
 public class SignalRNotificationService : INotificationService
 {
@@ -75,7 +78,7 @@ public class SignalRNotificationService : INotificationService
         try
         {
             using var scope = _scopeFactory.CreateScope();
-            var vapid = scope.ServiceProvider.GetRequiredService<PushNotificationService>();
+            var vapid = scope.ServiceProvider.GetRequiredService<VapidPushSender>();
             await vapid.SendToFamilyAsync(targetFamilyId, title, message, url, CancellationToken.None);
         }
         catch (Exception ex)

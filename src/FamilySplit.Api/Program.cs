@@ -4,18 +4,17 @@ using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using FamilySplit.Api.Auth;
 using FamilySplit.Api.Endpoints;
-using FamilySplit.Api.Hubs;
 using FamilySplit.Api.Middleware;
 using FamilySplit.Application;
 using FamilySplit.Common;
 using FamilySplit.Common.Modules;
-using FamilySplit.Common.Notifications;
 using FamilySplit.Features.Activities;
 using FamilySplit.Features.Admin;
 using FamilySplit.Features.Dashboard;
 using FamilySplit.Features.Expenses;
 using FamilySplit.Features.Families;
 using FamilySplit.Features.Groups;
+using FamilySplit.Features.Notifications;
 using FamilySplit.Features.Settlements;
 using FamilySplit.Features.Users;
 using FamilySplit.Infrastructure;
@@ -166,7 +165,7 @@ builder.Services.AddFamilySplitApplication();
 builder.Services.AddFamilySplitInfrastructure(builder.Configuration, builder.Environment);
 
 // Feature modules (populated slice by slice).
-IFeatureModule[] modules = [ new ExpensesModule(), new DashboardModule(), new UsersModule(), new GroupsModule(), new ActivitiesModule(), new SettlementsModule(), new AdminModule(), new FamiliesModule() ];
+IFeatureModule[] modules = [ new ExpensesModule(), new DashboardModule(), new UsersModule(), new GroupsModule(), new ActivitiesModule(), new SettlementsModule(), new AdminModule(), new FamiliesModule(), new NotificationsModule() ];
 foreach (var m in modules) m.RegisterServices(builder.Services, builder.Configuration);
 
 // --- Auth: JwtBearer + OAuth handler placeholders ---------------------------------
@@ -235,13 +234,6 @@ builder.Services.AddAuthorization(options =>
         .RequireAuthenticatedUser()
         .Build();
 });
-
-// --- SignalR -----------------------------------------------------------------------
-// AddSignalR is part of the ASP.NET Core shared framework — no extra NuGet needed.
-// SignalRNotificationService is scoped and registered as INotificationService so
-// SettlementService can call it without a direct dependency on SignalR.
-builder.Services.AddSignalR();
-builder.Services.AddScoped<INotificationService, SignalRNotificationService>();
 
 // JwtFactory issues JWTs after OAuth callback. OAuthHandler exchanges codes
 // against Google and upserts the User row.
@@ -333,12 +325,7 @@ app.MapAuthEndpoints();
 // Expenses: /groups/{groupId}/activities/{activityId}/expenses — migrated to ExpensesModule (vertical slice)
 // Settlements: /groups/{groupId}/activities/{activityId}/settlements (+ balances, group/pending lists) — migrated to SettlementsModule (vertical slice)
 // Dashboard: /dashboard/stats — migrated to DashboardModule (vertical slice)
-app.MapPushEndpoints();           // /push — VAPID subscription management
-
-// SignalR hub — Blazor WASM passes JWT as ?access_token query param because
-// WebSocket upgrade requests cannot carry Authorization headers.
-app.MapHub<NotificationHub>("/hubs/notifications");
-
+// Notifications: /push (+ the /hubs/notifications SignalR hub) — migrated to NotificationsModule (vertical slice)
 
 // --- OpenAPI + Scalar UI (dev only) ----------------------------------------------
 if (app.Environment.IsDevelopment())

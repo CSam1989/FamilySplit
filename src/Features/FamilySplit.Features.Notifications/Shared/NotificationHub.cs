@@ -1,9 +1,9 @@
-using FamilySplit.Infrastructure;
+using FamilySplit.Features.Notifications.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
-namespace FamilySplit.Api.Hubs;
+namespace FamilySplit.Features.Notifications.Shared;
 
 /// <summary>
 /// SignalR hub for real-time settlement notifications.
@@ -12,16 +12,20 @@ namespace FamilySplit.Api.Hubs;
 /// On connect the hub resolves the caller's familyId from their JWT sub claim
 /// and joins them to that group automatically. All members of the same family
 /// receive the same real-time events regardless of which device they're on.
+///
+/// Depends on <see cref="IPushSubscriptionData"/> rather than <c>AppDbContext</c> directly
+/// (ADR-001/Rule 5 — "Hub" is not a sanctioned AppDbContext-injecting suffix), which also keeps
+/// the connect-resolution logic mockable/testable without a database.
 /// </summary>
 [Authorize]
 public class NotificationHub : Hub
 {
-    private readonly AppDbContext _db;
+    private readonly IPushSubscriptionData _data;
     private readonly ILogger<NotificationHub> _logger;
 
-    public NotificationHub(AppDbContext db, ILogger<NotificationHub> logger)
+    public NotificationHub(IPushSubscriptionData data, ILogger<NotificationHub> logger)
     {
-        _db = db;
+        _data = data;
         _logger = logger;
     }
 
@@ -34,10 +38,7 @@ public class NotificationHub : Hub
             return;
         }
 
-        var familyId = await _db.FamilyMembers
-            .Where(m => m.UserId == userId && m.IsActive)
-            .Select(m => (Guid?)m.FamilyId)
-            .FirstOrDefaultAsync();
+        var familyId = await _data.GetActiveFamilyIdForUserAsync(userId.Value, Context.ConnectionAborted);
 
         if (familyId is not null)
         {

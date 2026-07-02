@@ -1,35 +1,25 @@
 using System.Security.Claims;
-using FamilySplit.Api.Hubs;
-using FamilySplit.Domain.Entities;
-using FamilySplit.Infrastructure;
-using FluentAssertions;
+using FamilySplit.Features.Notifications.Data;
+using FamilySplit.Features.Notifications.Shared;
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
-namespace FamilySplit.UnitTests.Hubs;
+namespace FamilySplit.UnitTests.Features.Notifications.Shared;
 
-public class NotificationHubTests : IDisposable
+/// <summary>
+/// The hub now depends on <see cref="IPushSubscriptionData"/> instead of <c>AppDbContext</c>
+/// directly (ADR-001/Rule 5 — "Hub" is not a sanctioned AppDbContext-injecting suffix), which also
+/// makes the connect-resolution logic mockable without a database.
+/// </summary>
+public class NotificationHubTests
 {
-    private readonly AppDbContext _db;
-    private readonly Mock<ILogger<NotificationHub>> _logger = new();
+    private readonly Mock<IPushSubscriptionData> _data = new();
     private readonly Mock<IHubCallerClients> _clients = new();
     private readonly Mock<HubCallerContext> _context = new();
     private readonly Mock<IGroupManager> _groups = new();
 
-    public NotificationHubTests()
-    {
-        var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options;
-        _db = new AppDbContext(options);
-    }
-
-    public void Dispose()
-    {
-        _db.Dispose();
-    }
+    private static CancellationToken CT => TestContext.Current.CancellationToken;
 
     private NotificationHub CreateHub(Guid? userId = null)
     {
@@ -43,8 +33,9 @@ public class NotificationHubTests : IDisposable
 
         _context.Setup(c => c.User).Returns(user!);
         _context.Setup(c => c.ConnectionId).Returns("conn-1");
+        _context.Setup(c => c.ConnectionAborted).Returns(CT);
 
-        var hub = new NotificationHub(_db, _logger.Object)
+        var hub = new NotificationHub(_data.Object, NullLogger<NotificationHub>.Instance)
         {
             Clients = _clients.Object,
             Context = _context.Object,
@@ -78,13 +69,17 @@ public class NotificationHubTests : IDisposable
         _groups.Verify(
             g => g.AddToGroupAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
             Times.Never);
+        _data.Verify(d => d.GetActiveFamilyIdForUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
     public async Task OnConnectedAsync_UserWithNoFamilyMember_DoesNotAddToGroup()
     {
-        var hub = CreateHub(Guid.NewGuid());
+        var userId = Guid.NewGuid();
+        _data.Setup(d => d.GetActiveFamilyIdForUserAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Guid?)null);
 
+        var hub = CreateHub(userId);
         await hub.OnConnectedAsync();
 
         _groups.Verify(
@@ -97,15 +92,8 @@ public class NotificationHubTests : IDisposable
     {
         var userId = Guid.NewGuid();
         var familyId = Guid.NewGuid();
-        _db.FamilyMembers.Add(new FamilyMember
-        {
-            Id = Guid.NewGuid(),
-            FamilyId = familyId,
-            UserId = userId,
-            IsActive = true,
-            DisplayName = "Test",
-        });
-        await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        _data.Setup(d => d.GetActiveFamilyIdForUserAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(familyId);
 
         var hub = CreateHub(userId);
         await hub.OnConnectedAsync();
@@ -113,28 +101,6 @@ public class NotificationHubTests : IDisposable
         _groups.Verify(
             g => g.AddToGroupAsync("conn-1", $"family-{familyId}", It.IsAny<CancellationToken>()),
             Times.Once);
-    }
-
-    [Fact]
-    public async Task OnConnectedAsync_InactiveMember_DoesNotAddToGroup()
-    {
-        var userId = Guid.NewGuid();
-        _db.FamilyMembers.Add(new FamilyMember
-        {
-            Id = Guid.NewGuid(),
-            FamilyId = Guid.NewGuid(),
-            UserId = userId,
-            IsActive = false,
-            DisplayName = "Inactive",
-        });
-        await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
-
-        var hub = CreateHub(userId);
-        await hub.OnConnectedAsync();
-
-        _groups.Verify(
-            g => g.AddToGroupAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
-            Times.Never);
     }
 
     [Fact]
