@@ -2,7 +2,6 @@ using System.IO.Compression;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using FamilySplit.Api.Middleware;
-using FamilySplit.Application;
 using FamilySplit.Common;
 using FamilySplit.Common.Modules;
 using FamilySplit.Features.Activities;
@@ -123,9 +122,8 @@ builder.Services.AddRateLimiter(options =>
     };
 });
 
-// --- Common + Application + Infrastructure ----------------------------------------
+// --- Common + Infrastructure --------------------------------------------------------
 builder.Services.AddFamilySplitCommon();
-builder.Services.AddFamilySplitApplication();
 builder.Services.AddFamilySplitInfrastructure(builder.Configuration, builder.Environment);
 
 // Feature modules (populated slice by slice).

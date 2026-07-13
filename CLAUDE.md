@@ -22,21 +22,21 @@ src/
 ├── Features/                   # Vertical slices — one class-library project per feature (target architecture)
 │   ├── FamilySplit.Features.Expenses
 │   ├── FamilySplit.Features.Dashboard
-│   └── …                       # one per slice as phases land
-├── FamilySplit.Application     # ⚠️ LEGACY service layer — being dissolved slice-by-slice into Features/
+│   └── …                       # one per slice — all ten domain slices have landed
 ├── FamilySplit.Api             # ASP.NET Core Minimal API host (thin — composes feature modules)
 └── FamilySplit.Client          # Blazor WebAssembly SPA
 ```
 
-> **🏗️ Architecture in transition — read this first.** The backend is migrating from the layered
-> `FamilySplit.Application` service layer to **vertical slices** under `src/Features/`, each split
-> CQRS-style with a **business-logic / data-access seam** (ADR-001). The authoritative tracker is
-> [`docs/vertical-slice-refactor-plan.md`](docs/vertical-slice-refactor-plan.md). Slices already
-> migrated: **Expenses**, **Dashboard**, **Users**, **Groups**, **Activities**, **Settlements**, **Admin**, **Families**, **Notifications**, **Auth**.
-> `FamilySplit.Application` now holds no live services — all slices have migrated (deletion of the
-> empty legacy project itself is tracked as Phase 13). **New feature work must
+> **🏗️ Vertical slices.** The backend was migrated from a layered `FamilySplit.Application` service
+> layer to **vertical slices** under `src/Features/`, each split CQRS-style with a
+> **business-logic / data-access seam** (ADR-001). The authoritative tracker is
+> [`docs/vertical-slice-refactor-plan.md`](docs/vertical-slice-refactor-plan.md). All ten domain
+> slices are migrated: **Expenses**, **Dashboard**, **Users**, **Groups**, **Activities**,
+> **Settlements**, **Admin**, **Families**, **Notifications**, **Auth**. The legacy
+> `FamilySplit.Application` project has been deleted (Phase 13). **All feature work must
 > follow the slice conventions** in the [Vertical Slice Architecture](#vertical-slice-architecture)
-> section, not the legacy service pattern.
+> section below — the "Application Layer" section further down documents the now-deleted legacy
+> service layer for historical reference only and is slated for removal in Phase 14's docs sweep.
 
 ---
 
@@ -185,8 +185,8 @@ All endpoints except `/auth/*`, `/health`, and Scalar/OpenAPI require a valid JW
 > **This is the architecture for all backend work — the business-logic / data-access separation is
 > mandatory and enforced by NetArchTest on every feature assembly (the build goes red otherwise).**
 > Full tracker + per-phase plan: [`docs/vertical-slice-refactor-plan.md`](docs/vertical-slice-refactor-plan.md).
-> The legacy `FamilySplit.Application` service layer (documented below) is the *only* place exempt — and
-> only because it is being deleted slice-by-slice; once a slice migrates, its code is bound by these rules.
+> The legacy `FamilySplit.Application` service layer this superseded has been deleted (Phase 13) —
+> every backend line now lives in a slice bound by these rules.
 
 Each feature is a class-library project under `src/Features/FamilySplit.Features.{Slice}/` that
 references only `Domain`, `Infrastructure`, and `Common`. It registers itself via one
@@ -222,11 +222,13 @@ FamilySplit.Features.Expenses/
 
 ---
 
-## Application Layer (FamilySplit.Application)
+## Application Layer (FamilySplit.Application) — DELETED (historical reference only)
 
-> ⚠️ **Legacy layer — being migrated to vertical slices** (see the section above and
-> [`docs/vertical-slice-refactor-plan.md`](docs/vertical-slice-refactor-plan.md)). The services
-> below still back the **un-migrated** endpoints; **do not add new services here** — add a slice.
+> ⚠️ **This project no longer exists.** `FamilySplit.Application` was deleted in Phase 13 once every
+> service below had been migrated to a vertical slice (see the section above and
+> [`docs/vertical-slice-refactor-plan.md`](docs/vertical-slice-refactor-plan.md)). The class/method
+> descriptions below are kept temporarily as a map from old service methods to their new slice —
+> removing this section entirely is tracked in Phase 14's docs sweep. **Do not add new code here.**
 
 ### Services
 

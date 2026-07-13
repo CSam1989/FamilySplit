@@ -18,7 +18,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\FamilySplit.Application\FamilySplit.Application.csproj" />
     <ProjectReference Include="..\FamilySplit.Common\FamilySplit.Common.csproj" />
     <ProjectReference Include="..\FamilySplit.Infrastructure\FamilySplit.Infrastructure.csproj" />
     <ProjectReference Include="..\Features\FamilySplit.Features.Activities\FamilySplit.Features.Activities.csproj" />

@@ -28,7 +28,6 @@
     <ProjectReference Include="..\..\src\FamilySplit.Api\FamilySplit.Api.csproj" />
     <ProjectReference Include="..\..\src\FamilySplit.Common\FamilySplit.Common.csproj" />
     <ProjectReference Include="..\..\src\FamilySplit.Domain\FamilySplit.Domain.csproj" />
-    <ProjectReference Include="..\..\src\FamilySplit.Application\FamilySplit.Application.csproj" />
     <ProjectReference Include="..\..\src\FamilySplit.Infrastructure\FamilySplit.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Features\FamilySplit.Features.Admin\FamilySplit.Features.Admin.csproj" />
     <ProjectReference Include="..\..\src\Features\FamilySplit.Features.Auth\FamilySplit.Features.Auth.csproj" />

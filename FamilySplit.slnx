@@ -1,7 +1,6 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/FamilySplit.Api/FamilySplit.Api.csproj" />
-    <Project Path="src/FamilySplit.Application/FamilySplit.Application.csproj" />
     <Project Path="src/FamilySplit.Client/FamilySplit.Client.csproj" />
     <Project Path="src/FamilySplit.Common/FamilySplit.Common.csproj" />
     <Project Path="src/FamilySplit.Domain/FamilySplit.Domain.csproj" />

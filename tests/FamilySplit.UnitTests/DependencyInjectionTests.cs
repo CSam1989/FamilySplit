@@ -1,4 +1,3 @@
-using FamilySplit.Application;
 using FamilySplit.Common;
 using FamilySplit.Common.Auditing;
 using FamilySplit.Common.Security;
@@ -13,38 +12,6 @@ namespace FamilySplit.UnitTests;
 
 public class DependencyInjectionTests
 {
-    [Fact]
-    public void AddFamilySplitApplication_RegistersAllExpectedServices()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-
-        // Act
-        var result = services.AddFamilySplitApplication();
-
-        // Assert
-        result.Should().BeSameAs(services);
-
-        // Admin migrated to FamilySplit.Features.Admin (AdminModule) — its DI
-        // registration is covered by AdminEndpointsTests.RegisterServices_RegistersServiceAsScoped.
-        // Families migrated to FamilySplit.Features.Families (FamiliesModule) — its DI
-        // registration is covered by FamiliesEndpointsTests.RegisterServices_RegistersServiceAsScoped.
-        // Groups migrated to FamilySplit.Features.Groups (GroupsModule) — its DI
-        // registration is covered by GroupsEndpointsTests.RegisterServices_RegistersAllHandlersAsScoped.
-        // Activities migrated to FamilySplit.Features.Activities (ActivitiesModule) — its DI
-        // registration is covered by ActivitiesEndpointsTests.RegisterServices_RegistersServiceAsScoped.
-        // Expenses migrated to FamilySplit.Features.Expenses (ExpensesModule) — its DI
-        // registration is covered by ExpenseEndpointsTests.RegisterServices_RegistersAllHandlersAsScoped.
-        // Settlements migrated to FamilySplit.Features.Settlements (SettlementsModule) — its DI
-        // registration is covered by SettlementsEndpointsTests.RegisterServices_RegistersAllHandlersAsScoped.
-        // Dashboard migrated to FamilySplit.Features.Dashboard (DashboardModule) — its DI
-        // registration is covered by DashboardEndpointsTests.RegisterServices_RegistersHandlerAsScoped.
-        // Notifications migrated to FamilySplit.Features.Notifications (NotificationsModule) — its DI
-        // registration is covered by NotificationsEndpointsTests.RegisterServices_RegistersServiceAsScoped.
-        // Auth migrated to FamilySplit.Features.Auth (AuthModule) — its DI registration
-        // is covered by AuthEndpointsTests.RegisterServices_RegistersRefreshTokenDataAsScoped etc.
-    }
-
     [Fact]
     public void AddFamilySplitCommon_RegistersAllExpectedServices()
     {
