@@ -13,7 +13,7 @@
 
 ## Vertical slice architecture (enforced everywhere — use for all backend work)
 
-The backend is migrating from the layered `FamilySplit.Application` service layer to **vertical slices** under `src/Features/FamilySplit.Features.{Slice}/`, each registered via one `IFeatureModule`. Full plan: `docs/vertical-slice-refactor-plan.md`. **Do not add new code to `FamilySplit.Application`** — add a slice. Migrated so far: Expenses, Dashboard. The **business-logic / data-access separation below is mandatory and enforced by NetArchTest on every feature assembly** — suggestions that put `AppDbContext` in a command handler will fail the build.
+The backend was migrated from a layered `FamilySplit.Application` service layer to **vertical slices** under `src/Features/FamilySplit.Features.{Slice}/`, each registered via one `IFeatureModule`. Full plan: `docs/vertical-slice-refactor-plan.md`. `FamilySplit.Application` has been deleted (Phase 13) — **there is nowhere else to add backend code but a slice.** All ten domain slices are migrated: Expenses, Dashboard, Users, Groups, Activities, Settlements, Admin, Families, Notifications, Auth. The **business-logic / data-access separation below is mandatory and enforced by NetArchTest on every feature assembly** — suggestions that put `AppDbContext` in a command handler will fail the build.
 
 Inside a slice, **business logic and data access are separate, separately-testable layers (ADR-001):**
 
@@ -345,12 +345,6 @@ select new { gf.FamilyId, f.Name }
 
 ### Caller identity
 
-All service methods receive `callerId` as `Guid` (the `User.Id` from the JWT `sub` claim). Resolve family via:
-
-```csharp
-var familyId = await _db.FamilyMembers
-    .Where(m => m.UserId == callerId && m.IsActive)
-    .Select(m => (Guid?)m.FamilyId)
-    .FirstOrDefaultAsync()
-    ?? throw new ForbiddenException();
-```
+Every command/query handler receives `callerId` as `Guid` (the `User.Id` from the JWT `sub` claim, extracted via `ClaimsPrincipalExtensions.GetUserId()` in the endpoint lambda). **Command handlers never resolve the caller's family via a raw `AppDbContext` query** — that would violate the ADR-001 seam above. Instead:
+- Query handlers (which already hold `AppDbContext`) resolve it inline with a scalar projection, or via the concrete `GroupMembershipGuard`.
+- Command handlers resolve it through `IGroupMembershipGuard.GetCallerFamilyIdAsync(callerId, ct)` (mockable), or through their own slice's `I{Slice}Data` if the slice needs a different shape (e.g. `IFamilyData.GetCallerMemberAsync`, `IAdminData.IsGlobalAdminAsync`) — never a fresh guard type unless it's genuinely shared across slices.

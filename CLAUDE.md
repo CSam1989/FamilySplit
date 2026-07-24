@@ -35,8 +35,7 @@ src/
 > **Settlements**, **Admin**, **Families**, **Notifications**, **Auth**. The legacy
 > `FamilySplit.Application` project has been deleted (Phase 13). **All feature work must
 > follow the slice conventions** in the [Vertical Slice Architecture](#vertical-slice-architecture)
-> section below — the "Application Layer" section further down documents the now-deleted legacy
-> service layer for historical reference only and is slated for removal in Phase 14's docs sweep.
+> section below.
 
 ---
 
@@ -110,7 +109,7 @@ Expenses are split by weight, calculated from date of birth at expense-save time
 | `Volwassene` (3) | 18+ | 1.00 |
 | `Override` (4) | — | `WeightOverride` value |
 
-`WeightCalculator.GetWeight(member, date)` and `GetTier(member, date)` are the canonical calculation methods (stateless, Application layer).
+`WeightCalculator.GetWeight(member, date)` and `GetTier(member, date)` are the canonical calculation methods (stateless, `FamilySplit.Common`).
 
 ---
 
@@ -153,30 +152,35 @@ Two-token design — a short-lived **access token** (JWT, 15 minutes) in the WAS
 
 ## API Layer (FamilySplit.Api)
 
+`FamilySplit.Api` is a **thin host** — it has no endpoint files of its own. Every route is owned by
+a feature module under `src/Features/` (see [Vertical Slice Architecture](#vertical-slice-architecture)).
+`Program.cs` holds the explicit `IFeatureModule[] modules` array, loops `RegisterServices` then
+`MapEndpoints` over it, and otherwise only wires cross-cutting, non-slice-specific concerns:
+CORS, response compression, the global rate limiter, `AddAuthorization`'s fallback policy,
+`AddDataProtection`, and the `/health` endpoint.
+
 ### Conventions
 - Minimal API, no MediatR.
-- `AppDbContext` and service classes injected directly into endpoint lambdas.
-- `ClaimsPrincipalExtensions.GetUserId()` extracts `sub` claim as `Guid`.
-- `ValidationExceptionMiddleware` catches `FluentValidation.ValidationException` → HTTP 422.
-- `ValidationExceptionMiddleware` catches `ForbiddenException` → HTTP 403 (checked **before** ValidationException).
+- `ClaimsPrincipalExtensions.GetUserId()` extracts the `sub` claim as a `Guid` — available via a global `using FamilySplit.Common.Security;` on every project.
+- `ValidationExceptionMiddleware` catches `FluentValidation.ValidationException` → HTTP 422, and `ForbiddenException` → HTTP 403 (checked **before** ValidationException).
 
-### Endpoint Groups
+### Feature modules (route prefixes)
 
-| File | Prefix | Description |
+| Module | Prefix | Description |
 |---|---|---|
-| `AuthEndpoints.cs` | `/auth` | Login, callback, handoff |
-| `UserEndpoints.cs` | `/whoami` | WhoAmI (current user info) |
-| `FamilyMembersEndpoints.cs` | `/users/me/profile` | Caller's own FamilyMember profile (GET) |
-| `AdminEndpoints.cs` | `/admin/families` | Global-admin Family + member CRUD |
-| `FamilyEndpoints.cs` | `/families/mine` | Own-family management (rename, members) |
-| `GroupsEndpoints.cs` | `/groups` | Group CRUD, join, invite code regeneration |
-| `GroupMembersEndpoints.cs` | — | No-op stub (replaced by Family endpoints) |
-| `ActivityEndpoints.cs` | `/groups/{groupId}/activities` | Activity CRUD, sub-activities, close, participant add/remove |
-| `ExpenseEndpoints.cs` | `/groups/{groupId}/activities/{activityId}/expenses` | Expense CRUD (list, get, create, update, delete) |
-| `SettlementEndpoints.cs` | `/groups/{groupId}/activities/{activityId}/settlements` | Settlement generate, list, detail, confirm-sent, confirm-received; plus `/balances` GET |
+| `AuthModule` | `/auth` | Login, callback, refresh, logout (`AllowAnonymous`, rate-limited) |
+| `UsersModule` | `/whoami` | Current user info |
+| `FamiliesModule` | `/families/mine`, `/users/me/profile` | Own-family management + caller's FamilyMember profile |
+| `AdminModule` | `/admin/families` | Global-admin Family + member CRUD, group management |
+| `GroupsModule` | `/groups` | Group CRUD, join, invite code regeneration, leave |
+| `ActivitiesModule` | `/groups/{groupId}/activities` | Activity CRUD, sub-activities, close, participant add/remove |
+| `ExpensesModule` | `/groups/{groupId}/activities/{activityId}/expenses` | Expense CRUD |
+| `SettlementsModule` | `/groups/{groupId}/activities/{activityId}/settlements` | Settlement generate, list, detail, confirm-sent, confirm-received; plus `/balances` |
+| `DashboardModule` | `/dashboard/stats` | Aggregate stats for the caller's groups |
+| `NotificationsModule` | `/push`, `/hubs/notifications` | VAPID subscribe/unsubscribe + the SignalR notification hub |
 
 ### Authorization
-All endpoints except `/auth/*`, `/health`, and Scalar/OpenAPI require a valid JWT (`RequireAuthorization()`). Global-admin checks are enforced inside `AdminService.RequireGlobalAdminAsync()`.
+All endpoints except `/auth/*`, `/health`, and Scalar/OpenAPI require a valid JWT (`RequireAuthorization()`). Global-admin checks are enforced by `AdminModule` (its command handlers call `IAdminData.IsGlobalAdminAsync`; its query handlers call the static `AdminGate.RequireGlobalAdminAsync(db, …)` helper).
 
 ---
 
@@ -220,92 +224,7 @@ FamilySplit.Features.Expenses/
 └── ExpensesModule.cs
 ```
 
----
-
-## Application Layer (FamilySplit.Application) — DELETED (historical reference only)
-
-> ⚠️ **This project no longer exists.** `FamilySplit.Application` was deleted in Phase 13 once every
-> service below had been migrated to a vertical slice (see the section above and
-> [`docs/vertical-slice-refactor-plan.md`](docs/vertical-slice-refactor-plan.md)). The class/method
-> descriptions below are kept temporarily as a map from old service methods to their new slice —
-> removing this section entirely is tracked in Phase 14's docs sweep. **Do not add new code here.**
-
-### Services
-
-**`AdminService`** — global-admin operations (requires `User.IsGlobalAdmin = true`)
-- `ListFamiliesAsync(callerId)` → all Families with members
-- `GetFamilyAsync(familyId, callerId)` → one Family with members
-- `CreateFamilyAsync(req, callerId)` → new Family
-- `AddFamilyMemberAsync(familyId, req, callerId)` → new FamilyMember; auto-links User if email matches
-- `UpdateFamilyMemberAsync(memberId, req, callerId)` → update any member
-- `RemoveFamilyMemberAsync(memberId, callerId)` → soft-delete (`IsActive = false`)
-
-**`FamilyService`** — own-family management
-- `GetMyFamilyAsync(callerId)` → caller's Family with all active members
-- `GetMyProfileAsync(callerId)` → caller's own FamilyMember
-- `UpdateFamilyNameAsync(req, callerId)` → admin only
-- `AddMemberAsync(req, callerId)` → admin only; auto-links User if email matches
-- `UpdateMemberAsync(memberId, req, callerId)` → admin or self
-- `RemoveMemberAsync(memberId, callerId)` → admin only; cannot remove self
-
-**`GroupService`** — group-level operations
-- `ListAsync(callerId)` → groups the caller's Family belongs to
-- `GetDetailAsync(groupId, callerId)` → detail with all participating Families and their active members
-- `CreateAsync(req, callerId)` → creates group + Admin GroupFamily for caller's Family
-- `UpdateAsync(groupId, req, callerId)` → Admin only
-- `JoinAsync(req, callerId)` → join via invite code (adds Member GroupFamily for caller's Family)
-- `RegenerateInviteCodeAsync(groupId, callerId)` → Admin only
-
-**`ExpenseService`** — expense operations (any group member)
-- `ListAsync(activityId, callerId)` → `List<ExpenseSummaryDto>`
-- `GetDetailAsync(expenseId, callerId)` → `ExpenseDetailDto`
-- `CreateAsync(activityId, req, callerId)` → `ExpenseDetailDto` — seeds `ExpenseParticipant` rows from current `ActivityParticipant` list, snapshots `WeightCalculator.GetWeight()` at `ExpenseDate`, then runs `SplitCalculator.CalculateShares()`
-- `UpdateAsync(expenseId, req, callerId)` → `ExpenseDetailDto` — if `TotalAmount` or `ExpenseDate` changed, re-snapshots weights and recalculates shares
-- `DeleteAsync(expenseId, callerId)` → `Task` — allowed on non-Settled activity and non-Locked expense
-
-**`SettlementService`** — settlement operations (any group member)
-- `GetBalancesAsync(activityId, callerId)` → `List<FamilyBalanceDto>` — read-only net balance per Family (positive = creditor, negative = debtor)
-- `GenerateAsync(activityId, callerId)` → `List<SettlementSummaryDto>` — runs `BalanceCalculator` + `SettlementOptimiser`, persists `Settlement` rows; idempotent (returns existing if already generated); marks Activity Settled immediately if all balances are zero
-- `ListAsync(activityId, callerId)` → `List<SettlementSummaryDto>`
-- `GetDetailAsync(settlementId, callerId)` → `SettlementDetailDto` with `ApprovalStep` history
-- `ConfirmSentAsync(settlementId, callerId)` → `SettlementDetailDto` — caller must be payer-family member; Proposed → PayerSent; creates `ApprovalStep(PayerSent)`
-- `ConfirmReceivedAsync(settlementId, callerId)` → `SettlementDetailDto` — caller must be receiver-family member; PayerSent → Completed; creates `ApprovalStep(ReceiverConfirmed)`; when all settlements in activity are Completed, transitions Activity → Settled
-
-**`BalanceCalculator`** — pure static balance logic (`Application/Core/BalanceCalculator.cs`)
-- `Compute(expenses, participants)` → `Dictionary<Guid familyId, decimal balance>` — positive = creditor (owed money), negative = debtor (owes money)
-
-**`SettlementOptimiser`** — pure static settlement optimiser (`Application/Core/SettlementOptimiser.cs`)
-- `Optimise(balances)` → `List<Transfer>` — greedy min-transfer algorithm; at most N-1 transfers for N families
-
-**`SplitCalculator`** — pure static split logic (`Application/Core/SplitCalculator.cs`)
-- `CalculateShares(totalAmount, participants)` — distributes `totalAmount` by `WeightSnapshot` ratios; rounding remainder applied to the heaviest participant; excluded participants get 0
-
-**`ActivityService`** — activity operations (any group member)
-- `ListAsync(groupId, callerId)` → top-level activities for a group (no-parent)
-- `GetDetailAsync(activityId, callerId)` → full detail with participants + sub-activities
-- `CreateAsync(groupId, req, callerId)` → new top-level activity; seeds participants from all active group members via `ParticipantSeeder`
-- `CreateSubActivityAsync(parentId, req, callerId)` → depth-1 guard; seeds from parent's participants
-- `UpdateAsync(activityId, req, callerId)` → name/description; Open only
-- `CloseAsync(activityId, callerId)` → closes activity; Open sub-activities → `AbsorbedByParent`
-- `AddParticipantAsync(activityId, req, callerId)` → adds a group member; Open only
-- `RemoveParticipantAsync(activityId, memberId, callerId)` → removes a participant; Open only
-
-**`ParticipantSeeder`** — seeds `ActivityParticipant` rows
-- `SeedForActivityAsync(activity)` → all active FamilyMembers of all families in the group
-- `SeedForSubActivityAsync(sub, parentId)` → copies parent activity's participant list
-
-### Key patterns
-
-**Resolving caller's FamilyId:**
-```csharp
-var familyId = await _db.FamilyMembers
-    .Where(m => m.UserId == userId && m.IsActive)
-    .Select(m => (Guid?)m.FamilyId)
-    .FirstOrDefaultAsync();
-return familyId ?? throw Forbidden();
-```
-
-**EF Core no-tracking cycle detection:** EF Core 10 throws cycle errors when navigation properties are accessed in LINQ even inside `Select` projections. **Fix:** always use explicit `join ... on ... equals ...` from DbSet roots with flat scalar projections. Never access navigation properties in LINQ queries.
+**EF Core no-tracking cycle detection:** EF Core 10 throws cycle errors when navigation properties are accessed in LINQ, even inside `Select` projections — this bites query handlers most often since they project straight off `AppDbContext`. **Fix:** always use explicit `join ... on ... equals ...` from `DbSet` roots with flat scalar projections; never access a navigation property in a LINQ query.
 
 ```csharp
 // WRONG — triggers NavigationExpandingExpressionVisitor cycle:
@@ -318,32 +237,17 @@ where gf.GroupId == groupId
 select new { gf.FamilyId, f.Name, gf.Role, gf.JoinedAt }
 ```
 
-**Validation:** All service entry points call `await validator.ValidateAndThrowAsync(req)`. FluentValidation validators are registered via `AddValidatorsFromAssembly`.
-
-**Error types:**
-- `ForbiddenException` → 403 (caller not in group/family, or wrong role)
-- `ValidationException` → 422 (invalid input, business rule violations, not found)
-
 ---
 
 ## Validation Standards
 
 ### Backend (FluentValidation)
 
-Every request type that reaches a service method **must** have a corresponding `AbstractValidator<T>` in the same namespace as the service. Rules:
+Every command that has a request body **must** have a corresponding `{UseCase}CommandValidator : AbstractValidator<{UseCase}Command>`. Rules:
 
-- Validators live alongside their service (e.g., `ActivityValidator.cs` next to `ActivityService.cs`).
-- All validators are registered automatically via `AddValidatorsFromAssembly` in `DependencyInjection.cs`.
-- Every public service method that accepts a request object **must** call `await _validator.ValidateAndThrowAsync(req, ct)` as the first statement, before any DB or auth checks.
-- Validator coverage by file:
-
-| File | Validators |
-|---|---|
-| `ActivityValidator.cs` | `CreateActivityValidator`, `UpdateActivityValidator`, `AddParticipantValidator` |
-| `AdminValidator.cs` | `CreateFamilyValidator` (admin member ops reuse `AddFamilyMemberValidator` / `UpdateFamilyMemberValidator` from Families) |
-| `ExpenseValidator.cs` | `CreateExpenseValidator`, `UpdateExpenseValidator` |
-| `FamilyValidator.cs` | `UpdateFamilyNameValidator`, `AddFamilyMemberValidator`, `UpdateFamilyMemberValidator` |
-| `GroupValidator.cs` | `CreateGroupValidator`, `UpdateGroupValidator`, `JoinGroupValidator` |
+- The validator lives in the command's own use-case folder, alongside its `{UseCase}Command` record and `{UseCase}CommandHandler` (e.g. `Expenses/Create/CreateExpenseCommandValidator.cs` next to `CreateExpenseCommand.cs`) — architecture Rule 4 enforces this by asserting the validator's namespace matches its command's namespace.
+- Each slice's `{Slice}Module.RegisterServices` calls `services.AddValidatorsFromAssembly(typeof({Slice}Module).Assembly)` to register that slice's validators — there is no longer a single global `DependencyInjection.cs` doing this for the whole backend. Query-only slices and slices with no request-body commands (e.g. Dashboard, Users, Settlements) skip this call entirely and omit the `FluentValidation` package reference.
+- Every `{UseCase}CommandHandler.HandleAsync` **must** call `await _validator.ValidateAndThrowAsync(cmd, ct)` as the first statement, before any guard/auth checks or `I{Slice}Data` calls.
 
 ### Frontend (MudBlazor MudForm)
 
@@ -798,7 +702,7 @@ Target: pure logic with no database or HTTP dependency.
 **Design rule:** any logic that needs to be unit-tested **must live in a dedicated method** (static where possible) or in a command handler over the mockable `I{Slice}Data` seam — never entangled with `AppDbContext`. Pure helpers: tests call them directly.
 
 ```csharp
-// Application/Core/WeightCalculator.cs — static, no dependencies
+// FamilySplit.Common/Calculations/WeightCalculator.cs — static, no dependencies
 public static class WeightCalculator
 {
     public static WeightTier GetTier(FamilyMember member, DateOnly date) { ... }

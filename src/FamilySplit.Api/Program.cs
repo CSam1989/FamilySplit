@@ -127,7 +127,7 @@ builder.Services.AddFamilySplitCommon();
 builder.Services.AddFamilySplitInfrastructure(builder.Configuration, builder.Environment);
 
 // Feature modules (populated slice by slice).
-IFeatureModule[] modules = [ new ExpensesModule(), new DashboardModule(), new UsersModule(), new GroupsModule(), new ActivitiesModule(), new SettlementsModule(), new AdminModule(), new FamiliesModule(), new NotificationsModule(), new AuthModule() ];
+IFeatureModule[] modules = [new ExpensesModule(), new DashboardModule(), new UsersModule(), new GroupsModule(), new ActivitiesModule(), new SettlementsModule(), new AdminModule(), new FamiliesModule(), new NotificationsModule(), new AuthModule()];
 foreach (var m in modules) m.RegisterServices(builder.Services, builder.Configuration);
 
 // Serialize enums as strings so API responses are human-readable (e.g. "Open" not 0).
