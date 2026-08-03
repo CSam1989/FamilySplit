@@ -31,33 +31,35 @@ public sealed class MoneyFieldTests : BunitTestContext
     }
 
     [Fact]
-    public void Typing_CommaDecimal_Binds_CorrectValue()
+    public async Task Typing_CommaDecimal_Binds_CorrectValue()
     {
         decimal? captured = null;
         var cut = Render<MoneyField>(p => p
             .Add(x => x.Label, "Amount")
             .Add(x => x.ValueChanged, (decimal? v) => captured = v));
 
-        cut.Find("input").Input("4,50");
+        // Awaiting InvokeAsync prevents stale event handler IDs caused by
+        // I18nText's async re-render completing after Render<T>() returns.
+        await cut.InvokeAsync(() => cut.Find("input").Input("4,50"));
 
         cut.WaitForAssertion(() => captured.Should().Be(4.50m));
     }
 
     [Fact]
-    public void Typing_DotDecimal_Binds_CorrectValue()
+    public async Task Typing_DotDecimal_Binds_CorrectValue()
     {
         decimal? captured = null;
         var cut = Render<MoneyField>(p => p
             .Add(x => x.Label, "Amount")
             .Add(x => x.ValueChanged, (decimal? v) => captured = v));
 
-        cut.Find("input").Input("12.50");
+        await cut.InvokeAsync(() => cut.Find("input").Input("12.50"));
 
         cut.WaitForAssertion(() => captured.Should().Be(12.50m));
     }
 
     [Fact]
-    public void Typing_GroupedNumber_Binds_Null()
+    public async Task Typing_GroupedNumber_Binds_Null()
     {
         decimal? captured = 1m;
         var cut = Render<MoneyField>(p => p
@@ -65,7 +67,7 @@ public sealed class MoneyFieldTests : BunitTestContext
             .Add(x => x.Value, 5m)
             .Add(x => x.ValueChanged, (decimal? v) => captured = v));
 
-        cut.Find("input").Input("1.234.56");
+        await cut.InvokeAsync(() => cut.Find("input").Input("1.234.56"));
 
         cut.WaitForAssertion(() => captured.Should().BeNull());
     }
