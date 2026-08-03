@@ -24,9 +24,10 @@ public static class FamilyReducers
     public static FamilyState OnRename(FamilyState state) =>
         state with { IsLoading = true, ErrorMessage = null };
 
-    [ReducerMethod]
-    public static FamilyState OnRenameSuccess(FamilyState state, UpdateFamilyNameSuccessAction action) =>
-        state with { IsLoading = false, MyFamily = action.Family };
+    // Success triggers a family reload — reducer just clears loading.
+    [ReducerMethod(typeof(UpdateFamilyNameSuccessAction))]
+    public static FamilyState OnRenameSuccess(FamilyState state) =>
+        state with { IsLoading = false };
 
     [ReducerMethod]
     public static FamilyState OnRenameFailure(FamilyState state, UpdateFamilyNameFailureAction action) =>
@@ -53,21 +54,10 @@ public static class FamilyReducers
     public static FamilyState OnUpdateMember(FamilyState state) =>
         state with { IsLoading = true, ErrorMessage = null };
 
-    [ReducerMethod]
-    public static FamilyState OnUpdateMemberSuccess(FamilyState state, UpdateFamilyMemberSuccessAction action)
-    {
-        if (state.MyFamily is null) return state with { IsLoading = false };
-
-        var updatedMembers = state.MyFamily.Members
-            .Select(m => m.Id == action.Member.Id ? action.Member : m)
-            .ToList();
-
-        return state with
-        {
-            IsLoading = false,
-            MyFamily = state.MyFamily with { Members = updatedMembers }
-        };
-    }
+    // Success triggers a family reload — reducer just clears loading.
+    [ReducerMethod(typeof(UpdateFamilyMemberSuccessAction))]
+    public static FamilyState OnUpdateMemberSuccess(FamilyState state) =>
+        state with { IsLoading = false };
 
     [ReducerMethod]
     public static FamilyState OnUpdateMemberFailure(FamilyState state, UpdateFamilyMemberFailureAction action) =>
@@ -79,21 +69,10 @@ public static class FamilyReducers
     public static FamilyState OnRemoveMember(FamilyState state) =>
         state with { IsLoading = true, ErrorMessage = null };
 
-    [ReducerMethod]
-    public static FamilyState OnRemoveMemberSuccess(FamilyState state, RemoveFamilyMemberSuccessAction action)
-    {
-        if (state.MyFamily is null) return state with { IsLoading = false };
-
-        var updatedMembers = state.MyFamily.Members
-            .Where(m => m.Id != action.MemberId)
-            .ToList();
-
-        return state with
-        {
-            IsLoading = false,
-            MyFamily = state.MyFamily with { Members = updatedMembers }
-        };
-    }
+    // Success triggers a family reload — reducer just clears loading.
+    [ReducerMethod(typeof(RemoveFamilyMemberSuccessAction))]
+    public static FamilyState OnRemoveMemberSuccess(FamilyState state) =>
+        state with { IsLoading = false };
 
     [ReducerMethod]
     public static FamilyState OnRemoveMemberFailure(FamilyState state, RemoveFamilyMemberFailureAction action) =>

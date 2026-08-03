@@ -49,7 +49,8 @@
                                  Max="10m"
                                  Step="0.05m"
                                  Format="0.##"
-                                 HelperText="1.00 = one full adult share"
+                                 Culture="@System.Globalization.CultureInfo.CurrentCulture"
+                                 HelperText="@_t.CustomWeightHelper"
                                  Class="mb-4"
                                  Validation="@(new Func<decimal?, IEnumerable<string>>(ValidateWeightOverride))" />
             }

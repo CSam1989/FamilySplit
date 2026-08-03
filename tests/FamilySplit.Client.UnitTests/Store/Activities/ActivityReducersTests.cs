@@ -95,16 +95,15 @@ public class ActivityReducersTests
         result.ErrorMessage.Should().BeNull();
     }
 
+    // Strict CQRS: the success reducer just stops loading; the effect re-queries the list/detail.
     [Fact]
-    public void OnCreateSuccess_SetsSelectedActivity_AndStopsLoading()
+    public void OnCreateSuccess_StopsLoading()
     {
-        var detail = new ActivityDetailDto(Guid.NewGuid(), Guid.NewGuid(), "A", null, ActivityStatus.Open, null, [], [], DateTimeOffset.UtcNow, null);
         var state = _initialState with { IsLoading = true };
 
-        var result = ActivityReducers.OnCreateSuccess(state, new CreateActivitySuccessAction(detail));
+        var result = ActivityReducers.OnCreateSuccess(state);
 
         result.IsLoading.Should().BeFalse();
-        result.SelectedActivity.Should().BeSameAs(detail);
     }
 
     [Fact]
@@ -127,56 +126,16 @@ public class ActivityReducersTests
         result.ErrorMessage.Should().BeNull();
     }
 
+    // Strict CQRS: the effect re-queries the parent's detail, which repopulates the sub list;
+    // the success reducer just stops loading.
     [Fact]
-    public void OnCreateSubSuccess_WhenSelectedActivityIsNull_StopsLoadingOnly()
+    public void OnCreateSubSuccess_StopsLoading()
     {
-        var state = _initialState with { IsLoading = true, SelectedActivity = null };
-        var subDetail = new ActivityDetailDto(Guid.NewGuid(), Guid.NewGuid(), "Sub", null, ActivityStatus.Open, Guid.NewGuid(), [], [], DateTimeOffset.UtcNow, null);
+        var state = _initialState with { IsLoading = true };
 
-        var result = ActivityReducers.OnCreateSubSuccess(state, new CreateSubActivitySuccessAction(subDetail));
+        var result = ActivityReducers.OnCreateSubSuccess(state);
 
         result.IsLoading.Should().BeFalse();
-        result.SelectedActivity.Should().BeNull();
-    }
-
-    [Fact]
-    public void OnCreateSubSuccess_WhenSelectedActivityExists_AppendsSubActivity()
-    {
-        var parentId = Guid.NewGuid();
-        var groupId = Guid.NewGuid();
-        var parent = new ActivityDetailDto(parentId, groupId, "Parent", null, ActivityStatus.Open, null, [], [], DateTimeOffset.UtcNow, null);
-        var state = _initialState with { IsLoading = true, SelectedActivity = parent };
-
-        var subId = Guid.NewGuid();
-        var participants = new List<ActivityParticipantDto> { new(Guid.NewGuid(), Guid.NewGuid(), "Alice", Guid.NewGuid(), "Family", 1.0m, WeightTier.Volwassene) };
-        var subDetail = new ActivityDetailDto(subId, groupId, "Sub", "desc", ActivityStatus.Open, parentId, participants, [], DateTimeOffset.UtcNow, null);
-
-        var result = ActivityReducers.OnCreateSubSuccess(state, new CreateSubActivitySuccessAction(subDetail));
-
-        result.IsLoading.Should().BeFalse();
-        result.SelectedActivity.Should().NotBeNull();
-        result.SelectedActivity!.SubActivities.Should().HaveCount(1);
-        result.SelectedActivity.SubActivities[0].Id.Should().Be(subId);
-        result.SelectedActivity.SubActivities[0].Name.Should().Be("Sub");
-        result.SelectedActivity.SubActivities[0].ParticipantCount.Should().Be(1);
-    }
-
-    [Fact]
-    public void OnCreateSubSuccess_AppendsToExistingSubActivities()
-    {
-        var parentId = Guid.NewGuid();
-        var groupId = Guid.NewGuid();
-        var existingSub = new ActivitySummaryDto(Guid.NewGuid(), groupId, "Existing", null, ActivityStatus.Open, parentId, 1, 0, DateTimeOffset.UtcNow, null, 0, 0m, "EUR");
-        var parent = new ActivityDetailDto(parentId, groupId, "Parent", null, ActivityStatus.Open, null, [], [existingSub], DateTimeOffset.UtcNow, null);
-        var state = _initialState with { IsLoading = true, SelectedActivity = parent };
-
-        var newSubDetail = new ActivityDetailDto(Guid.NewGuid(), groupId, "New Sub", null, ActivityStatus.Open, parentId, [], [], DateTimeOffset.UtcNow, null);
-
-        var result = ActivityReducers.OnCreateSubSuccess(state, new CreateSubActivitySuccessAction(newSubDetail));
-
-        result.SelectedActivity!.SubActivities.Should().HaveCount(2);
-        result.SelectedActivity.SubActivities[0].Id.Should().Be(existingSub.Id);
-        result.SelectedActivity.SubActivities[1].Name.Should().Be("New Sub");
     }
 
     [Fact]
@@ -200,15 +159,13 @@ public class ActivityReducersTests
     }
 
     [Fact]
-    public void OnUpdateSuccess_SetsSelectedActivity_AndStopsLoading()
+    public void OnUpdateSuccess_StopsLoading()
     {
-        var detail = new ActivityDetailDto(Guid.NewGuid(), Guid.NewGuid(), "Updated", null, ActivityStatus.Open, null, [], [], DateTimeOffset.UtcNow, null);
         var state = _initialState with { IsLoading = true };
 
-        var result = ActivityReducers.OnUpdateSuccess(state, new UpdateActivitySuccessAction(detail));
+        var result = ActivityReducers.OnUpdateSuccess(state);
 
         result.IsLoading.Should().BeFalse();
-        result.SelectedActivity.Should().BeSameAs(detail);
     }
 
     [Fact]
@@ -232,15 +189,13 @@ public class ActivityReducersTests
     }
 
     [Fact]
-    public void OnCloseSuccess_SetsSelectedActivity_AndStopsLoading()
+    public void OnCloseSuccess_StopsLoading()
     {
-        var detail = new ActivityDetailDto(Guid.NewGuid(), Guid.NewGuid(), "A", null, ActivityStatus.Open, null, [], [], DateTimeOffset.UtcNow, null);
         var state = _initialState with { IsLoading = true };
 
-        var result = ActivityReducers.OnCloseSuccess(state, new CloseActivitySuccessAction(detail));
+        var result = ActivityReducers.OnCloseSuccess(state);
 
         result.IsLoading.Should().BeFalse();
-        result.SelectedActivity.Should().BeSameAs(detail);
     }
 
     [Fact]
@@ -264,15 +219,13 @@ public class ActivityReducersTests
     }
 
     [Fact]
-    public void OnAddParticipantSuccess_SetsSelectedActivity_AndStopsLoading()
+    public void OnAddParticipantSuccess_StopsLoading()
     {
-        var detail = new ActivityDetailDto(Guid.NewGuid(), Guid.NewGuid(), "A", null, ActivityStatus.Open, null, [], [], DateTimeOffset.UtcNow, null);
         var state = _initialState with { IsLoading = true };
 
-        var result = ActivityReducers.OnAddParticipantSuccess(state, new AddParticipantSuccessAction(detail));
+        var result = ActivityReducers.OnAddParticipantSuccess(state);
 
         result.IsLoading.Should().BeFalse();
-        result.SelectedActivity.Should().BeSameAs(detail);
     }
 
     [Fact]
@@ -296,15 +249,13 @@ public class ActivityReducersTests
     }
 
     [Fact]
-    public void OnRemoveParticipantSuccess_SetsSelectedActivity_AndStopsLoading()
+    public void OnRemoveParticipantSuccess_StopsLoading()
     {
-        var detail = new ActivityDetailDto(Guid.NewGuid(), Guid.NewGuid(), "A", null, ActivityStatus.Open, null, [], [], DateTimeOffset.UtcNow, null);
         var state = _initialState with { IsLoading = true };
 
-        var result = ActivityReducers.OnRemoveParticipantSuccess(state, new RemoveParticipantSuccessAction(detail));
+        var result = ActivityReducers.OnRemoveParticipantSuccess(state);
 
         result.IsLoading.Should().BeFalse();
-        result.SelectedActivity.Should().BeSameAs(detail);
     }
 
     [Fact]

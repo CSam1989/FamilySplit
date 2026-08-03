@@ -93,18 +93,14 @@ public class AdminReducersTests
     }
 
     [Fact]
-    public void OnCreateSuccess_SetsSelectedFamily_AndAppendsFamilyToList()
+    public void OnCreateSuccess_StopsLoading()
     {
-        var existing = CreateFamily();
-        var newFamily = CreateFamily();
-        var state = new AdminState { IsLoading = true, Families = [existing] };
+        // Strict CQRS: 201 + re-query (LoadAdminFamilies repopulates the list). Reducer only clears the flag.
+        var state = new AdminState { IsLoading = true };
 
-        var result = AdminReducers.OnCreateSuccess(state, new CreateAdminFamilySuccessAction(newFamily));
+        var result = AdminReducers.OnCreateSuccess(state);
 
         result.IsLoading.Should().BeFalse();
-        result.SelectedFamily.Should().BeSameAs(newFamily);
-        result.Families.Should().HaveCount(2);
-        result.Families.Should().ContainInOrder(existing, newFamily);
     }
 
     [Fact]
@@ -165,32 +161,14 @@ public class AdminReducersTests
     }
 
     [Fact]
-    public void OnUpdateMemberSuccess_WhenSelectedFamilyIsNull_ReturnsStateWithLoadingFalse()
+    public void OnUpdateMemberSuccess_StopsLoading()
     {
-        var state = new AdminState { IsLoading = true, SelectedFamily = null };
+        // Strict CQRS: 204 + re-query (LoadAdminFamily repopulates SelectedFamily). Reducer only clears the flag.
+        var state = new AdminState { IsLoading = true };
 
-        var result = AdminReducers.OnUpdateMemberSuccess(state, new UpdateAdminMemberSuccessAction(CreateMember()));
+        var result = AdminReducers.OnUpdateMemberSuccess(state);
 
         result.IsLoading.Should().BeFalse();
-        result.SelectedFamily.Should().BeNull();
-    }
-
-    [Fact]
-    public void OnUpdateMemberSuccess_ReplacesMemberInSelectedFamily()
-    {
-        var memberId = Guid.NewGuid();
-        var original = CreateMember(memberId, "Old");
-        var updated = CreateMember(memberId, "New");
-        var other = CreateMember();
-        var family = CreateFamily() with { Members = [original, other] };
-        var state = new AdminState { IsLoading = true, SelectedFamily = family };
-
-        var result = AdminReducers.OnUpdateMemberSuccess(state, new UpdateAdminMemberSuccessAction(updated));
-
-        result.IsLoading.Should().BeFalse();
-        result.SelectedFamily!.Members.Should().HaveCount(2);
-        result.SelectedFamily.Members.Should().Contain(m => m.Id == memberId && m.DisplayName == "New");
-        result.SelectedFamily.Members.Should().Contain(m => m.Id == other.Id);
     }
 
     [Fact]

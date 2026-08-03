@@ -51,9 +51,10 @@ public class ActivityEffects
     {
         try
         {
-            var activity = await _client.CreateAsync(action.GroupId, action.Request);
-            dispatcher.Dispatch(new CreateActivitySuccessAction(activity));
-            // Refresh the group-level list so the new activity appears immediately.
+            // Strict CQRS: the command returns only the new id; refresh the group-level
+            // list so the new activity appears immediately.
+            var created = await _client.CreateAsync(action.GroupId, action.Request);
+            dispatcher.Dispatch(new CreateActivitySuccessAction(created.Id));
             dispatcher.Dispatch(new LoadActivitiesAction(action.GroupId));
         }
         catch (Exception ex)
@@ -68,8 +69,11 @@ public class ActivityEffects
     {
         try
         {
-            var activity = await _client.CreateSubActivityAsync(action.GroupId, action.ParentActivityId, action.Request);
-            dispatcher.Dispatch(new CreateSubActivitySuccessAction(activity));
+            // Strict CQRS: the command returns only the new id; re-query the parent's detail
+            // so the new sub-activity shows up in its sub list.
+            var created = await _client.CreateSubActivityAsync(action.GroupId, action.ParentActivityId, action.Request);
+            dispatcher.Dispatch(new CreateSubActivitySuccessAction(created.Id));
+            dispatcher.Dispatch(new LoadActivityDetailAction(action.GroupId, action.ParentActivityId));
         }
         catch (Exception ex)
         {
@@ -83,8 +87,10 @@ public class ActivityEffects
     {
         try
         {
-            var activity = await _client.UpdateAsync(action.GroupId, action.ActivityId, action.Request);
-            dispatcher.Dispatch(new UpdateActivitySuccessAction(activity));
+            // Strict CQRS: the command returns 204; re-query the detail for the updated data.
+            await _client.UpdateAsync(action.GroupId, action.ActivityId, action.Request);
+            dispatcher.Dispatch(new UpdateActivitySuccessAction(action.ActivityId));
+            dispatcher.Dispatch(new LoadActivityDetailAction(action.GroupId, action.ActivityId));
         }
         catch (Exception ex)
         {
@@ -98,9 +104,11 @@ public class ActivityEffects
     {
         try
         {
-            var activity = await _client.CloseAsync(action.GroupId, action.ActivityId);
-            dispatcher.Dispatch(new CloseActivitySuccessAction(activity));
-            // Reload the list so the group detail's activity section reflects the closed status.
+            // Strict CQRS: the command returns 204; re-query the detail to reflect the closed
+            // status (and absorbed subs), refresh the list, then generate settlements + balances.
+            await _client.CloseAsync(action.GroupId, action.ActivityId);
+            dispatcher.Dispatch(new CloseActivitySuccessAction(action.ActivityId));
+            dispatcher.Dispatch(new LoadActivityDetailAction(action.GroupId, action.ActivityId));
             dispatcher.Dispatch(new LoadActivitiesAction(action.GroupId));
             // Auto-generate settlements and load balances immediately after close.
             dispatcher.Dispatch(new GenerateSettlementsAction(action.GroupId, action.ActivityId));
@@ -118,9 +126,11 @@ public class ActivityEffects
     {
         try
         {
-            var activity = await _client.AddParticipantAsync(action.GroupId, action.ActivityId, action.Request);
-            dispatcher.Dispatch(new AddParticipantSuccessAction(activity));
-            // Participant set changed — refresh balance so weights re-compute correctly.
+            // Strict CQRS: the command returns 204; re-query the detail then refresh the balance
+            // so weights re-compute correctly.
+            await _client.AddParticipantAsync(action.GroupId, action.ActivityId, action.Request);
+            dispatcher.Dispatch(new AddParticipantSuccessAction(action.ActivityId));
+            dispatcher.Dispatch(new LoadActivityDetailAction(action.GroupId, action.ActivityId));
             dispatcher.Dispatch(new LoadBalancesAction(action.GroupId, action.ActivityId));
         }
         catch (Exception ex)
@@ -135,9 +145,10 @@ public class ActivityEffects
     {
         try
         {
-            var activity = await _client.RemoveParticipantAsync(action.GroupId, action.ActivityId, action.FamilyMemberId);
-            dispatcher.Dispatch(new RemoveParticipantSuccessAction(activity));
-            // Participant set changed — refresh balance.
+            // Strict CQRS: the command returns 204; re-query the detail then refresh the balance.
+            await _client.RemoveParticipantAsync(action.GroupId, action.ActivityId, action.FamilyMemberId);
+            dispatcher.Dispatch(new RemoveParticipantSuccessAction(action.ActivityId));
+            dispatcher.Dispatch(new LoadActivityDetailAction(action.GroupId, action.ActivityId));
             dispatcher.Dispatch(new LoadBalancesAction(action.GroupId, action.ActivityId));
         }
         catch (Exception ex)

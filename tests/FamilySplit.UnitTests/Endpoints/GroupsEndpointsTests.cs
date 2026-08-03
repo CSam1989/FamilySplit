@@ -1,25 +1,33 @@
-using FamilySplit.Api.Endpoints;
-using FamilySplit.Application.Groups;
-using FamilySplit.Infrastructure;
+using FamilySplit.Features.Groups;
+using FamilySplit.Features.Groups.Create;
+using FamilySplit.Features.Groups.Data;
+using FamilySplit.Features.Groups.GetDetail;
+using FamilySplit.Features.Groups.Join;
+using FamilySplit.Features.Groups.Leave;
+using FamilySplit.Features.Groups.List;
+using FamilySplit.Features.Groups.RegenerateInviteCode;
+using FamilySplit.Features.Groups.Update;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace FamilySplit.UnitTests.Endpoints;
 
+/// <summary>
+/// Per-module DI + route-mapping test for the Groups slice (mirrors
+/// <see cref="DashboardEndpointsTests"/>). Verifies that <see cref="GroupsModule"/> registers the
+/// data seam + every handler as Scoped and maps the seven routes with the correct verbs / patterns.
+/// </summary>
 public class GroupsEndpointsTests
 {
     private static WebApplication CreateApp()
     {
         var builder = WebApplication.CreateBuilder();
-        builder.Services.AddDbContext<AppDbContext>(o => o.UseInMemoryDatabase(Guid.NewGuid().ToString()));
-        builder.Services.AddScoped<CreateGroupValidator>();
-        builder.Services.AddScoped<UpdateGroupValidator>();
-        builder.Services.AddScoped<JoinGroupValidator>();
-        builder.Services.AddScoped<GroupService>();
-        var app = builder.Build();
-        return app;
+        new GroupsModule().RegisterServices(builder.Services, builder.Configuration);
+        return builder.Build();
     }
 
     private static List<RouteEndpoint> GetEndpoints(WebApplication app)
@@ -31,150 +39,102 @@ public class GroupsEndpointsTests
             .ToList();
     }
 
-    [Fact]
-    public void MapGroupEndpoints_ReturnsWebApplication()
+    // ── RegisterServices ──────────────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData(typeof(IGroupData))]
+    [InlineData(typeof(ListGroupsQueryHandler))]
+    [InlineData(typeof(GetGroupDetailQueryHandler))]
+    [InlineData(typeof(CreateGroupCommandHandler))]
+    [InlineData(typeof(UpdateGroupCommandHandler))]
+    [InlineData(typeof(JoinGroupCommandHandler))]
+    [InlineData(typeof(LeaveGroupCommandHandler))]
+    [InlineData(typeof(RegenerateInviteCodeCommandHandler))]
+    public void RegisterServices_RegistersServiceAsScoped(Type serviceType)
     {
-        // Arrange
-        var app = CreateApp();
+        var services = new ServiceCollection();
+        new GroupsModule().RegisterServices(services, new ConfigurationBuilder().Build());
 
-        // Act
-        var result = app.MapGroupEndpoints();
-
-        // Assert
-        result.Should().BeSameAs(app);
+        services.Should().Contain(d =>
+            d.ServiceType == serviceType && d.Lifetime == ServiceLifetime.Scoped);
     }
 
     [Fact]
-    public void MapGroupEndpoints_RegistersSevenEndpoints()
+    public void RegisterServices_RegistersGroupDataImplementationAsGroupData()
     {
-        // Arrange
-        var app = CreateApp();
-        app.MapGroupEndpoints();
+        var services = new ServiceCollection();
+        new GroupsModule().RegisterServices(services, new ConfigurationBuilder().Build());
 
-        // Act
-        var endpoints = GetEndpoints(app);
-
-        // Assert
-        endpoints.Should().HaveCount(7);
+        services.Should().Contain(d =>
+            d.ServiceType == typeof(IGroupData)
+            && d.ImplementationType == typeof(GroupData)
+            && d.Lifetime == ServiceLifetime.Scoped);
     }
 
     [Fact]
-    public void MapGroupEndpoints_RegistersGetListEndpoint()
+    public void RegisterServices_RegistersValidators()
     {
-        // Arrange
+        var services = new ServiceCollection();
+        new GroupsModule().RegisterServices(services, new ConfigurationBuilder().Build());
+
+        services.Should().Contain(d => d.ServiceType == typeof(CreateGroupCommandValidator));
+        services.Should().Contain(d => d.ServiceType == typeof(UpdateGroupCommandValidator));
+        services.Should().Contain(d => d.ServiceType == typeof(JoinGroupCommandValidator));
+    }
+
+    // ── MapEndpoints ──────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void MapEndpoints_RegistersExactlySevenEndpoints()
+    {
         var app = CreateApp();
-        app.MapGroupEndpoints();
 
-        // Act
-        var endpoints = GetEndpoints(app);
+        new GroupsModule().MapEndpoints(app);
 
-        // Assert
-        endpoints.Should().Contain(e => e.RoutePattern.RawText == "/groups/"
-            && e.Metadata.GetMetadata<IHttpMethodMetadata>()!.HttpMethods.Contains("GET"));
+        GetEndpoints(app).Should().HaveCount(7);
+    }
+
+    [Theory]
+    [InlineData("/groups/", "GET")]              // List
+    [InlineData("/groups/", "POST")]             // Create
+    [InlineData("/groups/join", "POST")]         // Join
+    [InlineData("/groups/{groupId:guid}", "GET")]   // GetDetail
+    [InlineData("/groups/{groupId:guid}", "PUT")]   // Update
+    [InlineData("/groups/{groupId:guid}/invite-code", "POST")] // Regenerate
+    [InlineData("/groups/{groupId:guid}/leave", "DELETE")]     // Leave
+    public void MapEndpoints_RegistersRouteWithVerb(string rawPattern, string verb)
+    {
+        var app = CreateApp();
+
+        new GroupsModule().MapEndpoints(app);
+
+        GetEndpoints(app).Should().Contain(e =>
+            e.RoutePattern.RawText == rawPattern
+            && e.Metadata.GetMetadata<IHttpMethodMetadata>()!.HttpMethods.Contains(verb));
     }
 
     [Fact]
-    public void MapGroupEndpoints_RegistersGetDetailEndpoint()
+    public void MapEndpoints_AllEndpointsCarryGroupsTag()
     {
-        // Arrange
         var app = CreateApp();
-        app.MapGroupEndpoints();
 
-        // Act
+        new GroupsModule().MapEndpoints(app);
+
         var endpoints = GetEndpoints(app);
-
-        // Assert
-        endpoints.Should().Contain(e => e.RoutePattern.RawText == "/groups/{groupId:guid}"
-            && e.Metadata.GetMetadata<IHttpMethodMetadata>()!.HttpMethods.Contains("GET"));
-    }
-
-    [Fact]
-    public void MapGroupEndpoints_RegistersPostCreateEndpoint()
-    {
-        // Arrange
-        var app = CreateApp();
-        app.MapGroupEndpoints();
-
-        // Act
-        var endpoints = GetEndpoints(app);
-
-        // Assert
-        endpoints.Should().Contain(e => e.RoutePattern.RawText == "/groups/"
-            && e.Metadata.GetMetadata<IHttpMethodMetadata>()!.HttpMethods.Contains("POST"));
-    }
-
-    [Fact]
-    public void MapGroupEndpoints_RegistersPutUpdateEndpoint()
-    {
-        // Arrange
-        var app = CreateApp();
-        app.MapGroupEndpoints();
-
-        // Act
-        var endpoints = GetEndpoints(app);
-
-        // Assert
-        endpoints.Should().Contain(e => e.RoutePattern.RawText == "/groups/{groupId:guid}"
-            && e.Metadata.GetMetadata<IHttpMethodMetadata>()!.HttpMethods.Contains("PUT"));
-    }
-
-    [Fact]
-    public void MapGroupEndpoints_RegistersPostJoinEndpoint()
-    {
-        // Arrange
-        var app = CreateApp();
-        app.MapGroupEndpoints();
-
-        // Act
-        var endpoints = GetEndpoints(app);
-
-        // Assert
-        endpoints.Should().Contain(e => e.RoutePattern.RawText == "/groups/join"
-            && e.Metadata.GetMetadata<IHttpMethodMetadata>()!.HttpMethods.Contains("POST"));
-    }
-
-    [Fact]
-    public void MapGroupEndpoints_RegistersPostInviteCodeEndpoint()
-    {
-        // Arrange
-        var app = CreateApp();
-        app.MapGroupEndpoints();
-
-        // Act
-        var endpoints = GetEndpoints(app);
-
-        // Assert
-        endpoints.Should().Contain(e => e.RoutePattern.RawText == "/groups/{groupId:guid}/invite-code"
-            && e.Metadata.GetMetadata<IHttpMethodMetadata>()!.HttpMethods.Contains("POST"));
-    }
-
-    [Fact]
-    public void MapGroupEndpoints_RegistersDeleteLeaveEndpoint()
-    {
-        // Arrange
-        var app = CreateApp();
-        app.MapGroupEndpoints();
-
-        // Act
-        var endpoints = GetEndpoints(app);
-
-        // Assert
-        endpoints.Should().Contain(e => e.RoutePattern.RawText == "/groups/{groupId:guid}/leave"
-            && e.Metadata.GetMetadata<IHttpMethodMetadata>()!.HttpMethods.Contains("DELETE"));
-    }
-
-    [Fact]
-    public void MapGroupEndpoints_AllEndpointsHaveGroupsTag()
-    {
-        // Arrange
-        var app = CreateApp();
-        app.MapGroupEndpoints();
-
-        // Act
-        var endpoints = GetEndpoints(app);
-
-        // Assert
+        endpoints.Should().NotBeEmpty();
         endpoints.Should().AllSatisfy(e =>
-            e.DisplayName.Should().NotBeNullOrEmpty());
+            e.Metadata.GetMetadata<ITagsMetadata>()!.Tags.Should().Contain("Groups"));
+    }
+
+    [Fact]
+    public void MapEndpoints_AllEndpointsHaveDisplayName()
+    {
+        var app = CreateApp();
+
+        new GroupsModule().MapEndpoints(app);
+
+        var endpoints = GetEndpoints(app);
+        endpoints.Should().NotBeEmpty();
+        endpoints.Should().AllSatisfy(e => e.DisplayName.Should().NotBeNullOrEmpty());
     }
 }

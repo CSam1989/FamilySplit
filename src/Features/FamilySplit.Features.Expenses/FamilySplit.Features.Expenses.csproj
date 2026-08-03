@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>FamilySplit.Features.Expenses</RootNamespace>
+    <AssemblyName>FamilySplit.Features.Expenses</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- IEndpointRouteBuilder, IServiceCollection extensions, HttpContext etc. live in
+         the shared framework — class libraries must opt in explicitly. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\FamilySplit.Common\FamilySplit.Common.csproj" />
+    <ProjectReference Include="..\..\FamilySplit.Domain\FamilySplit.Domain.csproj" />
+    <ProjectReference Include="..\..\FamilySplit.Infrastructure\FamilySplit.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="FamilySplit.UnitTests" />
+    <Using Include="FamilySplit.Common.Security" /> <!-- GetUserId() without per-file usings -->
+  </ItemGroup>
+
+</Project>

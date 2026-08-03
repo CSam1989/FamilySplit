@@ -1,26 +1,35 @@
-using FamilySplit.Api.Endpoints;
-using FamilySplit.Application.Admin;
-using FamilySplit.Application.Families;
-using FamilySplit.Infrastructure;
+using FamilySplit.Features.Admin;
+using FamilySplit.Features.Admin.AddFamilyMember;
+using FamilySplit.Features.Admin.AddFamilyToGroup;
+using FamilySplit.Features.Admin.CreateFamily;
+using FamilySplit.Features.Admin.Data;
+using FamilySplit.Features.Admin.DeleteGroup;
+using FamilySplit.Features.Admin.GetFamily;
+using FamilySplit.Features.Admin.ListFamilies;
+using FamilySplit.Features.Admin.RemoveFamilyFromGroup;
+using FamilySplit.Features.Admin.RemoveFamilyMember;
+using FamilySplit.Features.Admin.UpdateFamilyMember;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace FamilySplit.UnitTests.Endpoints;
 
+/// <summary>
+/// Per-module DI + route-mapping test for the Admin slice (mirrors the other slice endpoint tests).
+/// Verifies that <see cref="AdminModule"/> registers the data seam + every handler as Scoped and maps
+/// the nine routes with the correct verbs / patterns.
+/// </summary>
 public class AdminEndpointsTests
 {
     private static WebApplication CreateApp()
     {
         var builder = WebApplication.CreateBuilder();
-        builder.Services.AddDbContext<AppDbContext>(o => o.UseInMemoryDatabase("admin-test"));
-        builder.Services.AddScoped<AdminService>();
-        builder.Services.AddScoped<CreateFamilyValidator>();
-        builder.Services.AddScoped<AddFamilyMemberValidator>();
-        builder.Services.AddScoped<UpdateFamilyMemberValidator>();
-        var app = builder.Build();
-        return app;
+        new AdminModule().RegisterServices(builder.Services, builder.Configuration);
+        return builder.Build();
     }
 
     private static List<RouteEndpoint> GetEndpoints(WebApplication app)
@@ -32,25 +41,61 @@ public class AdminEndpointsTests
             .ToList();
     }
 
-    [Fact]
-    public void MapAdminEndpoints_ReturnsWebApplication()
+    // ── RegisterServices ──────────────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData(typeof(IAdminData))]
+    [InlineData(typeof(ListFamiliesQueryHandler))]
+    [InlineData(typeof(GetFamilyQueryHandler))]
+    [InlineData(typeof(CreateFamilyCommandHandler))]
+    [InlineData(typeof(AddFamilyMemberCommandHandler))]
+    [InlineData(typeof(UpdateFamilyMemberCommandHandler))]
+    [InlineData(typeof(RemoveFamilyMemberCommandHandler))]
+    [InlineData(typeof(DeleteGroupCommandHandler))]
+    [InlineData(typeof(AddFamilyToGroupCommandHandler))]
+    [InlineData(typeof(RemoveFamilyFromGroupCommandHandler))]
+    public void RegisterServices_RegistersServiceAsScoped(Type serviceType)
     {
-        var app = CreateApp();
+        var services = new ServiceCollection();
+        new AdminModule().RegisterServices(services, new ConfigurationBuilder().Build());
 
-        var result = app.MapAdminEndpoints();
-
-        result.Should().BeSameAs(app);
+        services.Should().Contain(d =>
+            d.ServiceType == serviceType && d.Lifetime == ServiceLifetime.Scoped);
     }
 
     [Fact]
-    public void MapAdminEndpoints_RegistersNineEndpoints()
+    public void RegisterServices_RegistersAdminDataImplementationAsAdminData()
+    {
+        var services = new ServiceCollection();
+        new AdminModule().RegisterServices(services, new ConfigurationBuilder().Build());
+
+        services.Should().Contain(d =>
+            d.ServiceType == typeof(IAdminData)
+            && d.ImplementationType == typeof(AdminData)
+            && d.Lifetime == ServiceLifetime.Scoped);
+    }
+
+    [Fact]
+    public void RegisterServices_RegistersValidators()
+    {
+        var services = new ServiceCollection();
+        new AdminModule().RegisterServices(services, new ConfigurationBuilder().Build());
+
+        services.Should().Contain(d => d.ServiceType == typeof(CreateFamilyCommandValidator));
+        services.Should().Contain(d => d.ServiceType == typeof(AddFamilyMemberCommandValidator));
+        services.Should().Contain(d => d.ServiceType == typeof(UpdateFamilyMemberCommandValidator));
+    }
+
+    // ── MapEndpoints ──────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void MapEndpoints_RegistersExactlyNineEndpoints()
     {
         var app = CreateApp();
 
-        app.MapAdminEndpoints();
+        new AdminModule().MapEndpoints(app);
 
-        var endpoints = GetEndpoints(app);
-        endpoints.Should().HaveCount(9);
+        GetEndpoints(app).Should().HaveCount(9);
     }
 
     [Theory]
@@ -63,30 +108,39 @@ public class AdminEndpointsTests
     [InlineData("DELETE", "/admin/groups/{groupId:guid}")]
     [InlineData("POST", "/admin/groups/{groupId:guid}/families")]
     [InlineData("DELETE", "/admin/groups/{groupId:guid}/families/{familyId:guid}")]
-    public void MapAdminEndpoints_RegistersExpectedEndpoint(string method, string route)
+    public void MapEndpoints_RegistersRouteWithVerb(string method, string route)
     {
         var app = CreateApp();
 
-        app.MapAdminEndpoints();
+        new AdminModule().MapEndpoints(app);
 
-        var endpoints = GetEndpoints(app);
-        endpoints.Should().Contain(e => e.RoutePattern.RawText == route
+        GetEndpoints(app).Should().Contain(e =>
+            e.RoutePattern.RawText == route
             && e.Metadata.GetMetadata<IHttpMethodMetadata>()!.HttpMethods.Contains(method));
     }
 
     [Fact]
-    public void MapAdminEndpoints_AllEndpointsHaveAdminTag()
+    public void MapEndpoints_AllEndpointsCarryAdminTag()
     {
         var app = CreateApp();
 
-        app.MapAdminEndpoints();
+        new AdminModule().MapEndpoints(app);
 
         var endpoints = GetEndpoints(app);
-        foreach (var endpoint in endpoints)
-        {
-            var tags = endpoint.Metadata.GetMetadata<Microsoft.AspNetCore.Http.Metadata.ITagsMetadata>();
-            tags.Should().NotBeNull();
-            tags!.Tags.Should().Contain("Admin");
-        }
+        endpoints.Should().NotBeEmpty();
+        endpoints.Should().AllSatisfy(e =>
+            e.Metadata.GetMetadata<ITagsMetadata>()!.Tags.Should().Contain("Admin"));
+    }
+
+    [Fact]
+    public void MapEndpoints_AllEndpointsHaveDisplayName()
+    {
+        var app = CreateApp();
+
+        new AdminModule().MapEndpoints(app);
+
+        var endpoints = GetEndpoints(app);
+        endpoints.Should().NotBeEmpty();
+        endpoints.Should().AllSatisfy(e => e.DisplayName.Should().NotBeNullOrEmpty());
     }
 }

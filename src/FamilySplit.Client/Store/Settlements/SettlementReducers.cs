@@ -38,9 +38,10 @@ public static class SettlementReducers
     public static SettlementState OnGenerate(SettlementState state) =>
         state with { IsGenerating = true, ErrorMessage = null };
 
-    [ReducerMethod]
-    public static SettlementState OnGenerateSuccess(SettlementState state, GenerateSettlementsSuccessAction action) =>
-        state with { IsGenerating = false, Settlements = action.Settlements };
+    // Strict CQRS: the command returned 204; the effect re-queries the list. Just clear the flag.
+    [ReducerMethod(typeof(GenerateSettlementsSuccessAction))]
+    public static SettlementState OnGenerateSuccess(SettlementState state) =>
+        state with { IsGenerating = false };
 
     [ReducerMethod]
     public static SettlementState OnGenerateFailure(SettlementState state, GenerateSettlementsFailureAction action) =>
@@ -66,31 +67,10 @@ public static class SettlementReducers
     public static SettlementState OnConfirmSent(SettlementState state) =>
         state with { IsLoading = true, ErrorMessage = null };
 
-    [ReducerMethod]
-    public static SettlementState OnConfirmSentSuccess(SettlementState state, ConfirmSentSuccessAction action) =>
-        state with
-        {
-            IsLoading = false,
-            SelectedSettlement = action.Settlement,
-            // Update activity-level list
-            Settlements = state.Settlements
-                .Select(s => s.Id == action.Settlement.Id
-                    ? s with { Status = action.Settlement.Status }
-                    : s)
-                .ToList(),
-            // Update group-level list
-            GroupSettlements = state.GroupSettlements
-                .Select(s => s.Id == action.Settlement.Id
-                    ? s with { Status = action.Settlement.Status }
-                    : s)
-                .ToList(),
-            // Update dashboard list
-            MyPendingSettlements = state.MyPendingSettlements
-                .Select(s => s.Id == action.Settlement.Id
-                    ? s with { Status = action.Settlement.Status }
-                    : s)
-                .ToList(),
-        };
+    // Strict CQRS: 204 + re-query (detail / list / group / pending). Just clear the flag.
+    [ReducerMethod(typeof(ConfirmSentSuccessAction))]
+    public static SettlementState OnConfirmSentSuccess(SettlementState state) =>
+        state with { IsLoading = false };
 
     [ReducerMethod]
     public static SettlementState OnConfirmSentFailure(SettlementState state, ConfirmSentFailureAction action) =>
@@ -102,27 +82,10 @@ public static class SettlementReducers
     public static SettlementState OnConfirmReceived(SettlementState state) =>
         state with { IsLoading = true, ErrorMessage = null };
 
-    [ReducerMethod]
-    public static SettlementState OnConfirmReceivedSuccess(SettlementState state, ConfirmReceivedSuccessAction action) =>
-        state with
-        {
-            IsLoading = false,
-            SelectedSettlement = action.Settlement,
-            // Update activity-level list
-            Settlements = state.Settlements
-                .Select(s => s.Id == action.Settlement.Id
-                    ? s with { Status = action.Settlement.Status, CompletedAt = action.Settlement.CompletedAt }
-                    : s)
-                .ToList(),
-            // Remove from group-level list (Completed → no longer pending)
-            GroupSettlements = state.GroupSettlements
-                .Where(s => s.Id != action.Settlement.Id)
-                .ToList(),
-            // Remove from dashboard list
-            MyPendingSettlements = state.MyPendingSettlements
-                .Where(s => s.Id != action.Settlement.Id)
-                .ToList(),
-        };
+    // Strict CQRS: 204 + re-query (detail / list / activity / group / pending). Just clear the flag.
+    [ReducerMethod(typeof(ConfirmReceivedSuccessAction))]
+    public static SettlementState OnConfirmReceivedSuccess(SettlementState state) =>
+        state with { IsLoading = false };
 
     [ReducerMethod]
     public static SettlementState OnConfirmReceivedFailure(SettlementState state, ConfirmReceivedFailureAction action) =>

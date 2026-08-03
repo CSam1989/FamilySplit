@@ -1,4 +1,3 @@
-using FamilySplit.Client.Services;
 using Fluxor;
 
 namespace FamilySplit.Client.Store.Activities;
@@ -34,46 +33,32 @@ public static class ActivityReducers
         state with { IsLoading = false, ErrorMessage = action.ErrorMessage };
 
     // ── Create ────────────────────────────────────────────────────────────────
+    // Strict CQRS: the command returns only an id; the effect re-queries the list, so the
+    // success reducer just stops loading — it no longer patches state from a returned DTO.
 
     [ReducerMethod(typeof(CreateActivityAction))]
     public static ActivityState OnCreate(ActivityState state) =>
         state with { IsLoading = true, ErrorMessage = null };
 
-    [ReducerMethod]
-    public static ActivityState OnCreateSuccess(ActivityState state, CreateActivitySuccessAction action) =>
-        state with { IsLoading = false, SelectedActivity = action.Activity };
+    [ReducerMethod(typeof(CreateActivitySuccessAction))]
+    public static ActivityState OnCreateSuccess(ActivityState state) =>
+        state with { IsLoading = false };
 
     [ReducerMethod]
     public static ActivityState OnCreateFailure(ActivityState state, CreateActivityFailureAction action) =>
         state with { IsLoading = false, ErrorMessage = action.ErrorMessage };
 
     // ── Create Sub-Activity ───────────────────────────────────────────────────
+    // Strict CQRS: the effect re-queries the parent's detail, which repopulates
+    // SelectedActivity (and its sub list) — the success reducer just stops loading.
 
     [ReducerMethod(typeof(CreateSubActivityAction))]
     public static ActivityState OnCreateSub(ActivityState state) =>
         state with { IsLoading = true, ErrorMessage = null };
 
-    [ReducerMethod]
-    public static ActivityState OnCreateSubSuccess(ActivityState state, CreateSubActivitySuccessAction action)
-    {
-        // action.Activity is the *new sub-activity*, not the parent.
-        // Keep the parent as SelectedActivity and append the sub to its list.
-        if (state.SelectedActivity is null)
-            return state with { IsLoading = false };
-
-        var sub = action.Activity;
-        var summary = new ActivitySummaryDto(
-            sub.Id, sub.GroupId, sub.Name, sub.Description, sub.Status,
-            sub.ParentActivityId, sub.Participants.Count, 0,
-            sub.CreatedAt, sub.ClosedAt);
-
-        var updatedParent = state.SelectedActivity with
-        {
-            SubActivities = [.. state.SelectedActivity.SubActivities, summary]
-        };
-
-        return state with { IsLoading = false, SelectedActivity = updatedParent };
-    }
+    [ReducerMethod(typeof(CreateSubActivitySuccessAction))]
+    public static ActivityState OnCreateSubSuccess(ActivityState state) =>
+        state with { IsLoading = false };
 
     [ReducerMethod]
     public static ActivityState OnCreateSubFailure(ActivityState state, CreateSubActivityFailureAction action) =>
@@ -85,9 +70,9 @@ public static class ActivityReducers
     public static ActivityState OnUpdate(ActivityState state) =>
         state with { IsLoading = true, ErrorMessage = null };
 
-    [ReducerMethod]
-    public static ActivityState OnUpdateSuccess(ActivityState state, UpdateActivitySuccessAction action) =>
-        state with { IsLoading = false, SelectedActivity = action.Activity };
+    [ReducerMethod(typeof(UpdateActivitySuccessAction))]
+    public static ActivityState OnUpdateSuccess(ActivityState state) =>
+        state with { IsLoading = false };
 
     [ReducerMethod]
     public static ActivityState OnUpdateFailure(ActivityState state, UpdateActivityFailureAction action) =>
@@ -99,9 +84,9 @@ public static class ActivityReducers
     public static ActivityState OnClose(ActivityState state) =>
         state with { IsLoading = true, ErrorMessage = null };
 
-    [ReducerMethod]
-    public static ActivityState OnCloseSuccess(ActivityState state, CloseActivitySuccessAction action) =>
-        state with { IsLoading = false, SelectedActivity = action.Activity };
+    [ReducerMethod(typeof(CloseActivitySuccessAction))]
+    public static ActivityState OnCloseSuccess(ActivityState state) =>
+        state with { IsLoading = false };
 
     [ReducerMethod]
     public static ActivityState OnCloseFailure(ActivityState state, CloseActivityFailureAction action) =>
@@ -113,9 +98,9 @@ public static class ActivityReducers
     public static ActivityState OnAddParticipant(ActivityState state) =>
         state with { IsLoading = true, ErrorMessage = null };
 
-    [ReducerMethod]
-    public static ActivityState OnAddParticipantSuccess(ActivityState state, AddParticipantSuccessAction action) =>
-        state with { IsLoading = false, SelectedActivity = action.Activity };
+    [ReducerMethod(typeof(AddParticipantSuccessAction))]
+    public static ActivityState OnAddParticipantSuccess(ActivityState state) =>
+        state with { IsLoading = false };
 
     [ReducerMethod]
     public static ActivityState OnAddParticipantFailure(ActivityState state, AddParticipantFailureAction action) =>
@@ -127,9 +112,9 @@ public static class ActivityReducers
     public static ActivityState OnRemoveParticipant(ActivityState state) =>
         state with { IsLoading = true, ErrorMessage = null };
 
-    [ReducerMethod]
-    public static ActivityState OnRemoveParticipantSuccess(ActivityState state, RemoveParticipantSuccessAction action) =>
-        state with { IsLoading = false, SelectedActivity = action.Activity };
+    [ReducerMethod(typeof(RemoveParticipantSuccessAction))]
+    public static ActivityState OnRemoveParticipantSuccess(ActivityState state) =>
+        state with { IsLoading = false };
 
     [ReducerMethod]
     public static ActivityState OnRemoveParticipantFailure(ActivityState state, RemoveParticipantFailureAction action) =>

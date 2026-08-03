@@ -1,5 +1,4 @@
 using FamilySplit.Client.Services;
-using FamilySplit.Domain.Enums;
 using FluentAssertions;
 using Moq;
 
@@ -37,10 +36,10 @@ public class IAdminClientTests
     }
 
     [Fact]
-    public async Task CreateFamilyAsync_ReturnsCreatedFamily()
+    public async Task CreateFamilyAsync_ReturnsCreatedId()
     {
         var request = new CreateFamilyRequest("NewFamily");
-        var expected = new FamilyDto(Guid.NewGuid(), "NewFamily", [], DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        var expected = new CreatedResponse(Guid.NewGuid());
         _mock.Setup(c => c.CreateFamilyAsync(request)).ReturnsAsync(expected);
 
         var result = await _mock.Object.CreateFamilyAsync(request);
@@ -63,13 +62,11 @@ public class IAdminClientTests
     }
 
     [Fact]
-    public async Task AddMemberAsync_ReturnsMember()
+    public async Task AddMemberAsync_ReturnsCreatedId()
     {
         var familyId = Guid.NewGuid();
         var request = new AddFamilyMemberRequest("John", "john@test.com", null, null);
-        var expected = new FamilyMemberDto(
-            Guid.NewGuid(), "John", "john@test.com", null, null,
-            1.0m, WeightTier.Volwassene, true, false, false, DateTimeOffset.UtcNow);
+        var expected = new CreatedResponse(Guid.NewGuid());
         _mock.Setup(c => c.AddMemberAsync(familyId, request)).ReturnsAsync(expected);
 
         var result = await _mock.Object.AddMemberAsync(familyId, request);
@@ -79,19 +76,15 @@ public class IAdminClientTests
     }
 
     [Fact]
-    public async Task UpdateMemberAsync_ReturnsMember()
+    public async Task UpdateMemberAsync_CallsEndpoint()
     {
         var familyId = Guid.NewGuid();
         var memberId = Guid.NewGuid();
         var request = new UpdateFamilyMemberRequest("Jane", null, null, 1.5m);
-        var expected = new FamilyMemberDto(
-            memberId, "Jane", null, null, 1.5m,
-            1.5m, WeightTier.Volwassene, true, false, false, DateTimeOffset.UtcNow);
-        _mock.Setup(c => c.UpdateMemberAsync(familyId, memberId, request)).ReturnsAsync(expected);
+        _mock.Setup(c => c.UpdateMemberAsync(familyId, memberId, request)).Returns(Task.CompletedTask);
 
-        var result = await _mock.Object.UpdateMemberAsync(familyId, memberId, request);
+        await _mock.Object.UpdateMemberAsync(familyId, memberId, request);
 
-        result.Should().Be(expected);
         _mock.Verify(c => c.UpdateMemberAsync(familyId, memberId, request), Times.Once);
     }
 

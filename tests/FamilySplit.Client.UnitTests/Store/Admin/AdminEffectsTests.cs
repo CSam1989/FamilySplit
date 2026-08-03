@@ -78,15 +78,15 @@ public class AdminEffectsTests
     // HandleCreate
 
     [Fact]
-    public async Task HandleCreate_Success_DispatchesSuccessAction()
+    public async Task HandleCreate_Success_DispatchesSuccessAndReloadsList()
     {
         var request = new CreateFamilyRequest("New Family");
-        var family = new FamilyDto(Guid.NewGuid(), "New Family", [], DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
-        _client.Setup(c => c.CreateFamilyAsync(request)).ReturnsAsync(family);
+        _client.Setup(c => c.CreateFamilyAsync(request)).ReturnsAsync(new CreatedResponse(Guid.NewGuid()));
 
         await _sut.HandleCreate(new CreateAdminFamilyAction(request), _dispatcher.Object);
 
-        _dispatcher.Verify(d => d.Dispatch(It.Is<CreateAdminFamilySuccessAction>(a => a.Family == family)), Times.Once);
+        _dispatcher.Verify(d => d.Dispatch(It.IsAny<CreateAdminFamilySuccessAction>()), Times.Once);
+        _dispatcher.Verify(d => d.Dispatch(It.IsAny<LoadAdminFamiliesAction>()), Times.Once);
     }
 
     [Fact]
@@ -107,7 +107,7 @@ public class AdminEffectsTests
     {
         var familyId = Guid.NewGuid();
         var request = new AddFamilyMemberRequest("John", null, null, null, false);
-        _client.Setup(c => c.AddMemberAsync(familyId, request)).ReturnsAsync(It.IsAny<FamilyMemberDto>());
+        _client.Setup(c => c.AddMemberAsync(familyId, request)).ReturnsAsync(new CreatedResponse(Guid.NewGuid()));
 
         await _sut.HandleAddMember(new AddAdminMemberAction(familyId, request), _dispatcher.Object);
 
@@ -130,17 +130,17 @@ public class AdminEffectsTests
     // HandleUpdateMember
 
     [Fact]
-    public async Task HandleUpdateMember_Success_DispatchesSuccessAction()
+    public async Task HandleUpdateMember_Success_DispatchesSuccessAndReloadsFamily()
     {
         var familyId = Guid.NewGuid();
         var memberId = Guid.NewGuid();
         var request = new UpdateFamilyMemberRequest("Jane", null, null, null, true);
-        var member = new FamilyMemberDto(memberId, "Jane", null, null, null, 1m, WeightTier.Volwassene, true, false, true, DateTimeOffset.UtcNow);
-        _client.Setup(c => c.UpdateMemberAsync(familyId, memberId, request)).ReturnsAsync(member);
+        _client.Setup(c => c.UpdateMemberAsync(familyId, memberId, request)).Returns(Task.CompletedTask);
 
         await _sut.HandleUpdateMember(new UpdateAdminMemberAction(familyId, memberId, request), _dispatcher.Object);
 
-        _dispatcher.Verify(d => d.Dispatch(It.Is<UpdateAdminMemberSuccessAction>(a => a.Member == member)), Times.Once);
+        _dispatcher.Verify(d => d.Dispatch(It.Is<UpdateAdminMemberSuccessAction>(a => a.FamilyId == familyId)), Times.Once);
+        _dispatcher.Verify(d => d.Dispatch(It.Is<LoadAdminFamilyAction>(a => a.FamilyId == familyId)), Times.Once);
     }
 
     [Fact]

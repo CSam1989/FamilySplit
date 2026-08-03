@@ -293,12 +293,12 @@ else
                                Color="@(isCallerFamily ? Color.Primary : Color.Default)">
                         @b.FamilyName[0]
                     </MudAvatar>
-                    <MudText Typo="Typo.body2" Style="@balTextStyle">
+                    <MudText Typo="Typo.body2" Class="fs-truncate" Style="@($"min-width:0;{balTextStyle}")">
                         @b.FamilyName
                     </MudText>
                     <MudIcon Icon="@balIcon" Color="@balColor" Size="Size.Small" />
-                    <MudText Typo="Typo.subtitle2" Color="@balColor">
-                        @(b.Balance >= 0 ? "+" : "")@b.Balance.ToString("F2") @b.Currency
+                    <MudText Typo="Typo.subtitle2" Color="@balColor" Style="white-space:nowrap">
+                        @(b.Balance >= 0 ? "+" : "")@FormatHelper.FormatAmount(b.Balance, b.Currency)
                     </MudText>
                     <MudText Typo="Typo.caption" Color="Color.Secondary">@balLabel</MudText>
                 </MudStack>
@@ -316,6 +316,18 @@ else
                         @_t.AllBalancesEven
                     </MudText>
                 </MudPaper>
+            }
+            else if (isClosed && SettlementState.Value.Settlements.Count == 0)
+            {
+                @* Closed but transfers not generated yet (e.g. closed before generation,
+                   or a prior attempt failed) — let a member generate them explicitly. *@
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Medium"
+                           StartIcon="@Icons.Material.Filled.SwapHoriz"
+                           Disabled="@SettlementState.Value.IsGenerating"
+                           OnClick="GenerateTransfers" Class="mt-2"
+                           data-testid="btn-generate-transfers">
+                    @_t.GenerateTransfers
+                </MudButton>
             }
             else if (SettlementState.Value.Settlements.Count > 0)
             {
@@ -510,18 +522,18 @@ else
                         {
                             @if (isOpen)
                             {
-                                <MudTooltip Text="@($"{p.CurrentWeight:0.##}\u00d7 \u00b7 {p.CurrentTier} \u2014 click \u00d7 to remove")">
+                                <MudTooltip Text="@($"{p.CurrentTier}")">
                                     <MudChip T="string" Size="Size.Small" Color="Color.Default"
                                              OnClose="@(async _ => await ConfirmRemoveParticipant(p))">
-                                        @p.DisplayName
+                                        @($"{p.DisplayName} \u00b7 {p.CurrentWeight:0.##}\u00d7")
                                     </MudChip>
                                 </MudTooltip>
                             }
                             else
                             {
-                                <MudTooltip Text="@($"{p.DisplayName} · {p.CurrentWeight:0.##}× · {p.CurrentTier}")">
+                                <MudTooltip Text="@($"{p.CurrentTier}")">
                                     <MudChip T="string" Size="Size.Small" Color="Color.Default">
-                                        @p.DisplayName
+                                        @($"{p.DisplayName} · {p.CurrentWeight:0.##}×")
                                     </MudChip>
                                 </MudTooltip>
                             }
@@ -540,6 +552,7 @@ else
     private AppText _t = new();
     private bool _settlementActionDispatched;
     private bool _balancesLoaded;
+    private Guid _loadedId;
 
     private List<BreadcrumbItem> Crumbs
     {
@@ -589,22 +602,27 @@ else
     {
         await base.OnInitializedAsync();
         _t = await I18nText.GetTextTableAsync<AppText>(this);
-        Dispatcher.Dispatch(new LoadActivityDetailAction(GroupId, ActivityId));
-        Dispatcher.Dispatch(new LoadExpensesAction(GroupId, ActivityId));
         if (FamilyState.Value.MyFamily is null)
             Dispatcher.Dispatch(new LoadMyFamilyAction());
+        // Group detail is needed for "Add participant" and the breadcrumb; load it on
+        // a deep link where the group hasn't been visited yet.
+        if (GroupState.Value.SelectedGroup?.Id != GroupId)
+            Dispatcher.Dispatch(new LoadGroupDetailAction(GroupId));
     }
 
+    // Load only when the route's activity changes. Guarded by a component-local id
+    // (not store state, which the LoadActivityDetail reducer nulls — that would make
+    // OnParametersSet re-fire and double-load on every first render).
     protected override void OnParametersSet()
     {
-        if (State.Value.SelectedActivity?.Id != ActivityId)
-        {
-            _settlementActionDispatched = false;
-            _balancesLoaded             = false;
-            Dispatcher.Dispatch(new LoadActivityDetailAction(GroupId, ActivityId));
-            Dispatcher.Dispatch(new LoadExpensesAction(GroupId, ActivityId));
-            Dispatcher.Dispatch(new ClearSettlementsAction());
-        }
+        if (_loadedId == ActivityId) return;
+        _loadedId = ActivityId;
+        _settlementActionDispatched = false;
+        _balancesLoaded             = false;
+        Dispatcher.Dispatch(new LoadActivityDetailAction(GroupId, ActivityId));
+        Dispatcher.Dispatch(new ClearExpensesAction());
+        Dispatcher.Dispatch(new LoadExpensesAction(GroupId, ActivityId));
+        Dispatcher.Dispatch(new ClearSettlementsAction());
     }
 
     protected override void OnAfterRender(bool firstRender)
@@ -623,12 +641,10 @@ else
         if (_settlementActionDispatched) return;
         if (activity.ParentActivityId is not null) return;
 
-        if (activity.Status == ActivityStatus.Closed)
-        {
-            _settlementActionDispatched = true;
-            Dispatcher.Dispatch(new GenerateSettlementsAction(GroupId, ActivityId));
-        }
-        else if (activity.Status == ActivityStatus.Settled)
+        // Read-only load only. Settlement GENERATION happens once, server-side, when the
+        // activity is closed (ActivityEffects.HandleClose) — never auto-fired from a render,
+        // which previously double-dispatched and raced into duplicate settlements.
+        if (activity.Status is ActivityStatus.Closed or ActivityStatus.Settled)
         {
             _settlementActionDispatched = true;
             Dispatcher.Dispatch(new LoadSettlementsAction(GroupId, ActivityId));
@@ -638,7 +654,7 @@ else
     private async Task OpenEditDialog()
     {
         var activity = State.Value.SelectedActivity!;
-        var dialog = await DialogService.ShowAsync<EditActivityDialog>("Edit activity",
+        var dialog = await DialogService.ShowAsync<EditActivityDialog>(_t.EditActivity,
             new DialogParameters<EditActivityDialog>
             {
                 { x => x.InitialName,        activity.Name },
@@ -652,7 +668,7 @@ else
 
     private async Task OpenAddSubActivityDialog()
     {
-        var dialog = await DialogService.ShowAsync<CreateActivityDialog>("New sub-activity",
+        var dialog = await DialogService.ShowAsync<CreateActivityDialog>(_t.AddSubActivity,
             new DialogParameters<CreateActivityDialog> { { x => x.IsSubActivity, true } });
         var result = await dialog.Result;
         if (result is { Canceled: false, Data: ActivityFormModel form })
@@ -665,8 +681,8 @@ else
         var activity    = State.Value.SelectedActivity!;
         var openSubCount = activity.SubActivities.Count(s => s.Status == ActivityStatus.Open);
         var message = openSubCount > 0
-            ? $"Close \"{activity.Name}\"? {openSubCount} open sub-activit{(openSubCount == 1 ? "y" : "ies")} will be absorbed."
-            : $"Close \"{activity.Name}\"? This cannot be undone.";
+            ? string.Format(_t.CloseActivityWithSubsBody, activity.Name, openSubCount)
+            : string.Format(_t.CloseActivityBody, activity.Name);
 
         bool? confirmed = await DialogService.ShowMessageBoxAsync(
             _t.CloseActivity, message, yesText: _t.CloseActivityYes, cancelText: _t.Cancel);
@@ -761,18 +777,22 @@ else
     {
         bool? confirmed = await DialogService.ShowMessageBoxAsync(
             _t.DeleteExpense,
-            $"Delete \"{expense.Title}\" ({expense.TotalAmount:F2} {expense.Currency})? This cannot be undone.",
+            $"{expense.Title} · {FormatHelper.FormatAmount(expense.TotalAmount, expense.Currency)} — {_t.DeleteExpenseConfirm}",
             yesText: _t.DeleteExpenseYes, cancelText: _t.Cancel);
 
         if (confirmed == true)
             Dispatcher.Dispatch(new DeleteExpenseAction(GroupId, ActivityId, expense.Id));
     }
 
+    private void GenerateTransfers() =>
+        Dispatcher.Dispatch(new GenerateSettlementsAction(GroupId, ActivityId));
+
     private async Task ConfirmSent(SettlementSummaryDto settlement)
     {
         bool? confirmed = await DialogService.ShowMessageBoxAsync(
             _t.MarkAsSent,
-            $"Confirm that {settlement.PayerFamilyName} has sent {FormatHelper.FormatAmount(settlement.Amount, settlement.Currency)} to {settlement.ReceiverFamilyName}?",
+            string.Format(_t.ConfirmSentBody, settlement.PayerFamilyName,
+                FormatHelper.FormatAmount(settlement.Amount, settlement.Currency), settlement.ReceiverFamilyName),
             yesText: _t.MarkSent, cancelText: _t.Cancel);
 
         if (confirmed == true)
@@ -783,7 +803,8 @@ else
     {
         bool? confirmed = await DialogService.ShowMessageBoxAsync(
             _t.MarkAsReceived,
-            $"Confirm that {settlement.ReceiverFamilyName} has received {FormatHelper.FormatAmount(settlement.Amount, settlement.Currency)} from {settlement.PayerFamilyName}?",
+            string.Format(_t.ConfirmReceivedBody, settlement.ReceiverFamilyName,
+                FormatHelper.FormatAmount(settlement.Amount, settlement.Currency), settlement.PayerFamilyName),
             yesText: _t.MarkReceived, cancelText: _t.Cancel);
 
         if (confirmed == true)
@@ -801,7 +822,7 @@ else
         var settlement = SettlementState.Value.SelectedSettlement;
         if (settlement is null) return;
 
-        await DialogService.ShowAsync<SettlementDetailDialog>("Settlement detail",
+        await DialogService.ShowAsync<SettlementDetailDialog>(_t.TransferDetail,
             new DialogParameters<SettlementDetailDialog>
             {
                 { x => x.Settlement,     settlement },

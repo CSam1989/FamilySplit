@@ -27,7 +27,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\FamilySplit.Client\FamilySplit.Client.csproj" />
-    <ProjectReference Include="..\..\src\FamilySplit.Application\FamilySplit.Application.csproj" />
   </ItemGroup>
 
 </Project>

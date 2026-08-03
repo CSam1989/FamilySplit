@@ -1,22 +1,24 @@
 using System.IO.Compression;
-using System.Security.Claims;
-using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
-using FamilySplit.Api.Auth;
-using FamilySplit.Api.Endpoints;
-using FamilySplit.Api.Hubs;
 using FamilySplit.Api.Middleware;
-using FamilySplit.Application;
-using FamilySplit.Application.Notifications;
+using FamilySplit.Common;
+using FamilySplit.Common.Modules;
+using FamilySplit.Features.Activities;
+using FamilySplit.Features.Admin;
+using FamilySplit.Features.Auth;
+using FamilySplit.Features.Dashboard;
+using FamilySplit.Features.Expenses;
+using FamilySplit.Features.Families;
+using FamilySplit.Features.Groups;
+using FamilySplit.Features.Notifications;
+using FamilySplit.Features.Settlements;
+using FamilySplit.Features.Users;
 using FamilySplit.Infrastructure;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.ResponseCompression;
-using Microsoft.IdentityModel.JsonWebTokens;
-using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 using Serilog;
 
@@ -86,10 +88,9 @@ builder.Services.Configure<GzipCompressionProviderOptions>(o => o.Level = Compre
 // --- Rate limiting ----------------------------------------------------------------
 // Two-tier protection:
 //   • Global per-IP fixed window   — blanket safety net (300 req/min).
-//   • Named "auth" sliding window  — tighter per-IP limit on auth endpoints
-//     to slow brute-force and credential-stuffing (20 req/min, 15-s buckets).
-//     20/min comfortably covers multi-tab silent refreshes while still being
-//     far too low for any meaningful automated attack.
+//   • Named "auth" sliding window  — tighter per-IP limit on auth endpoints,
+//     registered by AuthModule.RegisterServices via its own AddRateLimiter call
+//     (options delegates compose — this call keeps the global limiter + OnRejected).
 builder.Services.AddRateLimiter(options =>
 {
     options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(ctx =>
@@ -99,18 +100,6 @@ builder.Services.AddRateLimiter(options =>
             {
                 PermitLimit = 300,
                 Window = TimeSpan.FromMinutes(1),
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 0,
-            }));
-
-    options.AddPolicy("auth", ctx =>
-        RateLimitPartition.GetSlidingWindowLimiter(
-            partitionKey: ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            factory: _ => new SlidingWindowRateLimiterOptions
-            {
-                PermitLimit = 20,
-                Window = TimeSpan.FromMinutes(1),
-                SegmentsPerWindow = 4,        // 15-second resolution
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
                 QueueLimit = 0,
             }));
@@ -133,79 +122,13 @@ builder.Services.AddRateLimiter(options =>
     };
 });
 
-// --- HTTP client factory (needed by OAuthHandler for token exchange) -------------
-// Timeout is delegated entirely to the resilience pipeline below, so we use
-// InfiniteTimeSpan here — the TotalRequestTimeout handler acts as the backstop.
-// Two retries handle transient Google 5xx/network blips without hammering the
-// endpoint; exponential backoff with jitter avoids synchronized retry storms.
-builder.Services.AddHttpClient("google-oauth", c =>
-{
-    c.Timeout = System.Threading.Timeout.InfiniteTimeSpan;
-})
-.AddStandardResilienceHandler(o =>
-{
-    o.Retry.MaxRetryAttempts = 2;
-    o.Retry.UseJitter = true;
-    o.Retry.Delay = TimeSpan.FromMilliseconds(300);
-    o.AttemptTimeout.Timeout = TimeSpan.FromSeconds(12);
-    o.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(35);
-});
-
-// --- Application + Infrastructure -------------------------------------------------
-builder.Services.AddFamilySplitApplication();
+// --- Common + Infrastructure --------------------------------------------------------
+builder.Services.AddFamilySplitCommon();
 builder.Services.AddFamilySplitInfrastructure(builder.Configuration, builder.Environment);
 
-// --- Auth: JwtBearer + OAuth handler placeholders ---------------------------------
-var jwt = builder.Configuration.GetSection("Jwt");
-var signingKey = jwt["SigningKey"]
-    ?? throw new InvalidOperationException("Missing config Jwt:SigningKey. Set via user-secrets or env.");
-if (Encoding.UTF8.GetByteCount(signingKey) < 32)
-    throw new InvalidOperationException("Jwt:SigningKey must be at least 32 bytes (256 bits) for HMAC-SHA256.");
-var issuer = jwt["Issuer"] ?? "familysplit";
-var audience = jwt["Audience"] ?? "familysplit-client";
-
-builder.Services
-    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        // Use the modern JsonWebTokenHandler — faster than the legacy
-        // JwtSecurityTokenHandler and the future-default for JwtBearer.
-        options.MapInboundClaims = false;
-        options.SaveToken = false;
-        options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
-
-        // SignalR: Blazor WASM cannot set Authorization headers on WebSocket
-        // upgrade requests. The client passes the JWT as ?access_token= instead.
-        options.Events = new JwtBearerEvents
-        {
-            OnMessageReceived = context =>
-            {
-                var accessToken = context.Request.Query["access_token"];
-                if (!string.IsNullOrEmpty(accessToken) &&
-                    context.HttpContext.Request.Path.StartsWithSegments("/hubs"))
-                {
-                    context.Token = accessToken;
-                }
-                return Task.CompletedTask;
-            }
-        };
-
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            RequireExpirationTime = true,
-            RequireSignedTokens = true,
-            ValidIssuer = issuer,
-            ValidAudience = audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)),
-            ClockSkew = TimeSpan.FromMinutes(1),
-            // sub claim from JwtFactory holds the User.Id Guid.
-            NameClaimType = JwtRegisteredClaimNames.Sub,
-        };
-    });
+// Feature modules (populated slice by slice).
+IFeatureModule[] modules = [new ExpensesModule(), new DashboardModule(), new UsersModule(), new GroupsModule(), new ActivitiesModule(), new SettlementsModule(), new AdminModule(), new FamiliesModule(), new NotificationsModule(), new AuthModule()];
+foreach (var m in modules) m.RegisterServices(builder.Services, builder.Configuration);
 
 // Serialize enums as strings so API responses are human-readable (e.g. "Open" not 0).
 builder.Services.ConfigureHttpJsonOptions(options =>
@@ -221,19 +144,6 @@ builder.Services.AddAuthorization(options =>
         .RequireAuthenticatedUser()
         .Build();
 });
-
-// --- SignalR -----------------------------------------------------------------------
-// AddSignalR is part of the ASP.NET Core shared framework — no extra NuGet needed.
-// SignalRNotificationService is scoped and registered as INotificationService so
-// SettlementService can call it without a direct dependency on SignalR.
-builder.Services.AddSignalR();
-builder.Services.AddScoped<INotificationService, SignalRNotificationService>();
-
-// JwtFactory issues JWTs after OAuth callback. OAuthHandler exchanges codes
-// against Google and upserts the User row.
-builder.Services.AddSingleton<JwtFactory>();
-builder.Services.AddSingleton<PkceFlow>();
-builder.Services.AddScoped<OAuthHandler>();
 
 // Persist Data Protection keys to the application database. The key ring
 // encrypts the PKCE state cookie (and any future protected payloads) and must
@@ -306,24 +216,20 @@ app.MapGet("/health", () => Results.Ok(new
     utc = DateTimeOffset.UtcNow
 })).AllowAnonymous();
 
+// Feature module endpoint mapping.
+foreach (var m in modules) m.MapEndpoints(app);
+
 // --- Endpoint groups --------------------------------------------------------------
-app.MapAuthEndpoints();
-app.MapUserEndpoints();
-app.MapFamilyMemberEndpoints();   // GET /users/me/profile
-app.MapAdminEndpoints();          // /admin/families — global-admin CRUD
-app.MapFamilyEndpoints();         // /families/mine — own-family management
-app.MapGroupEndpoints();          // /groups — CRUD + join + invite-code
-app.MapGroupMemberEndpoints();    // no-op stub (members managed via Family endpoints)
-app.MapActivityEndpoints();       // /groups/{groupId}/activities — CRUD + participants + close
-app.MapExpenseEndpoints();        // /groups/{groupId}/activities/{activityId}/expenses — Phase 5
-app.MapSettlementEndpoints();     // /groups/{groupId}/activities/{activityId}/settlements — Phase 6
-app.MapDashboardEndpoints();      // /dashboard/stats — per-group statistics
-app.MapPushEndpoints();           // /push — VAPID subscription management
-
-// SignalR hub — Blazor WASM passes JWT as ?access_token query param because
-// WebSocket upgrade requests cannot carry Authorization headers.
-app.MapHub<NotificationHub>("/hubs/notifications");
-
+// Auth: /auth — login/callback/refresh/logout — migrated to AuthModule (vertical slice)
+// Users: GET /whoami — migrated to UsersModule (vertical slice)
+// Admin: /admin — global-admin family + member CRUD + group management — migrated to AdminModule (vertical slice)
+// Families: /families/mine + GET /users/me/profile — migrated to FamiliesModule (vertical slice)
+// Groups: /groups — CRUD + join + invite-code + leave — migrated to GroupsModule (vertical slice)
+// Activities: /groups/{groupId}/activities — CRUD + participants + close — migrated to ActivitiesModule (vertical slice)
+// Expenses: /groups/{groupId}/activities/{activityId}/expenses — migrated to ExpensesModule (vertical slice)
+// Settlements: /groups/{groupId}/activities/{activityId}/settlements (+ balances, group/pending lists) — migrated to SettlementsModule (vertical slice)
+// Dashboard: /dashboard/stats — migrated to DashboardModule (vertical slice)
+// Notifications: /push (+ the /hubs/notifications SignalR hub) — migrated to NotificationsModule (vertical slice)
 
 // --- OpenAPI + Scalar UI (dev only) ----------------------------------------------
 if (app.Environment.IsDevelopment())
@@ -336,15 +242,3 @@ app.Run();
 
 // Exposed for WebApplicationFactory<Program> in integration tests.
 public partial class Program { }
-
-// Small helper used by future endpoints to pull the caller's UserId from the JWT.
-public static class ClaimsPrincipalExtensions
-{
-    public static Guid GetUserId(this ClaimsPrincipal user)
-    {
-        var sub = user.FindFirstValue(ClaimTypes.NameIdentifier)
-                  ?? user.FindFirstValue("sub")
-                  ?? throw new UnauthorizedAccessException("JWT missing sub/NameIdentifier claim.");
-        return Guid.Parse(sub);
-    }
-}

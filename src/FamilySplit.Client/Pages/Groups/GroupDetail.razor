@@ -104,6 +104,9 @@
 <PageErrorBanner ErrorMessage="@State.Value.ErrorMessage"
                  OnDismiss="@(() => Dispatcher.Dispatch(new ClearGroupErrorAction()))" />
 
+<PageErrorBanner ErrorMessage="@SettlementState.Value.ErrorMessage"
+                 OnDismiss="@(() => Dispatcher.Dispatch(new ClearSettlementErrorAction()))" />
+
 <!-- ── Summary stat cards ─────────────────────────────────────────────────── -->
 <MudGrid Spacing="3" Class="mb-5">
     <MudItem xs="6" sm="3">
@@ -536,7 +539,8 @@ else
     {
         bool? confirmed = await DialogService.ShowMessageBoxAsync(
             _t.MarkAsSent,
-            $"Confirm that {settlement.PayerFamilyName} has sent {FormatHelper.FormatAmount(settlement.Amount, settlement.Currency)} to {settlement.ReceiverFamilyName}?",
+            string.Format(_t.ConfirmSentBody, settlement.PayerFamilyName,
+                FormatHelper.FormatAmount(settlement.Amount, settlement.Currency), settlement.ReceiverFamilyName),
             yesText: _t.MarkSent,
             cancelText: _t.Cancel);
 
@@ -548,7 +552,8 @@ else
     {
         bool? confirmed = await DialogService.ShowMessageBoxAsync(
             _t.MarkAsReceived,
-            $"Confirm that {settlement.ReceiverFamilyName} has received {FormatHelper.FormatAmount(settlement.Amount, settlement.Currency)} from {settlement.PayerFamilyName}?",
+            string.Format(_t.ConfirmReceivedBody, settlement.ReceiverFamilyName,
+                FormatHelper.FormatAmount(settlement.Amount, settlement.Currency), settlement.PayerFamilyName),
             yesText: _t.MarkReceived,
             cancelText: _t.Cancel);
 

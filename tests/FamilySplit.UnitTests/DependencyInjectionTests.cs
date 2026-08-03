@@ -1,15 +1,6 @@
-using FamilySplit.Application;
-using FamilySplit.Application.Activities;
-using FamilySplit.Application.Admin;
-using FamilySplit.Application.Audit;
-using FamilySplit.Application.Auth;
-using FamilySplit.Application.Core;
-using FamilySplit.Application.Dashboard;
-using FamilySplit.Application.Expenses;
-using FamilySplit.Application.Families;
-using FamilySplit.Application.Groups;
-using FamilySplit.Application.Push;
-using FamilySplit.Application.Settlements;
+using FamilySplit.Common;
+using FamilySplit.Common.Auditing;
+using FamilySplit.Common.Security;
 using FamilySplit.Infrastructure;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
@@ -22,28 +13,18 @@ namespace FamilySplit.UnitTests;
 public class DependencyInjectionTests
 {
     [Fact]
-    public void AddFamilySplitApplication_RegistersAllExpectedServices()
+    public void AddFamilySplitCommon_RegistersAllExpectedServices()
     {
         // Arrange
         var services = new ServiceCollection();
 
         // Act
-        var result = services.AddFamilySplitApplication();
+        var result = services.AddFamilySplitCommon();
 
         // Assert
         result.Should().BeSameAs(services);
-
         services.Should().Contain(sd => sd.ServiceType == typeof(AuditService) && sd.Lifetime == ServiceLifetime.Scoped);
-        services.Should().Contain(sd => sd.ServiceType == typeof(AdminService) && sd.Lifetime == ServiceLifetime.Scoped);
-        services.Should().Contain(sd => sd.ServiceType == typeof(FamilyService) && sd.Lifetime == ServiceLifetime.Scoped);
-        services.Should().Contain(sd => sd.ServiceType == typeof(GroupService) && sd.Lifetime == ServiceLifetime.Scoped);
-        services.Should().Contain(sd => sd.ServiceType == typeof(ParticipantSeeder) && sd.Lifetime == ServiceLifetime.Scoped);
-        services.Should().Contain(sd => sd.ServiceType == typeof(ActivityService) && sd.Lifetime == ServiceLifetime.Scoped);
-        services.Should().Contain(sd => sd.ServiceType == typeof(ExpenseService) && sd.Lifetime == ServiceLifetime.Scoped);
-        services.Should().Contain(sd => sd.ServiceType == typeof(SettlementService) && sd.Lifetime == ServiceLifetime.Scoped);
-        services.Should().Contain(sd => sd.ServiceType == typeof(DashboardService) && sd.Lifetime == ServiceLifetime.Scoped);
-        services.Should().Contain(sd => sd.ServiceType == typeof(RefreshTokenService) && sd.Lifetime == ServiceLifetime.Scoped);
-        services.Should().Contain(sd => sd.ServiceType == typeof(PushNotificationService) && sd.Lifetime == ServiceLifetime.Scoped);
+        services.Should().Contain(sd => sd.ServiceType == typeof(GroupMembershipGuard) && sd.Lifetime == ServiceLifetime.Scoped);
     }
 
     [Fact]

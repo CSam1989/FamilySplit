@@ -14,49 +14,54 @@
 @using FamilySplit.Domain.Enums
 @inject I18nText I18nText
 
+@*
+ * Mobile-first two-line layout:
+ *   Line 1 — payer → receiver names (each truncates) on the left, amount on the right.
+ *   Line 2 — status chip on the left, action button + trailing actions on the right.
+ * Nothing in line 1 can overflow the card (every name cell has min-width:0 + truncation),
+ * and the primary action buttons meet the 48dp touch target (Size.Medium).
+ *@
 <MudPaper Elevation="1" Class="pa-3 mb-2"
           data-testid="@($"settlement-row-{SettlementId}")">
-    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Wrap="Wrap.Wrap">
 
-        <!-- Payer → Receiver with bolding for the caller's family -->
-        <MudStack Row="true" AlignItems="AlignItems.Center"
-                  Spacing="1" Style="flex:1;min-width:0">
-            <MudAvatar Size="Size.Small"
-                       Color="@(IsCallerPayer ? Color.Primary : Color.Default)">
-                @PayerFamilyName[0]
-            </MudAvatar>
-            <MudText Typo="Typo.body2"
-                     Style="@(IsCallerPayer ? "font-weight:600" : "font-weight:400")">
-                @PayerFamilyName
-            </MudText>
-            <MudIcon Icon="@Icons.Material.Filled.ArrowForward"
-                     Size="Size.Small" Color="Color.Secondary" />
-            <MudAvatar Size="Size.Small"
-                       Color="@(IsCallerReceiver ? Color.Success : Color.Default)">
-                @ReceiverFamilyName[0]
-            </MudAvatar>
-            <MudText Typo="Typo.body2"
-                     Style="@(IsCallerReceiver ? "font-weight:600" : "font-weight:400")">
-                @ReceiverFamilyName
-            </MudText>
-        </MudStack>
-
-        <!-- Formatted amount -->
-        <MudText Typo="Typo.subtitle2" Style="font-weight:700">
+    <!-- Line 1: names + amount -->
+    <div style="display:flex;align-items:center;gap:8px;min-width:0">
+        <MudAvatar Size="Size.Small"
+                   Color="@(IsCallerPayer ? Color.Primary : Color.Default)">
+            @Initial(PayerFamilyName)
+        </MudAvatar>
+        <MudText Typo="Typo.body2" Class="fs-truncate"
+                 Style="@($"min-width:0;flex:1 1 0;{(IsCallerPayer ? "font-weight:600" : "font-weight:400")}")">
+            @PayerFamilyName
+        </MudText>
+        <MudIcon Icon="@Icons.Material.Filled.ArrowForward"
+                 Size="Size.Small" Color="Color.Secondary" Style="flex-shrink:0" />
+        <MudAvatar Size="Size.Small"
+                   Color="@(IsCallerReceiver ? Color.Success : Color.Default)">
+            @Initial(ReceiverFamilyName)
+        </MudAvatar>
+        <MudText Typo="Typo.body2" Class="fs-truncate"
+                 Style="@($"min-width:0;flex:1 1 0;{(IsCallerReceiver ? "font-weight:600" : "font-weight:400")}")">
+            @ReceiverFamilyName
+        </MudText>
+        <MudText Typo="Typo.subtitle2" Style="font-weight:700;white-space:nowrap;flex-shrink:0">
             @FormatHelper.FormatAmount(Amount, Currency)
         </MudText>
+    </div>
 
-        <!-- Status chip -->
+    <!-- Line 2: status + actions -->
+    <div style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap">
         <MudChip T="string" Color="@_chipColor" Size="Size.Small" Icon="@_chipIcon"
                  data-testid="@($"settlement-status-{SettlementId}")">
-            @(Status == SettlementStatus.PayerSent ? _t.StatusSent : Status.ToString())
+            @StatusLabel
         </MudChip>
 
-        <!-- Mark sent — only shown to the payer when the settlement is Proposed -->
+        <MudSpacer />
+
         @if (Status == SettlementStatus.Proposed && IsCallerPayer && OnMarkSent.HasDelegate)
         {
             <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                       Size="Size.Small"
+                       Size="Size.Medium"
                        StartIcon="@Icons.Material.Filled.Send"
                        OnClick="OnMarkSent"
                        data-testid="@($"btn-mark-sent-{SettlementId}")">
@@ -64,11 +69,10 @@
             </MudButton>
         }
 
-        <!-- Mark received — only shown to the receiver when the payer has sent -->
         @if (Status == SettlementStatus.PayerSent && IsCallerReceiver && OnMarkReceived.HasDelegate)
         {
             <MudButton Variant="Variant.Filled" Color="Color.Success"
-                       Size="Size.Small"
+                       Size="Size.Medium"
                        StartIcon="@Icons.Material.Filled.CheckCircle"
                        OnClick="OnMarkReceived"
                        data-testid="@($"btn-mark-received-{SettlementId}")">
@@ -78,7 +82,7 @@
 
         <!-- Page-specific trailing action (view detail, view activity, …) -->
         @TrailingActions
-    </MudStack>
+    </div>
 </MudPaper>
 
 @code {
@@ -118,6 +122,18 @@
     private Color _chipColor;
     private string _chipIcon = Icons.Material.Filled.Circle;
     private AppText _t = new();
+
+    private static string Initial(string? name) =>
+        string.IsNullOrEmpty(name) ? "?" : name[0].ToString();
+
+    private string StatusLabel => Status switch
+    {
+        SettlementStatus.Proposed  => _t.StatusProposed,
+        SettlementStatus.PayerSent => _t.StatusSent,
+        SettlementStatus.Completed => _t.StatusCompleted,
+        SettlementStatus.Cancelled => _t.StatusCancelled,
+        _                          => Status.ToString(),
+    };
 
     protected override async Task OnInitializedAsync()
     {

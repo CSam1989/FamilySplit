@@ -1,10 +1,22 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/FamilySplit.Api/FamilySplit.Api.csproj" />
-    <Project Path="src/FamilySplit.Application/FamilySplit.Application.csproj" />
     <Project Path="src/FamilySplit.Client/FamilySplit.Client.csproj" />
+    <Project Path="src/FamilySplit.Common/FamilySplit.Common.csproj" />
     <Project Path="src/FamilySplit.Domain/FamilySplit.Domain.csproj" />
     <Project Path="src/FamilySplit.Infrastructure/FamilySplit.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Features/">
+    <Project Path="src/Features/FamilySplit.Features.Activities/FamilySplit.Features.Activities.csproj" />
+    <Project Path="src/Features/FamilySplit.Features.Admin/FamilySplit.Features.Admin.csproj" />
+    <Project Path="src/Features/FamilySplit.Features.Auth/FamilySplit.Features.Auth.csproj" />
+    <Project Path="src/Features/FamilySplit.Features.Dashboard/FamilySplit.Features.Dashboard.csproj" />
+    <Project Path="src/Features/FamilySplit.Features.Expenses/FamilySplit.Features.Expenses.csproj" />
+    <Project Path="src/Features/FamilySplit.Features.Families/FamilySplit.Features.Families.csproj" />
+    <Project Path="src/Features/FamilySplit.Features.Groups/FamilySplit.Features.Groups.csproj" />
+    <Project Path="src/Features/FamilySplit.Features.Notifications/FamilySplit.Features.Notifications.csproj" />
+    <Project Path="src/Features/FamilySplit.Features.Settlements/FamilySplit.Features.Settlements.csproj" />
+    <Project Path="src/Features/FamilySplit.Features.Users/FamilySplit.Features.Users.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/FamilySplit.UnitTests/FamilySplit.UnitTests.csproj" />

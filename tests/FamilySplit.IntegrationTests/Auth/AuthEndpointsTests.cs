@@ -28,6 +28,7 @@ public abstract class AuthTestBase : IntegrationTestBase
         bool alreadyRevoked = false,
         Guid? replacedByTokenId = null,
         bool expired = false,
+        int revokedSecondsAgo = 300,      // when alreadyRevoked: how long ago it was revoked
         CancellationToken ct = default)
     {
         var tokenId = Guid.NewGuid();
@@ -39,7 +40,7 @@ public abstract class AuthTestBase : IntegrationTestBase
             ? now - TimeSpan.FromMinutes(1)
             : now + TimeSpan.FromDays(30);
         DateTimeOffset? revokedAt = alreadyRevoked
-            ? now - TimeSpan.FromMinutes(5)
+            ? now - TimeSpan.FromSeconds(revokedSecondsAgo)
             : null;
 
         await using var cmd = Connection.CreateCommand();
@@ -318,21 +319,22 @@ public sealed class RefreshTheftDetectionTests : AuthTestBase
     }
 
     [Fact]
-    public async Task Refresh_RevokedTokenWithActiveReplacement_Returns401ButKeepsReplacementActive()
+    public async Task Refresh_RevokedTokenWithActiveReplacement_WithinWindow_KeepsReplacementActive()
     {
-        // Arrange — seed an already-revoked token that has an active replacement.
-        // This simulates a concurrent-retry race where two refresh requests were in flight.
+        // Arrange — a GENUINE concurrent-retry race: the predecessor was revoked moments
+        // ago (well within the concurrent-retry window) and points at an active replacement.
         var ct = TestContext.Current.CancellationToken;
 
         // The active replacement
         var (_, replacementId) = await SeedRefreshTokenAsync(CallerId, createdAtHoursAgo: 0.1, ct: ct);
 
-        // The revoked predecessor that points at the replacement
+        // The just-revoked predecessor that points at the replacement
         var (oldSecret, _) = await SeedRefreshTokenAsync(
             CallerId,
-            createdAtHoursAgo: 2.0,
+            createdAtHoursAgo: 0.1,
             alreadyRevoked: true,
             replacedByTokenId: replacementId,
+            revokedSecondsAgo: 2,   // milliseconds-to-seconds = a real concurrent retry
             ct: ct);
 
         using var client = CreateClientWithRefreshCookie(oldSecret);
@@ -344,7 +346,41 @@ public sealed class RefreshTheftDetectionTests : AuthTestBase
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
 
         var activeAfter = await CountActiveTokensAsync(CallerId, ct);
-        activeAfter.Should().Be(1, "concurrent-retry must not kill the active replacement session");
+        activeAfter.Should().Be(1, "a within-window concurrent-retry must not kill the active replacement session");
+    }
+
+    [Fact]
+    public async Task Refresh_RevokedTokenReplayedLate_TreatedAsTheft_RevokesAllSessions()
+    {
+        // Arrange — a revoked token replayed long after revocation (far past the
+        // concurrent-retry window). Even though its replacement is still active, this is
+        // the classic theft pattern (the thief rotated first; the victim replays later),
+        // so it must trigger a full session revocation rather than be ignored.
+        var ct = TestContext.Current.CancellationToken;
+
+        var (_, replacementId) = await SeedRefreshTokenAsync(CallerId, createdAtHoursAgo: 0.1, ct: ct);
+
+        var (oldSecret, _) = await SeedRefreshTokenAsync(
+            CallerId,
+            createdAtHoursAgo: 2.0,
+            alreadyRevoked: true,
+            replacedByTokenId: replacementId,
+            revokedSecondsAgo: 600,   // 10 minutes ago — not a concurrent retry
+            ct: ct);
+
+        var activeBefore = await CountActiveTokensAsync(CallerId, ct);
+        activeBefore.Should().Be(1, "only the replacement is active before the replay");
+
+        using var client = CreateClientWithRefreshCookie(oldSecret);
+
+        // Act — replay the long-revoked token.
+        var response = await client.PostAsync("/auth/refresh", null, ct);
+
+        // Assert — 401 and the active replacement is also killed (theft response).
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+
+        var activeAfter = await CountActiveTokensAsync(CallerId, ct);
+        activeAfter.Should().Be(0, "a late replay of a revoked token must revoke ALL sessions");
     }
 }
 

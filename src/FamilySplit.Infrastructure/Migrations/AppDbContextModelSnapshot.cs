@@ -450,7 +450,7 @@ namespace FamilySplit.Infrastructure.Migrations
 
                     b.HasIndex("Email")
                         .IsUnique()
-                        .HasFilter("email IS NOT NULL");
+                        .HasFilter("email IS NOT NULL AND is_active");
 
                     b.HasIndex("FamilyId");
 
@@ -700,11 +700,12 @@ namespace FamilySplit.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ActivityId");
-
                     b.HasIndex("PayerFamilyId");
 
                     b.HasIndex("ReceiverFamilyId");
+
+                    b.HasIndex("ActivityId", "PayerFamilyId", "ReceiverFamilyId")
+                        .IsUnique();
 
                     b.ToTable("settlements", null, t =>
                         {
@@ -787,7 +788,7 @@ namespace FamilySplit.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("DataProtectionKeys", (string)null);
+                    b.ToTable("DataProtectionKeys");
                 });
 
             modelBuilder.Entity("FamilySplit.Domain.Entities.Activity", b =>

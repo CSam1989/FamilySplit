@@ -38,14 +38,10 @@ public static class AdminReducers
     public static AdminState OnCreate(AdminState state) =>
         state with { IsLoading = true, ErrorMessage = null };
 
-    [ReducerMethod]
-    public static AdminState OnCreateSuccess(AdminState state, CreateAdminFamilySuccessAction action) =>
-        state with
-        {
-            IsLoading = false,
-            SelectedFamily = action.Family,
-            Families = [.. state.Families, action.Family]
-        };
+    // Strict CQRS: 201 + re-query (LoadAdminFamilies repopulates the list). Just clear the flag.
+    [ReducerMethod(typeof(CreateAdminFamilySuccessAction))]
+    public static AdminState OnCreateSuccess(AdminState state) =>
+        state with { IsLoading = false };
 
     [ReducerMethod]
     public static AdminState OnCreateFailure(AdminState state, CreateAdminFamilyFailureAction action) =>
@@ -71,21 +67,10 @@ public static class AdminReducers
     public static AdminState OnUpdateMember(AdminState state) =>
         state with { IsLoading = true, ErrorMessage = null };
 
-    [ReducerMethod]
-    public static AdminState OnUpdateMemberSuccess(AdminState state, UpdateAdminMemberSuccessAction action)
-    {
-        if (state.SelectedFamily is null) return state with { IsLoading = false };
-
-        var updated = state.SelectedFamily.Members
-            .Select(m => m.Id == action.Member.Id ? action.Member : m)
-            .ToList();
-
-        return state with
-        {
-            IsLoading = false,
-            SelectedFamily = state.SelectedFamily with { Members = updated }
-        };
-    }
+    // Strict CQRS: 204 + re-query (LoadAdminFamily repopulates SelectedFamily). Just clear the flag.
+    [ReducerMethod(typeof(UpdateAdminMemberSuccessAction))]
+    public static AdminState OnUpdateMemberSuccess(AdminState state) =>
+        state with { IsLoading = false };
 
     [ReducerMethod]
     public static AdminState OnUpdateMemberFailure(AdminState state, UpdateAdminMemberFailureAction action) =>

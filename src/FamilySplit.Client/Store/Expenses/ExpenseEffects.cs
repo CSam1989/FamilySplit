@@ -51,8 +51,9 @@ public class ExpenseEffects
     {
         try
         {
-            var expense = await _client.CreateAsync(action.GroupId, action.ActivityId, action.Request);
-            dispatcher.Dispatch(new CreateExpenseSuccessAction(expense));
+            // Strict CQRS: the command returns only the new id; re-query for the data.
+            await _client.CreateAsync(action.GroupId, action.ActivityId, action.Request);
+            dispatcher.Dispatch(new CreateExpenseSuccessAction());
             // Refresh list and re-compute live balance.
             dispatcher.Dispatch(new LoadExpensesAction(action.GroupId, action.ActivityId));
             dispatcher.Dispatch(new LoadBalancesAction(action.GroupId, action.ActivityId));
@@ -69,8 +70,9 @@ public class ExpenseEffects
     {
         try
         {
-            var expense = await _client.UpdateAsync(action.GroupId, action.ActivityId, action.ExpenseId, action.Request);
-            dispatcher.Dispatch(new UpdateExpenseSuccessAction(expense));
+            // Strict CQRS: the command returns 204; re-query for the updated data.
+            await _client.UpdateAsync(action.GroupId, action.ActivityId, action.ExpenseId, action.Request);
+            dispatcher.Dispatch(new UpdateExpenseSuccessAction());
             // Refresh list and re-compute live balance.
             dispatcher.Dispatch(new LoadExpensesAction(action.GroupId, action.ActivityId));
             dispatcher.Dispatch(new LoadBalancesAction(action.GroupId, action.ActivityId));
