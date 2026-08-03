@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>FamilySplit.Features.Admin</RootNamespace>
+    <AssemblyName>FamilySplit.Features.Admin</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\FamilySplit.Common\FamilySplit.Common.csproj" />
+    <ProjectReference Include="..\..\FamilySplit.Domain\FamilySplit.Domain.csproj" />
+    <ProjectReference Include="..\..\FamilySplit.Infrastructure\FamilySplit.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="FamilySplit.UnitTests" />
+    <InternalsVisibleTo Include="FamilySplit.IntegrationTests" /> <!-- Testcontainers tests resolve the internal AdminData -->
+    <Using Include="FamilySplit.Common.Security" /> <!-- GetUserId() without per-file usings -->
+  </ItemGroup>
+
+</Project>

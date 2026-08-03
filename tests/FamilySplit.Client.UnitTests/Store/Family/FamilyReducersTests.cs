@@ -55,15 +55,13 @@ public class FamilyReducersTests
     }
 
     [Fact]
-    public void OnRenameSuccess_SetsFamily_AndStopsLoading()
+    public void OnRenameSuccess_StopsLoading()
     {
         var state = new FamilyState { IsLoading = true };
-        var family = CreateFamilyDto("Renamed");
 
-        var result = FamilyReducers.OnRenameSuccess(state, new UpdateFamilyNameSuccessAction(family));
+        var result = FamilyReducers.OnRenameSuccess(state);
 
         result.IsLoading.Should().BeFalse();
-        result.MyFamily.Should().BeSameAs(family);
     }
 
     [Fact]
@@ -120,38 +118,14 @@ public class FamilyReducersTests
         result.ErrorMessage.Should().BeNull();
     }
 
-    private static FamilyMemberDto CreateMemberDto(Guid? id = null, string name = "Member") =>
-        new(id ?? Guid.NewGuid(), name, null, null, null, 1.0m,
-            FamilySplit.Domain.Enums.WeightTier.Volwassene, true, false, false, DateTimeOffset.UtcNow);
-
     [Fact]
-    public void OnUpdateMemberSuccess_WhenMyFamilyIsNull_ReturnsStateWithLoadingFalse()
+    public void OnUpdateMemberSuccess_StopsLoading()
     {
-        var state = new FamilyState { IsLoading = true, MyFamily = null };
-        var member = CreateMemberDto();
+        var state = new FamilyState { IsLoading = true };
 
-        var result = FamilyReducers.OnUpdateMemberSuccess(state, new UpdateFamilyMemberSuccessAction(member));
+        var result = FamilyReducers.OnUpdateMemberSuccess(state);
 
         result.IsLoading.Should().BeFalse();
-        result.MyFamily.Should().BeNull();
-    }
-
-    [Fact]
-    public void OnUpdateMemberSuccess_ReplacesMemberById()
-    {
-        var memberId = Guid.NewGuid();
-        var oldMember = CreateMemberDto(memberId, "Old");
-        var otherMember = CreateMemberDto(name: "Other");
-        var family = CreateFamilyDto() with { Members = [oldMember, otherMember] };
-        var state = new FamilyState { IsLoading = true, MyFamily = family };
-        var updatedMember = CreateMemberDto(memberId, "Updated");
-
-        var result = FamilyReducers.OnUpdateMemberSuccess(state, new UpdateFamilyMemberSuccessAction(updatedMember));
-
-        result.IsLoading.Should().BeFalse();
-        result.MyFamily!.Members.Should().HaveCount(2);
-        result.MyFamily.Members.Should().Contain(m => m.Id == memberId && m.DisplayName == "Updated");
-        result.MyFamily.Members.Should().Contain(m => m.Id == otherMember.Id);
     }
 
     [Fact]
@@ -177,30 +151,13 @@ public class FamilyReducersTests
     }
 
     [Fact]
-    public void OnRemoveMemberSuccess_WhenMyFamilyIsNull_ReturnsStateWithLoadingFalse()
+    public void OnRemoveMemberSuccess_StopsLoading()
     {
-        var state = new FamilyState { IsLoading = true, MyFamily = null };
+        var state = new FamilyState { IsLoading = true };
 
-        var result = FamilyReducers.OnRemoveMemberSuccess(state, new RemoveFamilyMemberSuccessAction(Guid.NewGuid()));
+        var result = FamilyReducers.OnRemoveMemberSuccess(state);
 
         result.IsLoading.Should().BeFalse();
-        result.MyFamily.Should().BeNull();
-    }
-
-    [Fact]
-    public void OnRemoveMemberSuccess_RemovesMemberById()
-    {
-        var memberId = Guid.NewGuid();
-        var member = CreateMemberDto(memberId);
-        var otherMember = CreateMemberDto(name: "Other");
-        var family = CreateFamilyDto() with { Members = [member, otherMember] };
-        var state = new FamilyState { IsLoading = true, MyFamily = family };
-
-        var result = FamilyReducers.OnRemoveMemberSuccess(state, new RemoveFamilyMemberSuccessAction(memberId));
-
-        result.IsLoading.Should().BeFalse();
-        result.MyFamily!.Members.Should().HaveCount(1);
-        result.MyFamily.Members.Should().NotContain(m => m.Id == memberId);
     }
 
     [Fact]

@@ -38,9 +38,11 @@ public static class ExpenseReducers
     public static ExpenseState OnCreate(ExpenseState state) =>
         state with { IsLoading = true, ErrorMessage = null };
 
-    [ReducerMethod]
-    public static ExpenseState OnCreateSuccess(ExpenseState state, CreateExpenseSuccessAction action) =>
-        state with { IsLoading = false, SelectedExpense = action.Expense };
+    // Strict CQRS: the create command returns no DTO — the follow-up LoadExpensesAction
+    // refreshes the list, so this reducer only clears the loading flag.
+    [ReducerMethod(typeof(CreateExpenseSuccessAction))]
+    public static ExpenseState OnCreateSuccess(ExpenseState state) =>
+        state with { IsLoading = false };
 
     [ReducerMethod]
     public static ExpenseState OnCreateFailure(ExpenseState state, CreateExpenseFailureAction action) =>
@@ -52,9 +54,11 @@ public static class ExpenseReducers
     public static ExpenseState OnUpdate(ExpenseState state) =>
         state with { IsLoading = true, ErrorMessage = null };
 
-    [ReducerMethod]
-    public static ExpenseState OnUpdateSuccess(ExpenseState state, UpdateExpenseSuccessAction action) =>
-        state with { IsLoading = false, SelectedExpense = action.Expense };
+    // Strict CQRS: the update command returns 204 — the follow-up LoadExpensesAction
+    // refreshes the list, so this reducer only clears the loading flag.
+    [ReducerMethod(typeof(UpdateExpenseSuccessAction))]
+    public static ExpenseState OnUpdateSuccess(ExpenseState state) =>
+        state with { IsLoading = false };
 
     [ReducerMethod]
     public static ExpenseState OnUpdateFailure(ExpenseState state, UpdateExpenseFailureAction action) =>

@@ -13,8 +13,9 @@ public record LoadAdminFamilySuccessAction(FamilyDto Family);
 public record LoadAdminFamilyFailureAction(string ErrorMessage);
 
 // ── Create family ─────────────────────────────────────────────────────────────
+// Strict CQRS: the command returns 201 + id; success carries no payload — the effect re-queries the list.
 public record CreateAdminFamilyAction(CreateFamilyRequest Request);
-public record CreateAdminFamilySuccessAction(FamilyDto Family);
+public record CreateAdminFamilySuccessAction;
 public record CreateAdminFamilyFailureAction(string ErrorMessage);
 
 // ── Add member ────────────────────────────────────────────────────────────────
@@ -23,8 +24,9 @@ public record AddAdminMemberSuccessAction(Guid FamilyId);
 public record AddAdminMemberFailureAction(string ErrorMessage);
 
 // ── Update member ─────────────────────────────────────────────────────────────
+// Strict CQRS: the command returns 204; success carries the family id — the effect re-queries it.
 public record UpdateAdminMemberAction(Guid FamilyId, Guid MemberId, UpdateFamilyMemberRequest Request);
-public record UpdateAdminMemberSuccessAction(FamilyMemberDto Member);
+public record UpdateAdminMemberSuccessAction(Guid FamilyId);
 public record UpdateAdminMemberFailureAction(string ErrorMessage);
 
 // ── Remove member ─────────────────────────────────────────────────────────────

@@ -69,15 +69,16 @@ public class GroupEffectsTests
     }
 
     [Fact]
-    public async Task HandleCreate_Success_DispatchesSuccessAction()
+    public async Task HandleCreate_Success_DispatchesSuccessAndReloadsList()
     {
         var request = new CreateGroupRequest("Test", null);
-        var detail = CreateDetail();
-        _client.Setup(c => c.CreateAsync(request)).ReturnsAsync(detail);
+        var newId = Guid.NewGuid();
+        _client.Setup(c => c.CreateAsync(request)).ReturnsAsync(new CreatedResponse(newId));
 
         await _sut.HandleCreate(new CreateGroupAction(request), _dispatcher.Object);
 
-        _dispatcher.Verify(d => d.Dispatch(It.Is<CreateGroupSuccessAction>(a => a.Group == detail)), Times.Once);
+        _dispatcher.Verify(d => d.Dispatch(It.Is<CreateGroupSuccessAction>(a => a.GroupId == newId)), Times.Once);
+        _dispatcher.Verify(d => d.Dispatch(It.IsAny<LoadGroupsAction>()), Times.Once);
     }
 
     [Fact]
@@ -89,19 +90,21 @@ public class GroupEffectsTests
         await _sut.HandleCreate(new CreateGroupAction(request), _dispatcher.Object);
 
         _dispatcher.Verify(d => d.Dispatch(It.IsAny<CreateGroupFailureAction>()), Times.Once);
+        _dispatcher.Verify(d => d.Dispatch(It.IsAny<CreateGroupSuccessAction>()), Times.Never);
     }
 
     [Fact]
-    public async Task HandleUpdate_Success_DispatchesSuccessAction()
+    public async Task HandleUpdate_Success_DispatchesSuccessAndReloadsDetailAndList()
     {
         var groupId = Guid.NewGuid();
         var request = new UpdateGroupRequest("Updated", "desc");
-        var detail = CreateDetail();
-        _client.Setup(c => c.UpdateAsync(groupId, request)).ReturnsAsync(detail);
+        _client.Setup(c => c.UpdateAsync(groupId, request)).Returns(Task.CompletedTask);
 
         await _sut.HandleUpdate(new UpdateGroupAction(groupId, request), _dispatcher.Object);
 
-        _dispatcher.Verify(d => d.Dispatch(It.Is<UpdateGroupSuccessAction>(a => a.Group == detail)), Times.Once);
+        _dispatcher.Verify(d => d.Dispatch(It.Is<UpdateGroupSuccessAction>(a => a.GroupId == groupId)), Times.Once);
+        _dispatcher.Verify(d => d.Dispatch(It.Is<LoadGroupDetailAction>(a => a.GroupId == groupId)), Times.Once);
+        _dispatcher.Verify(d => d.Dispatch(It.IsAny<LoadGroupsAction>()), Times.Once);
     }
 
     [Fact]
@@ -114,18 +117,20 @@ public class GroupEffectsTests
         await _sut.HandleUpdate(new UpdateGroupAction(groupId, request), _dispatcher.Object);
 
         _dispatcher.Verify(d => d.Dispatch(It.IsAny<UpdateGroupFailureAction>()), Times.Once);
+        _dispatcher.Verify(d => d.Dispatch(It.IsAny<LoadGroupDetailAction>()), Times.Never);
     }
 
     [Fact]
-    public async Task HandleJoin_Success_DispatchesSuccessAction()
+    public async Task HandleJoin_Success_DispatchesSuccessAndReloadsList()
     {
         var request = new JoinGroupRequest("INVITE");
-        var detail = CreateDetail();
-        _client.Setup(c => c.JoinAsync(request)).ReturnsAsync(detail);
+        var joinedId = Guid.NewGuid();
+        _client.Setup(c => c.JoinAsync(request)).ReturnsAsync(new CreatedResponse(joinedId));
 
         await _sut.HandleJoin(new JoinGroupAction(request), _dispatcher.Object);
 
-        _dispatcher.Verify(d => d.Dispatch(It.Is<JoinGroupSuccessAction>(a => a.Group == detail)), Times.Once);
+        _dispatcher.Verify(d => d.Dispatch(It.Is<JoinGroupSuccessAction>(a => a.GroupId == joinedId)), Times.Once);
+        _dispatcher.Verify(d => d.Dispatch(It.IsAny<LoadGroupsAction>()), Times.Once);
     }
 
     [Fact]
@@ -137,17 +142,19 @@ public class GroupEffectsTests
         await _sut.HandleJoin(new JoinGroupAction(request), _dispatcher.Object);
 
         _dispatcher.Verify(d => d.Dispatch(It.IsAny<JoinGroupFailureAction>()), Times.Once);
+        _dispatcher.Verify(d => d.Dispatch(It.IsAny<JoinGroupSuccessAction>()), Times.Never);
     }
 
     [Fact]
-    public async Task HandleRegenerateInviteCode_Success_DispatchesSuccessAction()
+    public async Task HandleRegenerateInviteCode_Success_DispatchesSuccessAndReloadsDetail()
     {
         var groupId = Guid.NewGuid();
-        _client.Setup(c => c.RegenerateInviteCodeAsync(groupId)).ReturnsAsync(new RegenerateInviteCodeResponse("NEW123"));
+        _client.Setup(c => c.RegenerateInviteCodeAsync(groupId)).Returns(Task.CompletedTask);
 
         await _sut.HandleRegenerateInviteCode(new RegenerateInviteCodeAction(groupId), _dispatcher.Object);
 
-        _dispatcher.Verify(d => d.Dispatch(It.Is<RegenerateInviteCodeSuccessAction>(a => a.GroupId == groupId && a.NewInviteCode == "NEW123")), Times.Once);
+        _dispatcher.Verify(d => d.Dispatch(It.Is<RegenerateInviteCodeSuccessAction>(a => a.GroupId == groupId)), Times.Once);
+        _dispatcher.Verify(d => d.Dispatch(It.Is<LoadGroupDetailAction>(a => a.GroupId == groupId)), Times.Once);
     }
 
     [Fact]
@@ -159,6 +166,7 @@ public class GroupEffectsTests
         await _sut.HandleRegenerateInviteCode(new RegenerateInviteCodeAction(groupId), _dispatcher.Object);
 
         _dispatcher.Verify(d => d.Dispatch(It.IsAny<RegenerateInviteCodeFailureAction>()), Times.Once);
+        _dispatcher.Verify(d => d.Dispatch(It.IsAny<LoadGroupDetailAction>()), Times.Never);
     }
 
     [Fact]

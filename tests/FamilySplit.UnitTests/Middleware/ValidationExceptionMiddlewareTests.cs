@@ -1,5 +1,5 @@
 using FamilySplit.Api.Middleware;
-using FamilySplit.Application.Exceptions;
+using FamilySplit.Common.Exceptions;
 using FluentAssertions;
 using FluentValidation;
 using FluentValidation.Results;

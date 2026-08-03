@@ -74,15 +74,15 @@ public class SettlementEffectsTests
     // --- HandleGenerate ---
 
     [Fact]
-    public async Task HandleGenerate_Success_DispatchesSuccessAndLoadActivityDetail()
+    public async Task HandleGenerate_Success_DispatchesSuccessAndRequeries()
     {
         var action = new GenerateSettlementsAction(Guid.NewGuid(), Guid.NewGuid());
-        var settlements = new List<SettlementSummaryDto>();
-        _client.Setup(c => c.GenerateAsync(action.GroupId, action.ActivityId)).ReturnsAsync(settlements);
+        _client.Setup(c => c.GenerateAsync(action.GroupId, action.ActivityId)).Returns(Task.CompletedTask);
 
         await _sut.HandleGenerate(action, _dispatcher.Object);
 
-        _dispatcher.Verify(d => d.Dispatch(It.Is<GenerateSettlementsSuccessAction>(a => a.Settlements == settlements)), Times.Once);
+        _dispatcher.Verify(d => d.Dispatch(It.IsAny<GenerateSettlementsSuccessAction>()), Times.Once);
+        _dispatcher.Verify(d => d.Dispatch(It.Is<LoadSettlementsAction>(a => a.GroupId == action.GroupId && a.ActivityId == action.ActivityId)), Times.Once);
         _dispatcher.Verify(d => d.Dispatch(It.Is<LoadActivityDetailAction>(a => a.GroupId == action.GroupId && a.ActivityId == action.ActivityId)), Times.Once);
     }
 
@@ -126,15 +126,18 @@ public class SettlementEffectsTests
     // --- HandleConfirmSent ---
 
     [Fact]
-    public async Task HandleConfirmSent_Success_DispatchesSuccessAction()
+    public async Task HandleConfirmSent_Success_DispatchesSuccessAndRequeries()
     {
         var action = new ConfirmSentAction(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
-        var detail = new SettlementDetailDto(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "Payer", Guid.NewGuid(), "Receiver", 50m, "EUR", SettlementStatus.Proposed, null, [], DateTimeOffset.UtcNow, null);
-        _client.Setup(c => c.ConfirmSentAsync(action.GroupId, action.ActivityId, action.SettlementId)).ReturnsAsync(detail);
+        _client.Setup(c => c.ConfirmSentAsync(action.GroupId, action.ActivityId, action.SettlementId)).Returns(Task.CompletedTask);
 
         await _sut.HandleConfirmSent(action, _dispatcher.Object);
 
-        _dispatcher.Verify(d => d.Dispatch(It.Is<ConfirmSentSuccessAction>(a => a.Settlement == detail)), Times.Once);
+        _dispatcher.Verify(d => d.Dispatch(It.IsAny<ConfirmSentSuccessAction>()), Times.Once);
+        _dispatcher.Verify(d => d.Dispatch(It.Is<LoadSettlementDetailAction>(a => a.SettlementId == action.SettlementId)), Times.Once);
+        _dispatcher.Verify(d => d.Dispatch(It.Is<LoadSettlementsAction>(a => a.GroupId == action.GroupId && a.ActivityId == action.ActivityId)), Times.Once);
+        _dispatcher.Verify(d => d.Dispatch(It.Is<LoadGroupSettlementsAction>(a => a.GroupId == action.GroupId)), Times.Once);
+        _dispatcher.Verify(d => d.Dispatch(It.IsAny<LoadMyPendingSettlementsAction>()), Times.Once);
     }
 
     [Fact]
@@ -146,6 +149,7 @@ public class SettlementEffectsTests
         await _sut.HandleConfirmSent(action, _dispatcher.Object);
 
         _dispatcher.Verify(d => d.Dispatch(It.IsAny<ConfirmSentFailureAction>()), Times.Once);
+        _dispatcher.Verify(d => d.Dispatch(It.IsAny<LoadSettlementsAction>()), Times.Never);
     }
 
     // --- HandleConfirmReceived ---
@@ -154,12 +158,12 @@ public class SettlementEffectsTests
     public async Task HandleConfirmReceived_Success_DispatchesSuccessAndReloadActions()
     {
         var action = new ConfirmReceivedAction(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
-        var detail = new SettlementDetailDto(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "Payer", Guid.NewGuid(), "Receiver", 50m, "EUR", SettlementStatus.Proposed, null, [], DateTimeOffset.UtcNow, null);
-        _client.Setup(c => c.ConfirmReceivedAsync(action.GroupId, action.ActivityId, action.SettlementId)).ReturnsAsync(detail);
+        _client.Setup(c => c.ConfirmReceivedAsync(action.GroupId, action.ActivityId, action.SettlementId)).Returns(Task.CompletedTask);
 
         await _sut.HandleConfirmReceived(action, _dispatcher.Object);
 
-        _dispatcher.Verify(d => d.Dispatch(It.Is<ConfirmReceivedSuccessAction>(a => a.Settlement == detail)), Times.Once);
+        _dispatcher.Verify(d => d.Dispatch(It.IsAny<ConfirmReceivedSuccessAction>()), Times.Once);
+        _dispatcher.Verify(d => d.Dispatch(It.Is<LoadSettlementDetailAction>(a => a.SettlementId == action.SettlementId)), Times.Once);
         _dispatcher.Verify(d => d.Dispatch(It.Is<LoadSettlementsAction>(a => a.GroupId == action.GroupId && a.ActivityId == action.ActivityId)), Times.Once);
         _dispatcher.Verify(d => d.Dispatch(It.Is<LoadActivityDetailAction>(a => a.GroupId == action.GroupId && a.ActivityId == action.ActivityId)), Times.Once);
         _dispatcher.Verify(d => d.Dispatch(It.Is<LoadGroupSettlementsAction>(a => a.GroupId == action.GroupId)), Times.Once);
@@ -170,7 +174,7 @@ public class SettlementEffectsTests
     public async Task HandleConfirmReceived_Exception_DispatchesFailureAction()
     {
         var action = new ConfirmReceivedAction(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
-        _client.Setup(c => c.ConfirmReceivedAsync(action.GroupId, action.ActivityId, action.SettlementId)).ThrowsAsync(new Exception("fail"));
+        _client.Setup(c => c.ConfirmReceivedAsync(action.GroupId, action.ActivityId, action.SettlementId)).ThrowsAsync(new Exception("fail2"));
 
         await _sut.HandleConfirmReceived(action, _dispatcher.Object);
 

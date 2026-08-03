@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>FamilySplit.Features.Dashboard</RootNamespace>
+    <AssemblyName>FamilySplit.Features.Dashboard</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- IEndpointRouteBuilder, IServiceCollection extensions, HttpContext etc. live in
+         the shared framework — class libraries must opt in explicitly. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <!-- No FluentValidation: Dashboard is a single read-only query with no command body. -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\FamilySplit.Common\FamilySplit.Common.csproj" />
+    <ProjectReference Include="..\..\FamilySplit.Domain\FamilySplit.Domain.csproj" />
+    <ProjectReference Include="..\..\FamilySplit.Infrastructure\FamilySplit.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="FamilySplit.UnitTests" />
+    <Using Include="FamilySplit.Common.Security" /> <!-- GetUserId() without per-file usings -->
+  </ItemGroup>
+
+</Project>

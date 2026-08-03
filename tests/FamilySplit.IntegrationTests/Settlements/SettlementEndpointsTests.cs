@@ -145,7 +145,7 @@ public sealed class GenerateSettlementsTests : IntegrationTestBase
     public GenerateSettlementsTests(PostgresContainerFixture fixture) : base(fixture) { }
 
     [Fact]
-    public async Task Generate_ClosedActivityWithImbalance_Returns200WithOneSettlement()
+    public async Task Generate_ClosedActivityWithImbalance_Returns204AndListHasOneSettlement()
     {
         // Arrange
         var ct = TestContext.Current.CancellationToken;
@@ -153,13 +153,16 @@ public sealed class GenerateSettlementsTests : IntegrationTestBase
 
         var url = $"/groups/{scenario.GroupId}/activities/{scenario.ActivityId}/settlements";
 
-        // Act
+        // Act — strict CQRS: generate returns 204, the client re-queries the list
         var response = await Client.PostAsync(url, null, ct);
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
-        var body = await response.Content.ReadAsStringAsync(ct);
+        var listResponse = await Client.GetAsync(url, ct);
+        listResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var body = await listResponse.Content.ReadAsStringAsync(ct);
         using var doc = System.Text.Json.JsonDocument.Parse(body);
         var arr = doc.RootElement.EnumerateArray().ToList();
 
@@ -182,35 +185,28 @@ public sealed class GenerateSettlementsTests : IntegrationTestBase
 
         var url = $"/groups/{scenario.GroupId}/activities/{scenario.ActivityId}/settlements";
 
-        // Act — generate twice
+        // Act — generate twice (both 204; idempotent)
         var response1 = await Client.PostAsync(url, null, ct);
         var response2 = await Client.PostAsync(url, null, ct);
 
         // Assert
-        response1.StatusCode.Should().Be(HttpStatusCode.OK);
-        response2.StatusCode.Should().Be(HttpStatusCode.OK);
+        response1.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        response2.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
-        var body1 = await response1.Content.ReadAsStringAsync(ct);
-        var body2 = await response2.Content.ReadAsStringAsync(ct);
+        // Re-query the list — exactly one row, no duplicates created by the second call.
+        var listResponse = await Client.GetAsync(url, ct);
+        var body = await listResponse.Content.ReadAsStringAsync(ct);
+        using var doc = System.Text.Json.JsonDocument.Parse(body);
 
-        using var doc1 = System.Text.Json.JsonDocument.Parse(body1);
-        using var doc2 = System.Text.Json.JsonDocument.Parse(body2);
-
-        var ids1 = doc1.RootElement.EnumerateArray()
+        var ids = doc.RootElement.EnumerateArray()
             .Select(el => el.GetProperty("id").GetGuid())
-            .OrderBy(id => id)
-            .ToList();
-        var ids2 = doc2.RootElement.EnumerateArray()
-            .Select(el => el.GetProperty("id").GetGuid())
-            .OrderBy(id => id)
             .ToList();
 
-        ids1.Should().BeEquivalentTo(ids2, "idempotent call must return the same settlement IDs");
-        ids1.Should().HaveCount(1, "no duplicate rows should be created");
+        ids.Should().HaveCount(1, "no duplicate rows should be created");
     }
 
     [Fact]
-    public async Task Generate_ZeroBalanceActivity_Returns200EmptyListAndActivityIsSettled()
+    public async Task Generate_ZeroBalanceActivity_Returns204EmptyListAndActivityIsSettled()
     {
         // Arrange — create a group + activity with no expenses, then close it
         var ct = TestContext.Current.CancellationToken;
@@ -226,20 +222,21 @@ public sealed class GenerateSettlementsTests : IntegrationTestBase
         using var activityDoc = System.Text.Json.JsonDocument.Parse(activityBody);
         var activityId = activityDoc.RootElement.GetProperty("id").GetGuid();
 
-        // Close without adding any expenses
+        // Close without adding any expenses (204)
         var closeResponse = await Client.PostAsync(
             $"/groups/{groupId}/activities/{activityId}/close", null, ct);
-        closeResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        closeResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
         var url = $"/groups/{groupId}/activities/{activityId}/settlements";
 
-        // Act
+        // Act — 204, no rows created
         var response = await Client.PostAsync(url, null, ct);
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
-        var body = await response.Content.ReadAsStringAsync(ct);
+        var listResponse = await Client.GetAsync(url, ct);
+        var body = await listResponse.Content.ReadAsStringAsync(ct);
         using var doc = System.Text.Json.JsonDocument.Parse(body);
         doc.RootElement.EnumerateArray().Should().BeEmpty(
             "no expenses means zero balances — nothing to settle");
@@ -265,7 +262,7 @@ public sealed class ConfirmSentTests : IntegrationTestBase
     public ConfirmSentTests(PostgresContainerFixture fixture) : base(fixture) { }
 
     [Fact]
-    public async Task ConfirmSent_PayerFamily_Returns200AndStatusIsPayerSent()
+    public async Task ConfirmSent_PayerFamily_Returns204AndDetailIsPayerSent()
     {
         // Arrange
         var ct = TestContext.Current.CancellationToken;
@@ -275,13 +272,15 @@ public sealed class ConfirmSentTests : IntegrationTestBase
         // Family2 is the payer — use client2
         var url = $"/groups/{scenario.GroupId}/activities/{scenario.ActivityId}/settlements/{settlementId}/confirm-sent";
 
-        // Act
+        // Act — strict CQRS: 204, the client re-queries the detail
         var response = await scenario.Client2.PostAsync(url, null, ct);
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
-        var body = await response.Content.ReadAsStringAsync(ct);
+        var detailResponse = await scenario.Client2.GetAsync(
+            $"/groups/{scenario.GroupId}/activities/{scenario.ActivityId}/settlements/{settlementId}", ct);
+        var body = await detailResponse.Content.ReadAsStringAsync(ct);
         using var doc = System.Text.Json.JsonDocument.Parse(body);
         doc.RootElement.GetProperty("status").GetString().Should().Be("PayerSent");
         doc.RootElement.GetProperty("approvalSteps").GetArrayLength().Should().Be(1);
@@ -317,9 +316,9 @@ public sealed class ConfirmSentTests : IntegrationTestBase
 
         var url = $"/groups/{scenario.GroupId}/activities/{scenario.ActivityId}/settlements/{settlementId}/confirm-sent";
 
-        // First confirm-sent succeeds
+        // First confirm-sent succeeds (204)
         var first = await scenario.Client2.PostAsync(url, null, ct);
-        first.StatusCode.Should().Be(HttpStatusCode.OK);
+        first.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
         // Act — second confirm-sent on an already-PayerSent settlement
         var response = await scenario.Client2.PostAsync(url, null, ct);
@@ -329,15 +328,7 @@ public sealed class ConfirmSentTests : IntegrationTestBase
     }
 
     private async Task<Guid> GenerateAndGetSettlementIdAsync(SettlementScenario scenario, CancellationToken ct)
-    {
-        var generateUrl = $"/groups/{scenario.GroupId}/activities/{scenario.ActivityId}/settlements";
-        var response = await Client.PostAsync(generateUrl, null, ct);
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-
-        var body = await response.Content.ReadAsStringAsync(ct);
-        using var doc = System.Text.Json.JsonDocument.Parse(body);
-        return doc.RootElement.EnumerateArray().First().GetProperty("id").GetGuid();
-    }
+        => await SettlementScenarioHelper.GenerateAndGetFirstSettlementIdAsync(this, scenario, ct);
 }
 
 // ---------------------------------------------------------------------------
@@ -351,7 +342,7 @@ public sealed class ConfirmReceivedTests : IntegrationTestBase
     public ConfirmReceivedTests(PostgresContainerFixture fixture) : base(fixture) { }
 
     [Fact]
-    public async Task ConfirmReceived_ReceiverFamily_Returns200AndStatusIsCompleted()
+    public async Task ConfirmReceived_ReceiverFamily_Returns204AndDetailIsCompleted()
     {
         // Arrange
         var ct = TestContext.Current.CancellationToken;
@@ -361,13 +352,15 @@ public sealed class ConfirmReceivedTests : IntegrationTestBase
         // Caller's family is the receiver — use the primary Client
         var url = $"/groups/{scenario.GroupId}/activities/{scenario.ActivityId}/settlements/{settlementId}/confirm-received";
 
-        // Act
+        // Act — strict CQRS: 204, the client re-queries the detail
         var response = await Client.PostAsync(url, null, ct);
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
-        var body = await response.Content.ReadAsStringAsync(ct);
+        var detailResponse = await Client.GetAsync(
+            $"/groups/{scenario.GroupId}/activities/{scenario.ActivityId}/settlements/{settlementId}", ct);
+        var body = await detailResponse.Content.ReadAsStringAsync(ct);
         using var doc = System.Text.Json.JsonDocument.Parse(body);
         doc.RootElement.GetProperty("status").GetString().Should().Be("Completed");
         doc.RootElement.GetProperty("completedAt").ValueKind
@@ -413,15 +406,7 @@ public sealed class ConfirmReceivedTests : IntegrationTestBase
     }
 
     private async Task<Guid> GenerateSettlementIdAsync(SettlementScenario scenario, CancellationToken ct)
-    {
-        var generateUrl = $"/groups/{scenario.GroupId}/activities/{scenario.ActivityId}/settlements";
-        var response = await Client.PostAsync(generateUrl, null, ct);
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-
-        var body = await response.Content.ReadAsStringAsync(ct);
-        using var doc = System.Text.Json.JsonDocument.Parse(body);
-        return doc.RootElement.EnumerateArray().First().GetProperty("id").GetGuid();
-    }
+        => await SettlementScenarioHelper.GenerateAndGetFirstSettlementIdAsync(this, scenario, ct);
 
     private async Task<Guid> GenerateAndAdvanceToPayerSentAsync(SettlementScenario scenario, CancellationToken ct)
     {
@@ -429,7 +414,7 @@ public sealed class ConfirmReceivedTests : IntegrationTestBase
 
         var confirmSentUrl = $"/groups/{scenario.GroupId}/activities/{scenario.ActivityId}/settlements/{settlementId}/confirm-sent";
         var sentResponse = await scenario.Client2.PostAsync(confirmSentUrl, null, ct);
-        sentResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        sentResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
         return settlementId;
     }
@@ -454,31 +439,34 @@ public sealed class FullSettlementFlowTests : IntegrationTestBase
 
         var baseUrl = $"/groups/{scenario.GroupId}/activities/{scenario.ActivityId}/settlements";
 
-        // Act 1 — Generate
+        // Act 1 — Generate (204), then re-query the list to find the settlement
         var generateResponse = await Client.PostAsync(baseUrl, null, ct);
-        generateResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        generateResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
-        var generateBody = await generateResponse.Content.ReadAsStringAsync(ct);
+        var afterGenerate = await Client.GetAsync(baseUrl, ct);
+        var generateBody = await afterGenerate.Content.ReadAsStringAsync(ct);
         using var generateDoc = System.Text.Json.JsonDocument.Parse(generateBody);
         var settlementId = generateDoc.RootElement.EnumerateArray().First().GetProperty("id").GetGuid();
         generateDoc.RootElement.EnumerateArray().First()
             .GetProperty("status").GetString().Should().Be("Proposed");
 
-        // Act 2 — Confirm sent (payer = family2)
+        // Act 2 — Confirm sent (payer = family2), 204 → re-query detail
         var confirmSentUrl = $"{baseUrl}/{settlementId}/confirm-sent";
         var sentResponse = await scenario.Client2.PostAsync(confirmSentUrl, null, ct);
-        sentResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        sentResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
-        var sentBody = await sentResponse.Content.ReadAsStringAsync(ct);
+        var afterSent = await Client.GetAsync($"{baseUrl}/{settlementId}", ct);
+        var sentBody = await afterSent.Content.ReadAsStringAsync(ct);
         using var sentDoc = System.Text.Json.JsonDocument.Parse(sentBody);
         sentDoc.RootElement.GetProperty("status").GetString().Should().Be("PayerSent");
 
-        // Act 3 — Confirm received (receiver = caller's family)
+        // Act 3 — Confirm received (receiver = caller's family), 204 → re-query detail
         var confirmReceivedUrl = $"{baseUrl}/{settlementId}/confirm-received";
         var receivedResponse = await Client.PostAsync(confirmReceivedUrl, null, ct);
-        receivedResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        receivedResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
-        var receivedBody = await receivedResponse.Content.ReadAsStringAsync(ct);
+        var afterReceived = await Client.GetAsync($"{baseUrl}/{settlementId}", ct);
+        var receivedBody = await afterReceived.Content.ReadAsStringAsync(ct);
         using var receivedDoc = System.Text.Json.JsonDocument.Parse(receivedBody);
         receivedDoc.RootElement.GetProperty("status").GetString().Should().Be("Completed");
         receivedDoc.RootElement.GetProperty("completedAt").ValueKind
@@ -610,6 +598,25 @@ static class SettlementScenarioHelper
         closeResponse.EnsureSuccessStatusCode();
 
         return new SettlementScenario(groupId, activityId, family2Id, member2Id, user2Id, client2);
+    }
+
+    /// <summary>
+    /// Generates settlements (204) for the scenario's activity, then re-queries the list and returns
+    /// the first settlement's id — the strict-CQRS flow now that generate no longer returns a body.
+    /// </summary>
+    public static async Task<Guid> GenerateAndGetFirstSettlementIdAsync(
+        IntegrationTestBase test, SettlementScenario scenario, CancellationToken ct)
+    {
+        var baseUrl = $"/groups/{scenario.GroupId}/activities/{scenario.ActivityId}/settlements";
+        var generate = await test.Client.PostAsync(baseUrl, null, ct);
+        generate.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        var list = await test.Client.GetAsync(baseUrl, ct);
+        list.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var body = await list.Content.ReadAsStringAsync(ct);
+        using var doc = System.Text.Json.JsonDocument.Parse(body);
+        return doc.RootElement.EnumerateArray().First().GetProperty("id").GetGuid();
     }
 
     /// <summary>

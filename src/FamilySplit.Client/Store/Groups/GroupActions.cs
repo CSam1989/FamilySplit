@@ -13,23 +13,30 @@ public record LoadGroupDetailSuccessAction(GroupDetailDto Group);
 public record LoadGroupDetailFailureAction(string ErrorMessage);
 
 // ── Create ────────────────────────────────────────────────────────────────────
+// Strict CQRS: the create command returns only the new id; the effect navigates to
+// the new group's detail page and re-queries the list rather than patching state.
 public record CreateGroupAction(CreateGroupRequest Request);
-public record CreateGroupSuccessAction(GroupDetailDto Group);
+public record CreateGroupSuccessAction(Guid GroupId);
 public record CreateGroupFailureAction(string ErrorMessage);
 
 // ── Update ────────────────────────────────────────────────────────────────────
+// Strict CQRS: the update command returns 204; the effect re-queries the detail.
 public record UpdateGroupAction(Guid GroupId, UpdateGroupRequest Request);
-public record UpdateGroupSuccessAction(GroupDetailDto Group);
+public record UpdateGroupSuccessAction(Guid GroupId);
 public record UpdateGroupFailureAction(string ErrorMessage);
 
 // ── Join ──────────────────────────────────────────────────────────────────────
+// Documented exception: join returns 200 + the group id; the effect navigates to the
+// new group's detail page and re-queries the list.
 public record JoinGroupAction(JoinGroupRequest Request);
-public record JoinGroupSuccessAction(GroupDetailDto Group);
+public record JoinGroupSuccessAction(Guid GroupId);
 public record JoinGroupFailureAction(string ErrorMessage);
 
 // ── Regenerate Invite Code ────────────────────────────────────────────────────
+// Strict CQRS: regenerate returns 204; the effect re-queries the detail so the
+// freshly-rotated invite code is picked up from GroupDetailDto.InviteCode.
 public record RegenerateInviteCodeAction(Guid GroupId);
-public record RegenerateInviteCodeSuccessAction(Guid GroupId, string NewInviteCode);
+public record RegenerateInviteCodeSuccessAction(Guid GroupId);
 public record RegenerateInviteCodeFailureAction(string ErrorMessage);
 
 // ── Leave ─────────────────────────────────────────────────────────────────────

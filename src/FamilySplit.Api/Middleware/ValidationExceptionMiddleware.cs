@@ -1,5 +1,5 @@
 using System.Text.Json;
-using FamilySplit.Application.Exceptions;
+using FamilySplit.Common.Exceptions;
 using FluentValidation;
 
 namespace FamilySplit.Api.Middleware;

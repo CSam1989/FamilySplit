@@ -10,17 +10,18 @@ public interface IAdminClient
     [Get("/admin/families")]
     Task<List<FamilyDto>> ListFamiliesAsync();
 
+    // Strict CQRS (Phase 9): create returns 201 + { id }; update returns 204. The client re-queries.
     [Post("/admin/families")]
-    Task<FamilyDto> CreateFamilyAsync([Body] CreateFamilyRequest request);
+    Task<CreatedResponse> CreateFamilyAsync([Body] CreateFamilyRequest request);
 
     [Get("/admin/families/{familyId}")]
     Task<FamilyDto> GetFamilyAsync(Guid familyId);
 
     [Post("/admin/families/{familyId}/members")]
-    Task<FamilyMemberDto> AddMemberAsync(Guid familyId, [Body] AddFamilyMemberRequest request);
+    Task<CreatedResponse> AddMemberAsync(Guid familyId, [Body] AddFamilyMemberRequest request);
 
     [Put("/admin/families/{familyId}/members/{memberId}")]
-    Task<FamilyMemberDto> UpdateMemberAsync(Guid familyId, Guid memberId, [Body] UpdateFamilyMemberRequest request);
+    Task UpdateMemberAsync(Guid familyId, Guid memberId, [Body] UpdateFamilyMemberRequest request);
 
     [Delete("/admin/families/{familyId}/members/{memberId}")]
     Task RemoveMemberAsync(Guid familyId, Guid memberId);

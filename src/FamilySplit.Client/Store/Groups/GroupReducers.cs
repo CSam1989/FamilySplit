@@ -38,9 +38,11 @@ public static class GroupReducers
     public static GroupState OnCreate(GroupState state) =>
         state with { IsLoading = true, ErrorMessage = null };
 
-    [ReducerMethod]
-    public static GroupState OnCreateSuccess(GroupState state, CreateGroupSuccessAction action) =>
-        state with { IsLoading = false, SelectedGroup = action.Group };
+    // Strict CQRS: the create command returns no DTO — the follow-up navigation +
+    // LoadGroupsAction refresh state, so this reducer only clears the loading flag.
+    [ReducerMethod(typeof(CreateGroupSuccessAction))]
+    public static GroupState OnCreateSuccess(GroupState state) =>
+        state with { IsLoading = false };
 
     [ReducerMethod]
     public static GroupState OnCreateFailure(GroupState state, CreateGroupFailureAction action) =>
@@ -52,9 +54,11 @@ public static class GroupReducers
     public static GroupState OnUpdate(GroupState state) =>
         state with { IsLoading = true, ErrorMessage = null };
 
-    [ReducerMethod]
-    public static GroupState OnUpdateSuccess(GroupState state, UpdateGroupSuccessAction action) =>
-        state with { IsLoading = false, SelectedGroup = action.Group };
+    // Strict CQRS: the update command returns 204 — the follow-up LoadGroupDetailAction
+    // refreshes the selected group, so this reducer only clears the loading flag.
+    [ReducerMethod(typeof(UpdateGroupSuccessAction))]
+    public static GroupState OnUpdateSuccess(GroupState state) =>
+        state with { IsLoading = false };
 
     [ReducerMethod]
     public static GroupState OnUpdateFailure(GroupState state, UpdateGroupFailureAction action) =>
@@ -66,9 +70,11 @@ public static class GroupReducers
     public static GroupState OnJoin(GroupState state) =>
         state with { IsLoading = true, ErrorMessage = null };
 
-    [ReducerMethod]
-    public static GroupState OnJoinSuccess(GroupState state, JoinGroupSuccessAction action) =>
-        state with { IsLoading = false, SelectedGroup = action.Group };
+    // Documented exception: join returns only the group id — the follow-up navigation +
+    // LoadGroupsAction refresh state, so this reducer only clears the loading flag.
+    [ReducerMethod(typeof(JoinGroupSuccessAction))]
+    public static GroupState OnJoinSuccess(GroupState state) =>
+        state with { IsLoading = false };
 
     [ReducerMethod]
     public static GroupState OnJoinFailure(GroupState state, JoinGroupFailureAction action) =>
@@ -80,18 +86,11 @@ public static class GroupReducers
     public static GroupState OnRegenerate(GroupState state) =>
         state with { IsLoading = true, ErrorMessage = null };
 
-    [ReducerMethod]
-    public static GroupState OnRegenerateSuccess(GroupState state, RegenerateInviteCodeSuccessAction action)
-    {
-        if (state.SelectedGroup is null || state.SelectedGroup.Id != action.GroupId)
-            return state with { IsLoading = false };
-
-        return state with
-        {
-            IsLoading = false,
-            SelectedGroup = state.SelectedGroup with { InviteCode = action.NewInviteCode }
-        };
-    }
+    // Strict CQRS: the regenerate command returns 204 — the follow-up LoadGroupDetailAction
+    // refreshes the invite code from GroupDetailDto, so this reducer only clears the loading flag.
+    [ReducerMethod(typeof(RegenerateInviteCodeSuccessAction))]
+    public static GroupState OnRegenerateSuccess(GroupState state) =>
+        state with { IsLoading = false };
 
     [ReducerMethod]
     public static GroupState OnRegenerateFailure(GroupState state, RegenerateInviteCodeFailureAction action) =>

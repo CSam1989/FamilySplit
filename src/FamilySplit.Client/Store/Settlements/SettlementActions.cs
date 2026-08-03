@@ -13,8 +13,9 @@ public record LoadSettlementsSuccessAction(List<SettlementSummaryDto> Settlement
 public record LoadSettlementsFailureAction(string ErrorMessage);
 
 // ── Generate settlements ──────────────────────────────────────────────────────
+// Strict CQRS: the command returns 204; success carries no payload — the effect re-queries the list.
 public record GenerateSettlementsAction(Guid GroupId, Guid ActivityId);
-public record GenerateSettlementsSuccessAction(List<SettlementSummaryDto> Settlements);
+public record GenerateSettlementsSuccessAction;
 public record GenerateSettlementsFailureAction(string ErrorMessage);
 
 // ── Load detail ───────────────────────────────────────────────────────────────
@@ -23,13 +24,14 @@ public record LoadSettlementDetailSuccessAction(SettlementDetailDto Settlement);
 public record LoadSettlementDetailFailureAction(string ErrorMessage);
 
 // ── Confirm sent ──────────────────────────────────────────────────────────────
+// Strict CQRS: 204; success carries no payload — the effect re-queries list + detail + group/pending.
 public record ConfirmSentAction(Guid GroupId, Guid ActivityId, Guid SettlementId);
-public record ConfirmSentSuccessAction(SettlementDetailDto Settlement);
+public record ConfirmSentSuccessAction;
 public record ConfirmSentFailureAction(string ErrorMessage);
 
 // ── Confirm received ──────────────────────────────────────────────────────────
 public record ConfirmReceivedAction(Guid GroupId, Guid ActivityId, Guid SettlementId);
-public record ConfirmReceivedSuccessAction(SettlementDetailDto Settlement);
+public record ConfirmReceivedSuccessAction;
 public record ConfirmReceivedFailureAction(string ErrorMessage);
 
 // ── Load group-level settlements ──────────────────────────────────────────────

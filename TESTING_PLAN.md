@@ -3,6 +3,14 @@
 > **Status: COMPLETE** — all 27 tasks finished. See the completion notes at the bottom.
 >
 > Original plan: build a full automated test suite (unit, client/bUnit, integration, E2E) running in CI.
+>
+> ⚠️ **Partially superseded (2026-06-16) by ADR-001** in [`docs/vertical-slice-refactor-plan.md`](docs/vertical-slice-refactor-plan.md).
+> The "Service DB queries" decision below (keep direct `AppDbContext` queries, no query-object split, unit tests cover
+> pure logic only) **no longer holds for migrated code**. Under the vertical-slice architecture the **business-logic and
+> data-access layers are separated and the separation is enforced by NetArchTest on every feature assembly**: command
+> handlers hold no EF and are unit-tested by mocking `I{Slice}Data` (Moq); query handlers and `{Slice}Data` gateways are
+> the only EF and are verified with **Testcontainers** (no InMemory provider). The 4-project layout and Testcontainers
+> isolation below are unchanged and still authoritative.
 
 ---
 
@@ -10,7 +18,7 @@
 
 | Topic | Decision | Consequence |
 |---|---|---|
-| Service DB queries | **Keep direct `AppDbContext` queries** (inline LINQ, explicit joins per CLAUDE.md). No repository/query-object refactor. | Unit tests cover **pure logic only**. All DB-touching behaviour is verified by the integration suite. |
+| Service DB queries | ~~**Keep direct `AppDbContext` queries** (inline LINQ, explicit joins per CLAUDE.md). No repository/query-object refactor.~~ **⚠️ SUPERSEDED by ADR-001** — business logic (command handlers) is separated from data access (query handlers + `I{Slice}Data` gateways), enforced everywhere by NetArchTest. | ~~Unit tests cover **pure logic only**.~~ Now: command handlers unit-tested via **Moq over `I{Slice}Data`** (no DB); all DB-touching code (queries + gateways) verified by the **Testcontainers** integration suite. |
 | Mocking library | **Moq** (already used everywhere). | CLAUDE.md must be corrected — it currently says NSubstitute. No test rewrites. |
 | Integration DB isolation | **Transaction-rollback per test** against **Testcontainers** Postgres. | Requires the shared-open-connection pattern (below) so the API and the test share one transaction. Respawn is the documented fallback if this proves brittle. |
 | Project layout | **Split into 4 test projects.** | Existing client store/service tests move out of `FamilySplit.UnitTests` into a new client project. |
@@ -37,7 +45,7 @@ These are real constraints the tasks below depend on — not assumptions:
 - **Connection-string key is `Postgres`** (`configuration.GetConnectionString("Postgres")` in `Infrastructure/DependencyInjection.cs`), settable via `ConnectionStrings__Postgres`. ⚠️ The existing `ci.yml` integration job uses `ConnectionStrings__DefaultConnection` — wrong key. Fix in Task 5.1.
 - **Existing CI integration job points at a Neon shared branch and is disabled (`if: false`).** We replace it with Testcontainers (Task 5.1).
 - **JWT minting helper already exists**: `src/FamilySplit.Api/Auth/JwtFactory.cs` — reuse it to mint caller tokens in integration/E2E setup.
-- **Test stack already present**: xUnit v3, FluentAssertions 8, Moq 4.20, EF Core InMemory. Packages are centrally managed in `Directory.Packages.props`.
+- **Test stack already present**: xUnit v3, FluentAssertions 8, Moq 4.20, EF Core InMemory. Packages are centrally managed in `Directory.Packages.props`. *(Post-ADR-001: the InMemory provider is **not** used for migrated slices — command handlers mock `I{Slice}Data`, data access uses Testcontainers. InMemory remains only for any not-yet-migrated legacy `Application` service tests.)*
 - **Endpoint groups** (`src/FamilySplit.Api/Endpoints/`): Auth, User, FamilyMembers, Family, Admin, Groups, GroupMembers(stub), Activity, Expense, Settlement, Dashboard, Push.
 - **~30 client test files** currently live in `tests/FamilySplit.UnitTests/Store/**` and `/Services/**` — these move to the new client project in Task 3.1.
 

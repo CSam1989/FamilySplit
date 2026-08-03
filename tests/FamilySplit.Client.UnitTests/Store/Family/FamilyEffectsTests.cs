@@ -1,6 +1,5 @@
 using FamilySplit.Client.Services;
 using FamilySplit.Client.Store.Family;
-using FamilySplit.Domain.Enums;
 using FluentAssertions;
 using Fluxor;
 using Microsoft.Extensions.Logging;
@@ -18,9 +17,6 @@ public class FamilyEffectsTests
 
     private static FamilyDto CreateFamilyDto() =>
         new(Guid.NewGuid(), "Test", [], DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
-
-    private static FamilyMemberDto CreateMemberDto() =>
-        new(Guid.NewGuid(), "Member", null, null, null, 1m, WeightTier.Volwassene, true, false, false, DateTimeOffset.UtcNow);
 
     public FamilyEffectsTests()
     {
@@ -49,15 +45,15 @@ public class FamilyEffectsTests
     }
 
     [Fact]
-    public async Task HandleRename_Success_DispatchesSuccessAction()
+    public async Task HandleRename_Success_DispatchesSuccessAndLoadActions()
     {
         var request = new UpdateFamilyNameRequest("New Name");
-        var family = CreateFamilyDto();
-        _clientMock.Setup(c => c.UpdateFamilyNameAsync(request)).ReturnsAsync(family);
+        _clientMock.Setup(c => c.UpdateFamilyNameAsync(request)).Returns(Task.CompletedTask);
 
         await _sut.HandleRename(new UpdateFamilyNameAction(request), _dispatcherMock.Object);
 
-        _dispatcherMock.Verify(d => d.Dispatch(It.Is<UpdateFamilyNameSuccessAction>(a => a.Family == family)), Times.Once);
+        _dispatcherMock.Verify(d => d.Dispatch(It.IsAny<UpdateFamilyNameSuccessAction>()), Times.Once);
+        _dispatcherMock.Verify(d => d.Dispatch(It.IsAny<LoadMyFamilyAction>()), Times.Once);
     }
 
     [Fact]
@@ -69,18 +65,18 @@ public class FamilyEffectsTests
         await _sut.HandleRename(new UpdateFamilyNameAction(request), _dispatcherMock.Object);
 
         _dispatcherMock.Verify(d => d.Dispatch(It.IsAny<UpdateFamilyNameFailureAction>()), Times.Once);
+        _dispatcherMock.Verify(d => d.Dispatch(It.IsAny<LoadMyFamilyAction>()), Times.Never);
     }
 
     [Fact]
     public async Task HandleAddMember_Success_DispatchesSuccessAndLoadActions()
     {
         var request = new AddFamilyMemberRequest("John", null, null, null, false);
-        var member = CreateMemberDto();
-        _clientMock.Setup(c => c.AddMemberAsync(request)).ReturnsAsync(member);
+        _clientMock.Setup(c => c.AddMemberAsync(request)).ReturnsAsync(new CreatedResponse(Guid.NewGuid()));
 
         await _sut.HandleAddMember(new AddFamilyMemberAction(request), _dispatcherMock.Object);
 
-        _dispatcherMock.Verify(d => d.Dispatch(It.Is<AddFamilyMemberSuccessAction>(a => a.Member == member)), Times.Once);
+        _dispatcherMock.Verify(d => d.Dispatch(It.IsAny<AddFamilyMemberSuccessAction>()), Times.Once);
         _dispatcherMock.Verify(d => d.Dispatch(It.IsAny<LoadMyFamilyAction>()), Times.Once);
     }
 
@@ -97,16 +93,16 @@ public class FamilyEffectsTests
     }
 
     [Fact]
-    public async Task HandleUpdateMember_Success_DispatchesSuccessAction()
+    public async Task HandleUpdateMember_Success_DispatchesSuccessAndLoadActions()
     {
         var memberId = Guid.NewGuid();
         var request = new UpdateFamilyMemberRequest("Jane", null, null, null, false);
-        var member = CreateMemberDto();
-        _clientMock.Setup(c => c.UpdateMemberAsync(memberId, request)).ReturnsAsync(member);
+        _clientMock.Setup(c => c.UpdateMemberAsync(memberId, request)).Returns(Task.CompletedTask);
 
         await _sut.HandleUpdateMember(new UpdateFamilyMemberAction(memberId, request), _dispatcherMock.Object);
 
-        _dispatcherMock.Verify(d => d.Dispatch(It.Is<UpdateFamilyMemberSuccessAction>(a => a.Member == member)), Times.Once);
+        _dispatcherMock.Verify(d => d.Dispatch(It.IsAny<UpdateFamilyMemberSuccessAction>()), Times.Once);
+        _dispatcherMock.Verify(d => d.Dispatch(It.IsAny<LoadMyFamilyAction>()), Times.Once);
     }
 
     [Fact]
@@ -119,17 +115,19 @@ public class FamilyEffectsTests
         await _sut.HandleUpdateMember(new UpdateFamilyMemberAction(memberId, request), _dispatcherMock.Object);
 
         _dispatcherMock.Verify(d => d.Dispatch(It.IsAny<UpdateFamilyMemberFailureAction>()), Times.Once);
+        _dispatcherMock.Verify(d => d.Dispatch(It.IsAny<LoadMyFamilyAction>()), Times.Never);
     }
 
     [Fact]
-    public async Task HandleRemoveMember_Success_DispatchesSuccessAction()
+    public async Task HandleRemoveMember_Success_DispatchesSuccessAndLoadActions()
     {
         var memberId = Guid.NewGuid();
 
         await _sut.HandleRemoveMember(new RemoveFamilyMemberAction(memberId), _dispatcherMock.Object);
 
         _clientMock.Verify(c => c.RemoveMemberAsync(memberId), Times.Once);
-        _dispatcherMock.Verify(d => d.Dispatch(It.Is<RemoveFamilyMemberSuccessAction>(a => a.MemberId == memberId)), Times.Once);
+        _dispatcherMock.Verify(d => d.Dispatch(It.IsAny<RemoveFamilyMemberSuccessAction>()), Times.Once);
+        _dispatcherMock.Verify(d => d.Dispatch(It.IsAny<LoadMyFamilyAction>()), Times.Once);
     }
 
     [Fact]

@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>FamilySplit.Features.Notifications</RootNamespace>
+    <AssemblyName>FamilySplit.Features.Notifications</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- IEndpointRouteBuilder, IServiceCollection extensions, HttpContext etc. live in
+         the shared framework — class libraries must opt in explicitly. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+    <PackageReference Include="Lib.Net.Http.WebPush" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\FamilySplit.Common\FamilySplit.Common.csproj" />
+    <ProjectReference Include="..\..\FamilySplit.Domain\FamilySplit.Domain.csproj" />
+    <ProjectReference Include="..\..\FamilySplit.Infrastructure\FamilySplit.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="FamilySplit.UnitTests" />
+    <InternalsVisibleTo Include="FamilySplit.IntegrationTests" /> <!-- Testcontainers tests resolve the internal PushSubscriptionData -->
+    <Using Include="FamilySplit.Common.Security" /> <!-- GetUserId() without per-file usings -->
+  </ItemGroup>
+
+</Project>

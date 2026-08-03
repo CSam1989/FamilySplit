@@ -50,8 +50,10 @@ public class AdminEffects
     {
         try
         {
-            var family = await _client.CreateFamilyAsync(action.Request);
-            dispatcher.Dispatch(new CreateAdminFamilySuccessAction(family));
+            await _client.CreateFamilyAsync(action.Request);
+            dispatcher.Dispatch(new CreateAdminFamilySuccessAction());
+            // Strict CQRS: re-query the list so the new family appears.
+            dispatcher.Dispatch(new LoadAdminFamiliesAction());
         }
         catch (Exception ex)
         {
@@ -81,8 +83,10 @@ public class AdminEffects
     {
         try
         {
-            var member = await _client.UpdateMemberAsync(action.FamilyId, action.MemberId, action.Request);
-            dispatcher.Dispatch(new UpdateAdminMemberSuccessAction(member));
+            await _client.UpdateMemberAsync(action.FamilyId, action.MemberId, action.Request);
+            dispatcher.Dispatch(new UpdateAdminMemberSuccessAction(action.FamilyId));
+            // Strict CQRS: re-query the family so the updated member is reflected.
+            dispatcher.Dispatch(new LoadAdminFamilyAction(action.FamilyId));
         }
         catch (Exception ex)
         {

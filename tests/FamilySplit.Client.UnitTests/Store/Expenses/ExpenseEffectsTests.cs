@@ -81,12 +81,11 @@ public class ExpenseEffectsTests
     {
         var request = CreateRequest();
         var action = new CreateExpenseAction(Guid.NewGuid(), Guid.NewGuid(), request);
-        var expense = CreateDetail();
-        _client.Setup(c => c.CreateAsync(action.GroupId, action.ActivityId, request)).ReturnsAsync(expense);
+        _client.Setup(c => c.CreateAsync(action.GroupId, action.ActivityId, request)).ReturnsAsync(new CreatedResponse(Guid.NewGuid()));
 
         await _sut.HandleCreate(action, _dispatcher.Object);
 
-        _dispatcher.Verify(d => d.Dispatch(It.Is<CreateExpenseSuccessAction>(a => a.Expense == expense)), Times.Once);
+        _dispatcher.Verify(d => d.Dispatch(It.IsAny<CreateExpenseSuccessAction>()), Times.Once);
         _dispatcher.Verify(d => d.Dispatch(It.Is<LoadExpensesAction>(a => a.GroupId == action.GroupId && a.ActivityId == action.ActivityId)), Times.Once);
         _dispatcher.Verify(d => d.Dispatch(It.Is<LoadBalancesAction>(a => a.GroupId == action.GroupId && a.ActivityId == action.ActivityId)), Times.Once);
     }
@@ -109,12 +108,11 @@ public class ExpenseEffectsTests
     {
         var request = UpdateRequest();
         var action = new UpdateExpenseAction(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), request);
-        var expense = CreateDetail();
-        _client.Setup(c => c.UpdateAsync(action.GroupId, action.ActivityId, action.ExpenseId, request)).ReturnsAsync(expense);
+        _client.Setup(c => c.UpdateAsync(action.GroupId, action.ActivityId, action.ExpenseId, request)).Returns(Task.CompletedTask);
 
         await _sut.HandleUpdate(action, _dispatcher.Object);
 
-        _dispatcher.Verify(d => d.Dispatch(It.Is<UpdateExpenseSuccessAction>(a => a.Expense == expense)), Times.Once);
+        _dispatcher.Verify(d => d.Dispatch(It.IsAny<UpdateExpenseSuccessAction>()), Times.Once);
         _dispatcher.Verify(d => d.Dispatch(It.Is<LoadExpensesAction>(a => a.GroupId == action.GroupId && a.ActivityId == action.ActivityId)), Times.Once);
         _dispatcher.Verify(d => d.Dispatch(It.Is<LoadBalancesAction>(a => a.GroupId == action.GroupId && a.ActivityId == action.ActivityId)), Times.Once);
     }
