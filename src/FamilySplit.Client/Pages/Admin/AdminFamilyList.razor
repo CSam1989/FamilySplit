@@ -106,6 +106,8 @@ else
         await base.OnInitializedAsync();
         _t = await I18nText.GetTextTableAsync<AppText>(this);
         Dispatcher.Dispatch(new LoadAdminFamiliesAction());
+        if (ProfileState.Value.MyProfile is null)
+            Dispatcher.Dispatch(new LoadMyProfileAction());
     }
 
     private async Task OpenCreateDialog()

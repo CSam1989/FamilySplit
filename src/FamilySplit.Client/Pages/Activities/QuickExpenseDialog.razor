@@ -2,7 +2,7 @@
 @using FamilySplit.Client.Store.Expenses
 @inject IDispatcher Dispatcher
 @inject IState<AppState> AppState
-@inject IState<GroupState> GroupState
+@inject IGroupClient GroupClient
 @inject IActivityClient ActivityClient
 @inject IExpenseClient ExpenseClient
 @inject ILogger<QuickExpenseDialog> Logger
@@ -55,7 +55,7 @@
                            Variant="Variant.Outlined"
                            AnchorOrigin="Origin.BottomCenter"
                            Class="mb-3">
-                    @foreach (var g in GroupState.Value.Groups)
+                    @foreach (var g in _groups)
                     {
                         <MudSelectItem T="Guid?" Value="@((Guid?)g.Id)">@g.Name</MudSelectItem>
                     }
@@ -237,6 +237,7 @@
     private Step _step = Step.ActivityPicker;
 
     // ── Activity picker ────────────────────────────────────────────────────────
+    private List<GroupSummaryDto> _groups = [];
     private Guid? _selectedGroupId;
     private string? _selectedGroupName;
     private Guid? _selectedActivityId;
@@ -263,6 +264,19 @@
     {
         _t = await I18nText.GetTextTableAsync<AppText>(this);
 
+        _loadingActivities = true;
+        try
+        {
+            _groups = await GroupClient.ListAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load groups");
+            _activityError = ErrorHelper.GetMessage(ex);
+            _loadingActivities = false;
+            return;
+        }
+
         var appState = AppState.Value;
 
         if (appState.LastUsedActivityId.HasValue && appState.LastUsedGroupId.HasValue)
@@ -272,6 +286,7 @@
             _selectedGroupName  = appState.LastUsedGroupName ?? string.Empty;
             _selectedActivityId = appState.LastUsedActivityId;
             _selectedActivityName = appState.LastUsedActivityName ?? string.Empty;
+            _loadingActivities = false;
             // Load the group's activities in the background so Change works
             _ = LoadActivitiesAsync(_selectedGroupId.Value);
             _step = Step.ExpenseForm;
@@ -279,7 +294,7 @@
         else
         {
             // No history — pick the first group's latest Open activity as default
-            var firstGroup = GroupState.Value.Groups.FirstOrDefault();
+            var firstGroup = _groups.FirstOrDefault();
             if (firstGroup is not null)
             {
                 _selectedGroupId   = firstGroup.Id;
@@ -291,6 +306,10 @@
                     _selectedActivityId   = latest.Id;
                     _selectedActivityName = latest.Name;
                 }
+            }
+            else
+            {
+                _loadingActivities = false;
             }
         }
     }
@@ -326,7 +345,7 @@
     {
         if (groupId is null) return;
         _selectedGroupId    = groupId;
-        _selectedGroupName  = GroupState.Value.Groups.FirstOrDefault(g => g.Id == groupId)?.Name;
+        _selectedGroupName  = _groups.FirstOrDefault(g => g.Id == groupId)?.Name;
         _selectedActivityId = null;
         _selectedActivityName = null;
         _showNewActivityForm = false;
