@@ -31,16 +31,26 @@ public sealed class CloseActivityCommandHandler
     {
         _logger.LogDebug("Closing activity {ActivityId} by user {UserId}", activityId, callerId);
 
-        var activity = await _data.GetActivityCoreAsync(activityId, ct)
-            ?? throw ValidationErrors.NotFound("Activity not found.");
+        var activity = await _data.GetActivityCoreAsync(activityId, ct);
+        if (activity is null)
+        {
+            _logger.LogDebug("Close attempted on missing activity {ActivityId} by user {UserId}", activityId, callerId);
+            throw ValidationErrors.NotFound("Activity not found.");
+        }
 
         await _guard.RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 
         if (!ActivityCloseGuard.CanClose(activity.Status))
+        {
+            _logger.LogDebug("Rejected close on already-closed/settled activity {ActivityId} by user {UserId}", activityId, callerId);
             throw ValidationErrors.Field("Status", "Activity is already closed or settled.");
+        }
 
         if (!ActivityCloseGuard.IsTopLevel(activity.ParentActivityId))
+        {
+            _logger.LogDebug("Rejected direct close of sub-activity {ActivityId} by user {UserId}", activityId, callerId);
             throw ValidationErrors.Field("Status", "Sub-activities cannot be closed directly. Close the parent activity instead.");
+        }
 
         var absorbed = await _data.CloseActivityAsync(activityId, callerId, ct);
 

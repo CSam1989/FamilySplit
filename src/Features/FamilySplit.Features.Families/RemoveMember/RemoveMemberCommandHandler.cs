@@ -22,15 +22,29 @@ public sealed class RemoveMemberCommandHandler
 
     public async Task HandleAsync(Guid memberId, Guid callerId, CancellationToken ct)
     {
-        var caller = await _data.GetCallerMemberAsync(callerId, ct)
-            ?? throw new ForbiddenException();
-        if (!caller.IsAdmin)
+        var caller = await _data.GetCallerMemberAsync(callerId, ct);
+        if (caller is null)
+        {
+            _logger.LogWarning("Remove-member attempt by user {UserId} with no linked FamilyMember", callerId);
             throw new ForbiddenException();
+        }
+        if (!caller.IsAdmin)
+        {
+            _logger.LogWarning("Non-admin remove-member attempt by user {UserId}", callerId);
+            throw new ForbiddenException();
+        }
         if (caller.Id == memberId)
+        {
+            _logger.LogDebug("Self-remove attempt by user {UserId}", callerId);
             throw ValidationErrors.Field("MemberId", "You cannot remove yourself from the family.");
+        }
 
-        _ = await _data.GetActiveMemberInFamilyAsync(memberId, caller.FamilyId, ct)
-            ?? throw ValidationErrors.Field("MemberId", "Family member not found.");
+        var target = await _data.GetActiveMemberInFamilyAsync(memberId, caller.FamilyId, ct);
+        if (target is null)
+        {
+            _logger.LogDebug("Remove-member attempt by user {UserId} for unknown member {MemberId}", callerId, memberId);
+            throw ValidationErrors.Field("MemberId", "Family member not found.");
+        }
 
         await _data.DeactivateMemberAsync(memberId, ct);
 

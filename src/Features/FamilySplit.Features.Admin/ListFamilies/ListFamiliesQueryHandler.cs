@@ -26,7 +26,7 @@ public sealed class ListFamiliesQueryHandler
     {
         _logger.LogDebug("ListFamilies called by {UserId}", callerId);
 
-        await AdminGate.RequireGlobalAdminAsync(_db, callerId, ct);
+        await AdminGate.RequireGlobalAdminAsync(_db, callerId, _logger, ct);
 
         var families = await _db.Families
             .AsNoTracking()

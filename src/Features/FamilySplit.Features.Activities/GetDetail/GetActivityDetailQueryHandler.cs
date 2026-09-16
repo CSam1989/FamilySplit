@@ -37,8 +37,12 @@ public sealed class GetActivityDetailQueryHandler
             .AsNoTracking()
             .Where(a => a.Id == activityId)
             .Select(a => new { a.Id, a.GroupId, a.Name, a.Description, a.Status, a.ParentActivityId, a.CreatedAt, a.ClosedAt })
-            .FirstOrDefaultAsync(ct)
-            ?? throw ValidationErrors.NotFound("Activity not found.");
+            .FirstOrDefaultAsync(ct);
+        if (activity is null)
+        {
+            _logger.LogDebug("Activity detail requested for missing activity {ActivityId} by user {UserId}", activityId, callerId);
+            throw ValidationErrors.NotFound("Activity not found.");
+        }
 
         await _guard.RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 

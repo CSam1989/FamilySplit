@@ -3,6 +3,7 @@ using FamilySplit.Domain.Entities;
 using FamilySplit.Domain.Enums;
 using FamilySplit.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace FamilySplit.Features.Activities.Data;
 
@@ -15,8 +16,13 @@ namespace FamilySplit.Features.Activities.Data;
 internal sealed class ActivityData : IActivityData
 {
     private readonly AppDbContext _db;
+    private readonly ILogger<ActivityData> _logger;
 
-    public ActivityData(AppDbContext db) => _db = db;
+    public ActivityData(AppDbContext db, ILogger<ActivityData> logger)
+    {
+        _db = db;
+        _logger = logger;
+    }
 
     public async Task<ActivityCore?> GetActivityCoreAsync(Guid activityId, CancellationToken ct) =>
         await _db.Activities
@@ -63,8 +69,12 @@ internal sealed class ActivityData : IActivityData
 
     public async Task UpdateActivityDetailsAsync(Guid activityId, string name, string? description, CancellationToken ct)
     {
-        var activity = await _db.Activities.FindAsync([activityId], ct)
-            ?? throw ValidationErrors.NotFound("Activity not found.");
+        var activity = await _db.Activities.FindAsync([activityId], ct);
+        if (activity is null)
+        {
+            _logger.LogDebug("UpdateActivityDetails found no activity {ActivityId}", activityId);
+            throw ValidationErrors.NotFound("Activity not found.");
+        }
 
         activity.Name = name;
         activity.Description = description;
@@ -75,8 +85,12 @@ internal sealed class ActivityData : IActivityData
 
     public async Task<int> CloseActivityAsync(Guid activityId, Guid callerId, CancellationToken ct)
     {
-        var activity = await _db.Activities.FindAsync([activityId], ct)
-            ?? throw ValidationErrors.NotFound("Activity not found.");
+        var activity = await _db.Activities.FindAsync([activityId], ct);
+        if (activity is null)
+        {
+            _logger.LogDebug("CloseActivity found no activity {ActivityId} for user {UserId}", activityId, callerId);
+            throw ValidationErrors.NotFound("Activity not found.");
+        }
 
         var now = DateTimeOffset.UtcNow;
 
@@ -121,7 +135,10 @@ internal sealed class ActivityData : IActivityData
             .FirstOrDefaultAsync(ap => ap.ActivityId == activityId && ap.FamilyMemberId == familyMemberId, ct);
 
         if (participant is null)
+        {
+            _logger.LogDebug("RemoveParticipant no-op — {FamilyMemberId} not a participant in activity {ActivityId}", familyMemberId, activityId);
             return;
+        }
 
         _db.ActivityParticipants.Remove(participant);
         await _db.SaveChangesAsync(ct);

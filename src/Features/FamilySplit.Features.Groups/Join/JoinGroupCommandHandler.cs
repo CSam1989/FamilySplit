@@ -40,7 +40,10 @@ public sealed class JoinGroupCommandHandler
         await _validator.ValidateAndThrowAsync(cmd, ct);
 
         if (!await _data.IsActiveFamilyAdminAsync(callerId, ct))
+        {
+            _logger.LogWarning("Non-admin join-group attempt by user {UserId}", callerId);
             throw new ForbiddenException();
+        }
 
         var callerFamilyId = await _guard.GetCallerFamilyIdAsync(callerId, ct);
 
@@ -53,7 +56,10 @@ public sealed class JoinGroupCommandHandler
         }
 
         if (await _data.IsFamilyInGroupAsync(groupId.Value, callerFamilyId, ct))
+        {
+            _logger.LogDebug("Join attempt for group {GroupId} by family {FamilyId} already a member", groupId.Value, callerFamilyId);
             throw ValidationErrors.Field("InviteCode", "Your family is already a member of this group.");
+        }
 
         var membership = new GroupFamily
         {

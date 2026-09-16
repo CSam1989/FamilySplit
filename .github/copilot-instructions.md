@@ -40,12 +40,16 @@ Inside a slice, **business logic and data access are separate, separately-testab
 
 | Level | When |
 |---|---|
-| `LogDebug` | **Every** public service method entry — key entity IDs + `{UserId}` only |
+| `LogDebug` | **Every** public service method entry — key entity IDs + `{UserId}` only. Also every routine guard/condition that rejects (not-found, validation-style, state-machine) — see below. |
 | `LogInformation` | Successful mutations (create / update / delete / state-transition) and security events (join, leave, token revoke) |
-| `LogWarning` | Destructive or elevated-privilege operations (global-admin deletes, invite-code regeneration, mass-revocation) and detected anomalies |
-| `LogError` | Unexpected exceptions not covered by global middleware |
+| `LogWarning` | Destructive or elevated-privilege operations (global-admin deletes, invite-code regeneration, mass-revocation), detected anomalies, and security-relevant guard rejections (`ForbiddenException`, invalid invite codes) |
+| `LogError` | Unexpected exceptions not covered by global middleware. The middleware's final catch-all also logs any unhandled exception here before returning a generic 500. |
 
 `LogTrace` is not used. `LogDebug` is disabled in production by default — flip via env var `Serilog__MinimumLevel__Override__FamilySplit=Debug`.
+
+### Guard/condition logging
+
+Every guard clause that short-circuits a handler/gateway (early return or throw) gets exactly one log line immediately before it — `LogDebug` for routine rejections, `LogWarning` for security-relevant ones. Don't log guards that pass. Don't double-log `ValidateAndThrowAsync` (the middleware already logs that once, at `Information`). Don't wrap calls in `try/catch` just to log-and-rethrow — that's the middleware's job.
 
 ### Structured logging — always use named placeholders
 
@@ -337,6 +341,7 @@ select new { gf.FamilyId, f.Name }
 
 - Business rule violations → `FluentValidation.ValidationException` → caught by `ValidationExceptionMiddleware` → HTTP 422
 - Auth/permission failures → `ForbiddenException` → caught by `ValidationExceptionMiddleware` → HTTP 403
+- Anything else unhandled → caught by the middleware's final catch-all → logged at `LogError` → generic HTTP 500 (never leaks the exception message/stack trace)
 - Do **not** add try/catch to service methods just to log; the middleware handles it
 
 ### Soft deletes

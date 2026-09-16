@@ -48,10 +48,20 @@ internal sealed class OAuthData
         CancellationToken ct)
     {
         var section = _config.GetSection("OAuth:Google");
-        var clientId = section["ClientId"]
-            ?? throw new InvalidOperationException("Missing OAuth:Google:ClientId user-secret.");
-        var clientSecret = section["ClientSecret"]
-            ?? throw new InvalidOperationException("Missing OAuth:Google:ClientSecret user-secret.");
+        var clientId = section["ClientId"];
+        if (clientId is null)
+        {
+            _logger.LogWarning("OAuth:Google:ClientId is not configured");
+            throw new InvalidOperationException("Missing OAuth:Google:ClientId user-secret.");
+        }
+
+        var clientSecret = section["ClientSecret"];
+        if (clientSecret is null)
+        {
+            _logger.LogWarning("OAuth:Google:ClientSecret is not configured");
+            throw new InvalidOperationException("Missing OAuth:Google:ClientSecret user-secret.");
+        }
+
         var tokenUrl = section["TokenUrl"] ?? "https://oauth2.googleapis.com/token";
         var userInfoUrl = section["UserInfoUrl"] ?? "https://openidconnect.googleapis.com/v1/userinfo";
 
@@ -79,8 +89,12 @@ internal sealed class OAuthData
             throw new InvalidOperationException("Google token exchange failed.");
         }
 
-        var tokens = await tokenResponse.Content.ReadFromJsonAsync<GoogleTokenResponse>(ct)
-            ?? throw new InvalidOperationException("Google returned empty token response.");
+        var tokens = await tokenResponse.Content.ReadFromJsonAsync<GoogleTokenResponse>(ct);
+        if (tokens is null)
+        {
+            _logger.LogWarning("Google token exchange returned an empty/unparseable response body");
+            throw new InvalidOperationException("Google returned empty token response.");
+        }
 
         // 2. Fetch user profile.
         var userInfoRequest = new HttpRequestMessage(HttpMethod.Get, userInfoUrl);
@@ -89,11 +103,18 @@ internal sealed class OAuthData
         using var userInfoResponse = await http.SendAsync(userInfoRequest, ct);
         userInfoResponse.EnsureSuccessStatusCode();
 
-        var profile = await userInfoResponse.Content.ReadFromJsonAsync<GoogleUserInfo>(ct)
-            ?? throw new InvalidOperationException("Google returned empty userinfo response.");
+        var profile = await userInfoResponse.Content.ReadFromJsonAsync<GoogleUserInfo>(ct);
+        if (profile is null)
+        {
+            _logger.LogWarning("Google userinfo endpoint returned an empty/unparseable response body");
+            throw new InvalidOperationException("Google returned empty userinfo response.");
+        }
 
         if (string.IsNullOrWhiteSpace(profile.Sub) || string.IsNullOrWhiteSpace(profile.Email))
+        {
+            _logger.LogWarning("Google userinfo response is missing sub or email");
             throw new InvalidOperationException("Google userinfo missing sub or email.");
+        }
 
         // The email is the sole key linking a login to a FamilyMember slot. Refuse to
         // honour an unverified email, which an attacker could set on a throwaway account.

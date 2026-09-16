@@ -36,13 +36,20 @@ public sealed class UpdateActivityCommandHandler
 
         await _validator.ValidateAndThrowAsync(cmd, ct);
 
-        var activity = await _data.GetActivityCoreAsync(activityId, ct)
-            ?? throw ValidationErrors.NotFound("Activity not found.");
+        var activity = await _data.GetActivityCoreAsync(activityId, ct);
+        if (activity is null)
+        {
+            _logger.LogDebug("Update attempted on missing activity {ActivityId} by user {UserId}", activityId, callerId);
+            throw ValidationErrors.NotFound("Activity not found.");
+        }
 
         await _guard.RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 
         if (activity.Status != ActivityStatus.Open)
+        {
+            _logger.LogDebug("Rejected update on non-open activity {ActivityId} by user {UserId}", activityId, callerId);
             throw ValidationErrors.Field("Status", "Only open activities can be edited.");
+        }
 
         await _data.UpdateActivityDetailsAsync(activityId, cmd.Name.Trim(), cmd.Description?.Trim(), ct);
 

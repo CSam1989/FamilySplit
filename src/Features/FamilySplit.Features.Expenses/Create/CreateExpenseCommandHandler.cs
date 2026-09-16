@@ -42,21 +42,28 @@ public sealed class CreateExpenseCommandHandler
 
         await _validator.ValidateAndThrowAsync(cmd, ct);
 
-        var activity = await _data.GetActivityAsync(activityId, ct)
-            ?? throw ValidationErrors.NotFound("Activity not found.");
+        var activity = await _data.GetActivityAsync(activityId, ct);
+        if (activity is null)
+        {
+            _logger.LogDebug("Activity {ActivityId} not found for expense creation by user {UserId}", activityId, callerId);
+            throw ValidationErrors.NotFound("Activity not found.");
+        }
 
         await _guard.RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 
         if (activity.Status is ActivityStatus.Settled or ActivityStatus.Closed)
+        {
+            _logger.LogDebug("Cannot add expense to activity {ActivityId} with status {Status}", activityId, activity.Status);
             throw ValidationErrors.Field("Status", "Cannot add expenses to a closed or settled activity.");
+        }
 
         var currency = (cmd.Currency ?? "EUR").ToUpperInvariant();
         ExpenseGuards.EnsureCurrencyConsistent(
-            await _data.GetActivityCurrencyAsync(activityId, excludeExpenseId: null, ct), currency);
+            await _data.GetActivityCurrencyAsync(activityId, excludeExpenseId: null, ct), currency, activityId, _logger);
 
         if (cmd.CategoryId is not null)
             ExpenseGuards.EnsureCategoryValid(
-                await _data.CategoryIsValidForGroupAsync(cmd.CategoryId.Value, activity.GroupId, ct));
+                await _data.CategoryIsValidForGroupAsync(cmd.CategoryId.Value, activity.GroupId, ct), cmd.CategoryId.Value, _logger);
 
         var expenseId = Guid.NewGuid();
         var expenseDate = cmd.ExpenseDate;

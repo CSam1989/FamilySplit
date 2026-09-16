@@ -34,7 +34,10 @@ public sealed class RegenerateInviteCodeCommandHandler
         var callerFamilyId = await _guard.GetCallerFamilyIdAsync(callerId, ct);
         var role = await _data.GetFamilyRoleInGroupAsync(groupId, callerFamilyId, ct);
         if (role != MemberRole.Admin)
+        {
+            _logger.LogWarning("Non-admin invite-code regeneration attempt for group {GroupId} by user {UserId}", groupId, callerId);
             throw new ForbiddenException();
+        }
 
         var newCode = await _data.GenerateUniqueInviteCodeAsync(ct);
         await _data.UpdateInviteCodeAsync(groupId, newCode, ct);

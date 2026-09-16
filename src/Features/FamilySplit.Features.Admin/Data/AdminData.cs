@@ -2,6 +2,7 @@ using FamilySplit.Common.Exceptions;
 using FamilySplit.Domain.Entities;
 using FamilySplit.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace FamilySplit.Features.Admin.Data;
 
@@ -14,8 +15,13 @@ namespace FamilySplit.Features.Admin.Data;
 internal sealed class AdminData : IAdminData
 {
     private readonly AppDbContext _db;
+    private readonly ILogger<AdminData> _logger;
 
-    public AdminData(AppDbContext db) => _db = db;
+    public AdminData(AppDbContext db, ILogger<AdminData> logger)
+    {
+        _db = db;
+        _logger = logger;
+    }
 
     // ── reads ─────────────────────────────────────────────────────────────────────
 
@@ -72,8 +78,12 @@ internal sealed class AdminData : IAdminData
 
     public async Task UpdateMemberAsync(Guid memberId, AdminMemberFields fields, CancellationToken ct)
     {
-        var member = await _db.FamilyMembers.FindAsync([memberId], ct)
-            ?? throw ValidationErrors.NotFound("Family member not found.");
+        var member = await _db.FamilyMembers.FindAsync([memberId], ct);
+        if (member is null)
+        {
+            _logger.LogDebug("UpdateMember found no family member {MemberId}", memberId);
+            throw ValidationErrors.NotFound("Family member not found.");
+        }
 
         member.DisplayName = fields.DisplayName;
         member.Email = fields.Email;
@@ -86,8 +96,12 @@ internal sealed class AdminData : IAdminData
 
     public async Task DeactivateMemberAsync(Guid memberId, CancellationToken ct)
     {
-        var member = await _db.FamilyMembers.FindAsync([memberId], ct)
-            ?? throw ValidationErrors.NotFound("Family member not found.");
+        var member = await _db.FamilyMembers.FindAsync([memberId], ct);
+        if (member is null)
+        {
+            _logger.LogDebug("DeactivateMember found no family member {MemberId}", memberId);
+            throw ValidationErrors.NotFound("Family member not found.");
+        }
 
         member.IsActive = false;
         await _db.SaveChangesAsync(ct);
@@ -104,7 +118,10 @@ internal sealed class AdminData : IAdminData
         var membership = await _db.GroupFamilies
             .FirstOrDefaultAsync(gf => gf.GroupId == groupId && gf.FamilyId == familyId, ct);
         if (membership is null)
+        {
+            _logger.LogDebug("RemoveFamilyFromGroup no-op — family {FamilyId} not in group {GroupId}", familyId, groupId);
             return;
+        }
 
         _db.GroupFamilies.Remove(membership);
         await _db.SaveChangesAsync(ct);

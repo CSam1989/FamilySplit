@@ -31,7 +31,10 @@ public sealed class GetMyProfileQueryHandler
             .Where(m => m.UserId == callerId && m.IsActive)
             .FirstOrDefaultAsync(ct);
         if (member is null)
+        {
+            _logger.LogDebug("GetMyProfile: no active FamilyMember linked for user {UserId}", callerId);
             return null;
+        }
 
         return FamilyMemberMapper.ToDto(member, DateOnly.FromDateTime(DateTime.UtcNow));
     }

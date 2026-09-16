@@ -39,7 +39,10 @@ public sealed class UpdateGroupCommandHandler
         var callerFamilyId = await _guard.GetCallerFamilyIdAsync(callerId, ct);
         var role = await _data.GetFamilyRoleInGroupAsync(groupId, callerFamilyId, ct);
         if (role != MemberRole.Admin)
+        {
+            _logger.LogWarning("Non-admin group-update attempt for group {GroupId} by user {UserId}", groupId, callerId);
             throw new ForbiddenException();
+        }
 
         await _data.UpdateGroupDetailsAsync(groupId, cmd.Name.Trim(), cmd.Description?.Trim(), ct);
 

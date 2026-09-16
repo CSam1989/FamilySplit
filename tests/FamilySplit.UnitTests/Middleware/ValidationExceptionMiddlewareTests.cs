@@ -92,6 +92,32 @@ public class ValidationExceptionMiddlewareTests
     }
 
     [Fact]
+    public async Task Invoke_UnhandledException_Returns500WithGenericBodyAndLogsError()
+    {
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+        var middleware = CreateMiddleware(_ => throw new InvalidOperationException("db connection string was wrong"));
+
+        await middleware.Invoke(context);
+
+        context.Response.StatusCode.Should().Be(500);
+        context.Response.ContentType.Should().Be("application/problem+json");
+        context.Response.Body.Position = 0;
+        var body = await new StreamReader(context.Response.Body).ReadToEndAsync(TestContext.Current.CancellationToken);
+        body.Should().Contain("An unexpected error occurred");
+        body.Should().NotContain("db connection string was wrong");
+
+        _logger.Verify(
+            l => l.Log(
+                LogLevel.Error,
+                It.IsAny<EventId>(),
+                It.IsAny<It.IsAnyType>(),
+                It.Is<Exception>(e => e is InvalidOperationException),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
     public void Constructor_AssignsFields()
     {
         // Just verifying it doesn't throw

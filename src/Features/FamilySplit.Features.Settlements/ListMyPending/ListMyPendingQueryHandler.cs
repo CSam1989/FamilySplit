@@ -32,8 +32,12 @@ public sealed class ListMyPendingQueryHandler
             .AsNoTracking()
             .Where(m => m.UserId == callerId && m.IsActive)
             .Select(m => (Guid?)m.FamilyId)
-            .FirstOrDefaultAsync(ct)
-            ?? throw new ForbiddenException();
+            .FirstOrDefaultAsync(ct);
+        if (callerFamilyId is null)
+        {
+            _logger.LogWarning("User {UserId} with no active FamilyMember attempted to list pending settlements", callerId);
+            throw new ForbiddenException();
+        }
 
         var groupIds = await _db.GroupFamilies
             .AsNoTracking()

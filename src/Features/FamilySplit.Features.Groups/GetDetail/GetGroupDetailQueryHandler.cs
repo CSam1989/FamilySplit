@@ -33,19 +33,28 @@ public sealed class GetGroupDetailQueryHandler
 
         var callerFamilyId = await _guard.GetCallerFamilyIdAsync(callerId, ct);
 
-        var callerRole = await _db.GroupFamilies
+        var callerRoleOrNull = await _db.GroupFamilies
             .AsNoTracking()
             .Where(gf => gf.GroupId == groupId && gf.FamilyId == callerFamilyId)
             .Select(gf => (MemberRole?)gf.Role)
-            .FirstOrDefaultAsync(ct)
-            ?? throw new ForbiddenException();
+            .FirstOrDefaultAsync(ct);
+        if (callerRoleOrNull is null)
+        {
+            _logger.LogWarning("Non-member fetched group {GroupId} by user {UserId}", groupId, callerId);
+            throw new ForbiddenException();
+        }
+        var callerRole = callerRoleOrNull.Value;
 
         var group = await _db.Groups
             .AsNoTracking()
             .Where(g => g.Id == groupId)
             .Select(g => new { g.Id, g.Name, g.Description, g.InviteCode, g.CreatedAt, g.UpdatedAt })
-            .FirstOrDefaultAsync(ct)
-            ?? throw ValidationErrors.NotFound("Group not found.");
+            .FirstOrDefaultAsync(ct);
+        if (group is null)
+        {
+            _logger.LogDebug("Group {GroupId} not found for user {UserId}", groupId, callerId);
+            throw ValidationErrors.NotFound("Group not found.");
+        }
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
 

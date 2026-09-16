@@ -162,7 +162,7 @@ CORS, response compression, the global rate limiter, `AddAuthorization`'s fallba
 ### Conventions
 - Minimal API, no MediatR.
 - `ClaimsPrincipalExtensions.GetUserId()` extracts the `sub` claim as a `Guid` — available via a global `using FamilySplit.Common.Security;` on every project.
-- `ValidationExceptionMiddleware` catches `FluentValidation.ValidationException` → HTTP 422, and `ForbiddenException` → HTTP 403 (checked **before** ValidationException).
+- `ValidationExceptionMiddleware` catches `FluentValidation.ValidationException` → HTTP 422, and `ForbiddenException` → HTTP 403 (checked **before** ValidationException); a final catch-all logs any other exception at `LogError` and returns a generic HTTP 500 (see [Error Handling Conventions](#error-handling-conventions)).
 
 ### Feature modules (route prefixes)
 
@@ -560,7 +560,7 @@ Confirmation `ShowMessageBox` titles should be **"Mark as sent"** / **"Mark as r
 
 ### API error response shapes
 
-The middleware produces two structured error bodies:
+The middleware produces three structured error bodies:
 
 **403 Forbidden** (`ForbiddenException`):
 ```json
@@ -572,10 +572,16 @@ The middleware produces two structured error bodies:
 { "type": "...", "title": "Validation failed", "status": 422, "errors": { "Field": ["msg"] } }
 ```
 
+**500 Internal Server Error** (anything else — the `ValidationExceptionMiddleware` catch-all):
+```json
+{ "type": "...", "title": "An unexpected error occurred", "status": 500, "detail": "Please try again later. If the problem persists, contact support." }
+```
+The exception is always logged in full (`LogError`, with the request path) on the server before this generic body is written — the client never sees the exception message or a stack trace. `ErrorHelper.GetMessage` already has a friendly-message branch for `InternalServerError`, so no client change is needed to display it.
+
 ### Client error handling rules
 
 1. **Never show raw HTTP status strings to users.** All Refit `ApiException`s must go through `ErrorHelper.GetMessage(ex)` (`Services/ErrorHelper.cs`), which parses the structured body above and falls back to a friendly status-code message.
-2. **Always log the full exception** in Effects before dispatching the failure action, using the injected `ILogger<T>`.
+2. **Always log the full exception** in Effects before dispatching the failure action, using the injected `ILogger<T>`. This applies even to fire-and-forget effects with no failure action to dispatch (e.g. sign-out) — wrap the call in try/catch, `LogError` on failure, and still complete the effect's non-HTTP side effects (e.g. navigation) so a failed server-side call never strands the user on a broken screen.
 3. **Every store feature** (Admin, Family, Groups, FamilyMembers) has a `Clear*ErrorAction` and a matching reducer that sets `ErrorMessage = null`. Effects dispatch this automatically — it is also dispatched from the UI when the user clicks the alert's close icon.
 4. **Every dismissable `MudAlert`** must wire `CloseIconClicked` to dispatch the store's `Clear*ErrorAction`:
 
@@ -845,12 +851,22 @@ All service methods **must** follow these rules. They apply to every new service
 
 | Level | Use for |
 |---|---|
-| `LogDebug` | Method entry — every public service method. Include the primary entity IDs and the caller's `UserId`. Never enable in production by default; flip `FamilySplit` override to `Debug` via env var to investigate without a redeploy. |
+| `LogDebug` | Method entry — every public service method. Include the primary entity IDs and the caller's `UserId`. **Also every routine guard/condition that rejects** (validation-style failures, not-found lookups, state-machine violations) — see *Guard/condition logging* below. Never enable in production by default; flip `FamilySplit` override to `Debug` via env var to investigate without a redeploy. |
 | `LogInformation` | Successful mutations — create, update, delete, state transitions. Log the new/changed entity ID plus `{UserId}`. Security events (group join/leave, token revocation) also belong here. |
-| `LogWarning` | Elevated-privilege or destructive actions (global-admin deletes, invite-code regeneration, mass token revocation triggered by logout). Also used for detected anomalies (replay/theft attempts). |
-| `LogError` | Unexpected exceptions not handled by business logic. The global `ValidationExceptionMiddleware` already catches FluentValidation and ForbiddenException — do **not** catch those just to log them; the middleware handles it. |
+| `LogWarning` | Elevated-privilege or destructive actions (global-admin deletes, invite-code regeneration, mass token revocation triggered by logout). Also used for detected anomalies (replay/theft attempts) **and any guard/condition rejection that is security-relevant rather than routine** — permission denials (`ForbiddenException`), invalid invite codes, and similar "someone is probing/misusing this" outcomes. |
+| `LogError` | Unexpected exceptions not handled by business logic. The global `ValidationExceptionMiddleware` catches `ForbiddenException` and FluentValidation's `ValidationException` without needing an app-level log call (it logs them itself, at `Information`) — do **not** catch those just to log them. As a final catch-all, the middleware also now logs **any other unhandled exception** at `LogError` (with the request path) before returning a generic HTTP 500 — this is the only place unclassified exceptions are logged; do not wrap handler/gateway code in `try/catch (Exception)` just to `LogError`-and-rethrow. |
 
-`LogTrace` is not used in this codebase.
+`LogTrace` is not used in this codebase — guard/condition logging (below) stays at `Debug`/`Warning`, it does not introduce a new, quieter level.
+
+### Guard / condition logging
+
+**Every guard clause in a command/query handler or a `{Slice}Data` gateway that short-circuits the happy path — an early return or a thrown exception — must have exactly one log statement immediately before it.** This is what "log every condition" means in practice: log the branches that diverge from success, not the ones that pass through it.
+
+- **Do not** log a guard that passes (e.g. no "permission check OK" line) — the method's own entry (`Debug`) and success (`Information`) logs already imply every intermediate guard passed.
+- **Do not** double-log `await _validator.ValidateAndThrowAsync(cmd, ct)` — a FluentValidation failure is already logged once, centrally, by `ValidationExceptionMiddleware` at `Information`. Adding a handler-level log around that call duplicates the same event.
+- **Level:** routine/expected rejections (`ValidationErrors.NotFound(...)`, `ValidationErrors.Field(...)`, a state-machine guard like `SettlementStateMachine.CanConfirmReceived`) are `LogDebug`. Security-relevant rejections (`ForbiddenException`, an invalid invite code, anything that could indicate probing/misuse) are `LogWarning`. See `JoinGroupCommandHandler.HandleAsync` for the canonical example of both: a plain `ValidationErrors.Field` guard needs no extra treatment beyond the throw, but the invite-code-not-found guard carries `_logger.LogWarning("Invalid invite-code join attempt by user {UserId}", callerId)` immediately before the throw.
+- **Applies to gateways too**: a handful of `{Slice}Data` methods throw their own `ValidationErrors.NotFound(...)` directly (the guard lives in the gateway, not the handler) — same rule, same levels.
+- **Does not require a `try/catch`**: this rule is about guard clauses (conditions your code evaluates on purpose), not about wrapping calls to catch unexpected exceptions — that's the middleware's job (see the `LogError` row above). Do not add `try/catch` around `SaveChangesAsync()` in a gateway solely to log-and-rethrow.
 
 ### Structured logging rules
 

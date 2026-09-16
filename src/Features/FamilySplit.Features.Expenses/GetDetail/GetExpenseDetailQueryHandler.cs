@@ -37,15 +37,23 @@ public sealed class GetExpenseDetailQueryHandler
             .AsNoTracking()
             .Where(e => e.Id == expenseId)
             .Select(e => new { e.Id, e.ActivityId, e.Title, e.Description, e.TotalAmount, e.Currency, e.ExpenseDate, e.PaidByUserId, e.Status, e.CreatedAt, e.UpdatedAt })
-            .FirstOrDefaultAsync(ct)
-            ?? throw ValidationErrors.NotFound("Expense not found.");
+            .FirstOrDefaultAsync(ct);
+        if (expense is null)
+        {
+            _logger.LogDebug("Expense {ExpenseId} not found for detail requested by user {UserId}", expenseId, callerId);
+            throw ValidationErrors.NotFound("Expense not found.");
+        }
 
         var activity = await _db.Activities
             .AsNoTracking()
             .Where(a => a.Id == expense.ActivityId)
             .Select(a => new { a.GroupId })
-            .FirstOrDefaultAsync(ct)
-            ?? throw ValidationErrors.NotFound("Activity not found.");
+            .FirstOrDefaultAsync(ct);
+        if (activity is null)
+        {
+            _logger.LogDebug("Activity {ActivityId} not found for expense {ExpenseId} detail", expense.ActivityId, expenseId);
+            throw ValidationErrors.NotFound("Activity not found.");
+        }
 
         await _guard.RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 

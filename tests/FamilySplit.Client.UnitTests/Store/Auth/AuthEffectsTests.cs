@@ -112,6 +112,17 @@ public class AuthEffectsTests
         _nav.LastUri.Should().Be("/");
     }
 
+    [Fact]
+    public async Task HandleSignOut_LogoutThrows_StillNavigatesToRoot()
+    {
+        // A failed server-side revoke must not block clearing local session state / navigation.
+        _authApi.Setup(x => x.LogoutAsync()).ThrowsAsync(new HttpRequestException());
+
+        await _sut.HandleSignOut(_dispatcher.Object);
+
+        _nav.LastUri.Should().Be("/");
+    }
+
     private sealed class TestNavigationManager : NavigationManager
     {
         public string? LastUri { get; private set; }

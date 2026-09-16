@@ -32,7 +32,10 @@ public sealed class GetMyFamilyQueryHandler
             .Select(m => (Guid?)m.FamilyId)
             .FirstOrDefaultAsync(ct);
         if (familyId is null)
+        {
+            _logger.LogDebug("GetMyFamily: no active FamilyMember linked for user {UserId}", callerId);
             return null;
+        }
 
         var family = await _db.Families
             .AsNoTracking()
@@ -40,7 +43,10 @@ public sealed class GetMyFamilyQueryHandler
             .Select(f => new { f.Id, f.Name, f.CreatedAt, f.UpdatedAt })
             .FirstOrDefaultAsync(ct);
         if (family is null)
+        {
+            _logger.LogDebug("GetMyFamily: Family not found for user {UserId}", callerId);
             return null;
+        }
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var members = await _db.FamilyMembers

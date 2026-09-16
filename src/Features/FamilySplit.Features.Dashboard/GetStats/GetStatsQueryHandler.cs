@@ -44,7 +44,11 @@ public sealed class GetStatsQueryHandler
             select new { g.Id, g.Name }
         ).ToListAsync(ct);
 
-        if (groupInfos.Count == 0) return [];
+        if (groupInfos.Count == 0)
+        {
+            _logger.LogDebug("User {UserId} belongs to no groups — returning empty dashboard stats", callerId);
+            return [];
+        }
 
         var groupIds = groupInfos.Select(g => g.Id).ToList();
 

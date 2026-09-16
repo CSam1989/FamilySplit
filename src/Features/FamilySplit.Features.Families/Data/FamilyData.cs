@@ -2,6 +2,7 @@ using FamilySplit.Common.Exceptions;
 using FamilySplit.Domain.Entities;
 using FamilySplit.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace FamilySplit.Features.Families.Data;
 
@@ -14,8 +15,13 @@ namespace FamilySplit.Features.Families.Data;
 internal sealed class FamilyData : IFamilyData
 {
     private readonly AppDbContext _db;
+    private readonly ILogger<FamilyData> _logger;
 
-    public FamilyData(AppDbContext db) => _db = db;
+    public FamilyData(AppDbContext db, ILogger<FamilyData> logger)
+    {
+        _db = db;
+        _logger = logger;
+    }
 
     // ── reads ─────────────────────────────────────────────────────────────────────
 
@@ -49,8 +55,12 @@ internal sealed class FamilyData : IFamilyData
 
     public async Task UpdateFamilyNameAsync(Guid familyId, string name, CancellationToken ct)
     {
-        var family = await _db.Families.FindAsync([familyId], ct)
-            ?? throw ValidationErrors.NotFound("Family not found.");
+        var family = await _db.Families.FindAsync([familyId], ct);
+        if (family is null)
+        {
+            _logger.LogDebug("Family {FamilyId} not found for rename", familyId);
+            throw ValidationErrors.NotFound("Family not found.");
+        }
 
         family.Name = name;
         family.UpdatedAt = DateTimeOffset.UtcNow;
@@ -65,8 +75,12 @@ internal sealed class FamilyData : IFamilyData
 
     public async Task UpdateMemberAsync(Guid memberId, FamilyMemberFields fields, CancellationToken ct)
     {
-        var member = await _db.FamilyMembers.FindAsync([memberId], ct)
-            ?? throw ValidationErrors.NotFound("Family member not found.");
+        var member = await _db.FamilyMembers.FindAsync([memberId], ct);
+        if (member is null)
+        {
+            _logger.LogDebug("FamilyMember {MemberId} not found for update", memberId);
+            throw ValidationErrors.NotFound("Family member not found.");
+        }
 
         member.DisplayName = fields.DisplayName;
         member.Email = fields.Email;
@@ -79,8 +93,12 @@ internal sealed class FamilyData : IFamilyData
 
     public async Task DeactivateMemberAsync(Guid memberId, CancellationToken ct)
     {
-        var member = await _db.FamilyMembers.FindAsync([memberId], ct)
-            ?? throw ValidationErrors.NotFound("Family member not found.");
+        var member = await _db.FamilyMembers.FindAsync([memberId], ct);
+        if (member is null)
+        {
+            _logger.LogDebug("FamilyMember {MemberId} not found for deactivation", memberId);
+            throw ValidationErrors.NotFound("Family member not found.");
+        }
 
         member.IsActive = false;
         await _db.SaveChangesAsync(ct);

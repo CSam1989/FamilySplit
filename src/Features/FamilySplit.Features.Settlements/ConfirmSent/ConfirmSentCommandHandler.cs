@@ -35,17 +35,28 @@ public sealed class ConfirmSentCommandHandler
     {
         _logger.LogDebug("ConfirmSent for settlement {SettlementId} by user {UserId}", settlementId, callerId);
 
-        var settlement = await _data.GetSettlementForConfirmAsync(settlementId, ct)
-            ?? throw ValidationErrors.NotFound("Settlement not found.");
+        var settlement = await _data.GetSettlementForConfirmAsync(settlementId, ct);
+        if (settlement is null)
+        {
+            _logger.LogDebug("Settlement {SettlementId} not found for ConfirmSent by user {UserId}", settlementId, callerId);
+            throw ValidationErrors.NotFound("Settlement not found.");
+        }
 
         await _guard.RequireGroupMemberAsync(settlement.GroupId, callerId, ct);
 
         var callerFamilyId = await _guard.GetCallerFamilyIdAsync(callerId, ct);
         if (callerFamilyId != settlement.PayerFamilyId)
+        {
+            _logger.LogWarning(
+                "User {UserId} outside the paying family attempted to confirm settlement {SettlementId} sent", callerId, settlementId);
             throw new ForbiddenException("Only a member of the paying family can confirm payment sent.");
+        }
 
         if (!SettlementStateMachine.CanConfirmSent(settlement.Status))
+        {
+            _logger.LogDebug("Settlement {SettlementId} is {Status}; expected Proposed for ConfirmSent", settlementId, settlement.Status);
             throw ValidationErrors.Field("Status", $"Settlement is {settlement.Status}; expected Proposed.");
+        }
 
         var now = DateTimeOffset.UtcNow;
 

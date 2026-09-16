@@ -24,10 +24,16 @@ public sealed class DeleteGroupCommandHandler
     public async Task HandleAsync(Guid groupId, Guid callerId, CancellationToken ct)
     {
         if (!await _data.IsGlobalAdminAsync(callerId, ct))
+        {
+            _logger.LogWarning("Non-admin user {UserId} attempted to delete group {GroupId}", callerId, groupId);
             throw new ForbiddenException();
+        }
 
         if (!await _data.DeleteGroupAsync(groupId, ct))
+        {
+            _logger.LogDebug("Delete attempted on missing group {GroupId} by user {UserId}", groupId, callerId);
             throw ValidationErrors.Field("GroupId", "Group not found.");
+        }
 
         _logger.LogWarning("Group {GroupId} deleted by global admin {UserId}", groupId, callerId);
     }

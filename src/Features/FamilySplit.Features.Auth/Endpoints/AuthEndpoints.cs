@@ -39,12 +39,24 @@ internal static class AuthEndpoints
             string? returnUrl,
             HttpContext http,
             IConfiguration config,
-            PkceFlow pkce) =>
+            PkceFlow pkce,
+            ILoggerFactory loggerFactory) =>
         {
-            if (!Enum.TryParse<Provider>(provider, ignoreCase: true, out var p) || p != Provider.Google)
-                return Results.BadRequest(new { error = "Unsupported provider", provider });
+            var logger = loggerFactory.CreateLogger("AuthLogin");
 
-            var clientId = config["OAuth:Google:ClientId"] ?? throw new InvalidOperationException("Missing OAuth:Google:ClientId user-secret.");
+            if (!Enum.TryParse<Provider>(provider, ignoreCase: true, out var p) || p != Provider.Google)
+            {
+                logger.LogDebug("Login rejected: unsupported provider {Provider}", provider);
+                return Results.BadRequest(new { error = "Unsupported provider", provider });
+            }
+
+            var clientId = config["OAuth:Google:ClientId"];
+            if (clientId is null)
+            {
+                logger.LogWarning("OAuth:Google:ClientId is not configured");
+                throw new InvalidOperationException("Missing OAuth:Google:ClientId user-secret.");
+            }
+
             var authorizeUrl = config["OAuth:Google:AuthorizeUrl"] ?? "https://accounts.google.com/o/oauth2/v2/auth";
 
             // Open-redirect guard.
@@ -107,7 +119,10 @@ internal static class AuthEndpoints
             var logger = loggerFactory.CreateLogger("AuthCallback");
 
             if (!Enum.TryParse<Provider>(provider, ignoreCase: true, out var p) || p != Provider.Google)
+            {
+                logger.LogDebug("Callback rejected: unsupported provider {Provider}", provider);
                 return Results.BadRequest(new { error = "Unsupported provider", provider });
+            }
 
             if (!string.IsNullOrWhiteSpace(error))
             {
@@ -116,13 +131,19 @@ internal static class AuthEndpoints
             }
 
             if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(state))
+            {
+                logger.LogDebug("Callback rejected: missing code or state query parameter");
                 return Results.BadRequest(new { error = "Missing code or state" });
+            }
 
             var flow = pkce.Unprotect(http.Request.Cookies[StateCookie]);
             http.Response.Cookies.Delete(StateCookie, new CookieOptions { Path = AuthCookiePath });
 
             if (flow is null)
+            {
+                logger.LogDebug("Callback rejected: missing or invalid OAuth state cookie");
                 return Results.BadRequest(new { error = "Missing or invalid state cookie. Restart the login flow." });
+            }
 
             if (!CryptographicEquals(flow.State, state))
             {
@@ -167,8 +188,10 @@ internal static class AuthEndpoints
             RefreshTokenData refreshTokens,
             JwtFactory jwtFactory,
             AppDbContext db,
+            ILoggerFactory loggerFactory,
             CancellationToken ct) =>
         {
+            var logger = loggerFactory.CreateLogger("AuthRefresh");
             var presented = http.Request.Cookies[RefreshCookie];
 
             // CancellationToken.None is intentional for all DB work past this point.
@@ -208,6 +231,7 @@ internal static class AuthEndpoints
             var user = await db.Users.FindAsync(new object?[] { userId }, CancellationToken.None);
             if (user is null)
             {
+                logger.LogWarning("Refresh succeeded for user {UserId} but no matching User row exists", userId);
                 ClearRefreshCookie(http);
                 return Results.Unauthorized();
             }

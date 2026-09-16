@@ -41,31 +41,46 @@ public sealed class UpdateExpenseCommandHandler
 
         await _validator.ValidateAndThrowAsync(cmd, ct);
 
-        var expense = await _data.GetExpenseAsync(expenseId, ct)
-            ?? throw ValidationErrors.NotFound("Expense not found.");
+        var expense = await _data.GetExpenseAsync(expenseId, ct);
+        if (expense is null)
+        {
+            _logger.LogDebug("Expense {ExpenseId} not found for update by user {UserId}", expenseId, callerId);
+            throw ValidationErrors.NotFound("Expense not found.");
+        }
 
-        var activity = await _data.GetActivityAsync(expense.ActivityId, ct)
-            ?? throw ValidationErrors.NotFound("Activity not found.");
+        var activity = await _data.GetActivityAsync(expense.ActivityId, ct);
+        if (activity is null)
+        {
+            _logger.LogDebug("Activity {ActivityId} not found for expense {ExpenseId} update", expense.ActivityId, expenseId);
+            throw ValidationErrors.NotFound("Activity not found.");
+        }
 
         await _guard.RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 
         var ownership = await _data.GetExpenseOwnershipAsync(expense.PaidByUserId, callerId, ct);
         ExpenseGuards.RequireSameFamilyAsPayerOrGlobalAdmin(
-            ownership.IsGlobalAdmin, ownership.CallerFamilyId, ownership.PayerFamilyId);
+            ownership.IsGlobalAdmin, ownership.CallerFamilyId, ownership.PayerFamilyId, expenseId, callerId, _logger);
 
         if (activity.Status is ActivityStatus.Settled or ActivityStatus.Closed)
+        {
+            _logger.LogDebug("Cannot edit expense {ExpenseId} — activity {ActivityId} has status {Status}",
+                expenseId, expense.ActivityId, activity.Status);
             throw ValidationErrors.Field("Status", "Cannot edit expenses on a closed or settled activity.");
+        }
 
         if (expense.Status == ExpenseStatus.Locked)
+        {
+            _logger.LogDebug("Cannot edit locked expense {ExpenseId}", expenseId);
             throw ValidationErrors.Field("Status", "This expense is locked and cannot be edited.");
+        }
 
         var currency = (cmd.Currency ?? expense.Currency).ToUpperInvariant();
         ExpenseGuards.EnsureCurrencyConsistent(
-            await _data.GetActivityCurrencyAsync(expense.ActivityId, excludeExpenseId: expenseId, ct), currency);
+            await _data.GetActivityCurrencyAsync(expense.ActivityId, excludeExpenseId: expenseId, ct), currency, expense.ActivityId, _logger);
 
         if (cmd.CategoryId is not null)
             ExpenseGuards.EnsureCategoryValid(
-                await _data.CategoryIsValidForGroupAsync(cmd.CategoryId.Value, activity.GroupId, ct));
+                await _data.CategoryIsValidForGroupAsync(cmd.CategoryId.Value, activity.GroupId, ct), cmd.CategoryId.Value, _logger);
 
         bool amountOrDateChanged = ExpenseReshuffleRequired.Check(
             expense.TotalAmount, cmd.TotalAmount, expense.ExpenseDate, cmd.ExpenseDate);

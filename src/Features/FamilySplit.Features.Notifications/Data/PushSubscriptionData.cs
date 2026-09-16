@@ -1,6 +1,7 @@
 using FamilySplit.Domain.Entities;
 using FamilySplit.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace FamilySplit.Features.Notifications.Data;
 
@@ -13,8 +14,13 @@ namespace FamilySplit.Features.Notifications.Data;
 internal sealed class PushSubscriptionData : IPushSubscriptionData
 {
     private readonly AppDbContext _db;
+    private readonly ILogger<PushSubscriptionData> _logger;
 
-    public PushSubscriptionData(AppDbContext db) => _db = db;
+    public PushSubscriptionData(AppDbContext db, ILogger<PushSubscriptionData> logger)
+    {
+        _db = db;
+        _logger = logger;
+    }
 
     public async Task<Guid?> GetActiveFamilyIdForUserAsync(Guid userId, CancellationToken ct) =>
         await _db.FamilyMembers
@@ -91,7 +97,10 @@ internal sealed class PushSubscriptionData : IPushSubscriptionData
             .FirstOrDefaultAsync(ct);
 
         if (row is null)
+        {
+            _logger.LogDebug("RemoveSubscription no-op — no push subscription for user {UserId} at that endpoint", userId);
             return false;
+        }
 
         _db.PushSubscriptions.Remove(row);
         await _db.SaveChangesAsync(ct);

@@ -141,7 +141,11 @@ internal sealed class RefreshTokenData
         string? userAgent,
         CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(presentedSecret)) return RotateResult.RejectedInstance;
+        if (string.IsNullOrWhiteSpace(presentedSecret))
+        {
+            _logger.LogDebug("Refresh rejected — no refresh token presented");
+            return RotateResult.RejectedInstance;
+        }
 
         byte[] hash;
         try { hash = Sha256(presentedSecret); }
@@ -150,7 +154,11 @@ internal sealed class RefreshTokenData
         var existing = await _db.RefreshTokens
             .FirstOrDefaultAsync(t => t.TokenHash == hash, ct);
 
-        if (existing is null) return RotateResult.RejectedInstance;
+        if (existing is null)
+        {
+            _logger.LogDebug("Refresh rejected — presented token does not match any known refresh token");
+            return RotateResult.RejectedInstance;
+        }
 
         // Token already revoked — distinguish concurrent retry from genuine theft.
         if (existing.RevokedAt is not null)
@@ -189,7 +197,12 @@ internal sealed class RefreshTokenData
         }
 
         var now = DateTimeOffset.UtcNow;
-        if (existing.ExpiresAt <= now) return RotateResult.RejectedInstance;
+        if (existing.ExpiresAt <= now)
+        {
+            _logger.LogDebug("Refresh rejected — token {TokenId} for user {UserId} expired at {ExpiresAt}",
+                existing.Id, existing.UserId, existing.ExpiresAt);
+            return RotateResult.RejectedInstance;
+        }
 
         // Reuse window: skip rotation when the token was issued recently.
         // The browser keeps its existing cookie; the endpoint issues a fresh JWT.
@@ -232,7 +245,11 @@ internal sealed class RefreshTokenData
 
     public async Task RevokeAsync(string? presentedSecret, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(presentedSecret)) return;
+        if (string.IsNullOrWhiteSpace(presentedSecret))
+        {
+            _logger.LogDebug("Logout no-op — no refresh token presented");
+            return;
+        }
 
         byte[] hash;
         try { hash = Sha256(presentedSecret); }
@@ -242,7 +259,11 @@ internal sealed class RefreshTokenData
             .Where(t => t.TokenHash == hash && t.RevokedAt == null)
             .FirstOrDefaultAsync(ct);
 
-        if (row is null) return;
+        if (row is null)
+        {
+            _logger.LogDebug("Logout no-op — presented token already revoked or not found");
+            return;
+        }
 
         row.RevokedAt = DateTimeOffset.UtcNow;
         await _db.SaveChangesAsync(ct);

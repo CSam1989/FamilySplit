@@ -22,10 +22,16 @@ public sealed class RemoveFamilyFromGroupCommandHandler
     public async Task HandleAsync(Guid groupId, Guid familyId, Guid callerId, CancellationToken ct)
     {
         if (!await _data.IsGlobalAdminAsync(callerId, ct))
+        {
+            _logger.LogWarning("Non-admin user {UserId} attempted to remove family {FamilyId} from group {GroupId}", callerId, familyId, groupId);
             throw new ForbiddenException();
+        }
 
         if (!await _data.FamilyInGroupAsync(groupId, familyId, ct))
+        {
+            _logger.LogDebug("Rejected remove-family-from-group — family {FamilyId} not in group {GroupId}, by user {UserId}", familyId, groupId, callerId);
             throw ValidationErrors.Field("FamilyId", "This family is not in the group.");
+        }
 
         await _data.RemoveFamilyFromGroupAsync(groupId, familyId, ct);
 

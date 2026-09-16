@@ -26,14 +26,18 @@ public sealed class GetFamilyQueryHandler
     {
         _logger.LogDebug("GetFamily called for {FamilyId} by {UserId}", familyId, callerId);
 
-        await AdminGate.RequireGlobalAdminAsync(_db, callerId, ct);
+        await AdminGate.RequireGlobalAdminAsync(_db, callerId, _logger, ct);
 
         var family = await _db.Families
             .AsNoTracking()
             .Where(f => f.Id == familyId)
             .Select(f => new { f.Id, f.Name, f.CreatedAt, f.UpdatedAt })
-            .FirstOrDefaultAsync(ct)
-            ?? throw ValidationErrors.Field("FamilyId", "Family not found.");
+            .FirstOrDefaultAsync(ct);
+        if (family is null)
+        {
+            _logger.LogDebug("GetFamily requested for missing family {FamilyId} by user {UserId}", familyId, callerId);
+            throw ValidationErrors.Field("FamilyId", "Family not found.");
+        }
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var members = await _db.FamilyMembers

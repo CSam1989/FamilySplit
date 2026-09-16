@@ -29,10 +29,17 @@ public sealed class UpdateFamilyNameCommandHandler
     {
         await _validator.ValidateAndThrowAsync(cmd, ct);
 
-        var caller = await _data.GetCallerMemberAsync(callerId, ct)
-            ?? throw new ForbiddenException();
-        if (!caller.IsAdmin)
+        var caller = await _data.GetCallerMemberAsync(callerId, ct);
+        if (caller is null)
+        {
+            _logger.LogWarning("Update-family-name attempt by user {UserId} with no linked FamilyMember", callerId);
             throw new ForbiddenException();
+        }
+        if (!caller.IsAdmin)
+        {
+            _logger.LogWarning("Non-admin update-family-name attempt by user {UserId}", callerId);
+            throw new ForbiddenException();
+        }
 
         await _data.UpdateFamilyNameAsync(caller.FamilyId, cmd.Name.Trim(), ct);
 

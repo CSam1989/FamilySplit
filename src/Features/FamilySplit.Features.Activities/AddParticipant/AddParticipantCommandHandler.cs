@@ -36,19 +36,32 @@ public sealed class AddParticipantCommandHandler
 
         await _validator.ValidateAndThrowAsync(cmd, ct);
 
-        var activity = await _data.GetActivityCoreAsync(activityId, ct)
-            ?? throw ValidationErrors.NotFound("Activity not found.");
+        var activity = await _data.GetActivityCoreAsync(activityId, ct);
+        if (activity is null)
+        {
+            _logger.LogDebug("Add-participant on missing activity {ActivityId} by user {UserId}", activityId, callerId);
+            throw ValidationErrors.NotFound("Activity not found.");
+        }
 
         await _guard.RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 
         if (activity.Status != ActivityStatus.Open)
+        {
+            _logger.LogDebug("Rejected add-participant on non-open activity {ActivityId} by user {UserId}", activityId, callerId);
             throw ValidationErrors.Field("Status", "Cannot add participants to a closed activity.");
+        }
 
         if (!await _data.IsMemberInGroupAsync(activity.GroupId, cmd.FamilyMemberId, ct))
+        {
+            _logger.LogDebug("Rejected add-participant {FamilyMemberId} not in group for activity {ActivityId} by user {UserId}", cmd.FamilyMemberId, activityId, callerId);
             throw ValidationErrors.Field("FamilyMemberId", "Member is not part of any family in this group.");
+        }
 
         if (await _data.IsParticipantAsync(activityId, cmd.FamilyMemberId, ct))
+        {
+            _logger.LogDebug("Rejected add-participant {FamilyMemberId} already a participant in activity {ActivityId} by user {UserId}", cmd.FamilyMemberId, activityId, callerId);
             throw ValidationErrors.Field("FamilyMemberId", "Member is already a participant in this activity.");
+        }
 
         await _data.AddParticipantAsync(activityId, cmd.FamilyMemberId, ct);
 

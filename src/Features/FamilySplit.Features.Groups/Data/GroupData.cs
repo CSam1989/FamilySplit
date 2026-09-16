@@ -4,6 +4,7 @@ using FamilySplit.Domain.Enums;
 using FamilySplit.Features.Groups.Shared;
 using FamilySplit.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace FamilySplit.Features.Groups.Data;
 
@@ -16,8 +17,13 @@ namespace FamilySplit.Features.Groups.Data;
 internal sealed class GroupData : IGroupData
 {
     private readonly AppDbContext _db;
+    private readonly ILogger<GroupData> _logger;
 
-    public GroupData(AppDbContext db) => _db = db;
+    public GroupData(AppDbContext db, ILogger<GroupData> logger)
+    {
+        _db = db;
+        _logger = logger;
+    }
 
     public async Task<bool> IsActiveFamilyAdminAsync(Guid callerId, CancellationToken ct) =>
         await _db.FamilyMembers
@@ -85,8 +91,12 @@ internal sealed class GroupData : IGroupData
 
     public async Task UpdateGroupDetailsAsync(Guid groupId, string name, string? description, CancellationToken ct)
     {
-        var group = await _db.Groups.FindAsync([groupId], ct)
-            ?? throw ValidationErrors.NotFound("Group not found.");
+        var group = await _db.Groups.FindAsync([groupId], ct);
+        if (group is null)
+        {
+            _logger.LogDebug("Group {GroupId} not found for update", groupId);
+            throw ValidationErrors.NotFound("Group not found.");
+        }
 
         group.Name = name;
         group.Description = description;
@@ -115,8 +125,12 @@ internal sealed class GroupData : IGroupData
 
     public async Task UpdateInviteCodeAsync(Guid groupId, string newCode, CancellationToken ct)
     {
-        var group = await _db.Groups.FindAsync([groupId], ct)
-            ?? throw ValidationErrors.NotFound("Group not found.");
+        var group = await _db.Groups.FindAsync([groupId], ct);
+        if (group is null)
+        {
+            _logger.LogDebug("Group {GroupId} not found for invite-code regeneration", groupId);
+            throw ValidationErrors.NotFound("Group not found.");
+        }
 
         group.InviteCode = newCode;
         group.UpdatedAt = DateTimeOffset.UtcNow;

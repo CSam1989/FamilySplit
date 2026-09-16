@@ -30,16 +30,26 @@ public sealed class UpdateFamilyMemberCommandHandler
         await _validator.ValidateAndThrowAsync(cmd, ct);
 
         if (!await _data.IsGlobalAdminAsync(callerId, ct))
+        {
+            _logger.LogWarning("Non-admin user {UserId} attempted to update family member {MemberId}", callerId, memberId);
             throw new ForbiddenException();
+        }
 
-        var member = await _data.GetActiveMemberAsync(memberId, ct)
-            ?? throw ValidationErrors.Field("MemberId", "Family member not found.");
+        var member = await _data.GetActiveMemberAsync(memberId, ct);
+        if (member is null)
+        {
+            _logger.LogDebug("Update attempted on missing family member {MemberId} by user {UserId}", memberId, callerId);
+            throw ValidationErrors.Field("MemberId", "Family member not found.");
+        }
 
         var emailNorm = cmd.Email?.Trim().ToLowerInvariant();
 
         if (emailNorm is not null && emailNorm != member.Email
             && await _data.EmailInUseAsync(emailNorm, excludeMemberId: memberId, ct))
+        {
+            _logger.LogDebug("Rejected update of family member {MemberId} — email already in use, by user {UserId}", memberId, callerId);
             throw ValidationErrors.Field("Email", "A family member with this email already exists.");
+        }
 
         await _data.UpdateMemberAsync(memberId, new AdminMemberFields(
             cmd.DisplayName.Trim(), emailNorm, cmd.DateOfBirth, cmd.WeightOverride, cmd.IsAdmin), ct);

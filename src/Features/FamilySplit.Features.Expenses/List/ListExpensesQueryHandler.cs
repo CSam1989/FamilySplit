@@ -35,8 +35,12 @@ public sealed class ListExpensesQueryHandler
             .AsNoTracking()
             .Where(a => a.Id == activityId)
             .Select(a => new { a.GroupId })
-            .FirstOrDefaultAsync(ct)
-            ?? throw ValidationErrors.NotFound("Activity not found.");
+            .FirstOrDefaultAsync(ct);
+        if (activity is null)
+        {
+            _logger.LogDebug("Activity {ActivityId} not found for expense list requested by user {UserId}", activityId, callerId);
+            throw ValidationErrors.NotFound("Activity not found.");
+        }
 
         await _guard.RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 

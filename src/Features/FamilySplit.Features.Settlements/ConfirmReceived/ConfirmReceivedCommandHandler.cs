@@ -36,17 +36,28 @@ public sealed class ConfirmReceivedCommandHandler
     {
         _logger.LogDebug("ConfirmReceived for settlement {SettlementId} by user {UserId}", settlementId, callerId);
 
-        var settlement = await _data.GetSettlementForConfirmAsync(settlementId, ct)
-            ?? throw ValidationErrors.NotFound("Settlement not found.");
+        var settlement = await _data.GetSettlementForConfirmAsync(settlementId, ct);
+        if (settlement is null)
+        {
+            _logger.LogDebug("Settlement {SettlementId} not found for ConfirmReceived by user {UserId}", settlementId, callerId);
+            throw ValidationErrors.NotFound("Settlement not found.");
+        }
 
         await _guard.RequireGroupMemberAsync(settlement.GroupId, callerId, ct);
 
         var callerFamilyId = await _guard.GetCallerFamilyIdAsync(callerId, ct);
         if (callerFamilyId != settlement.ReceiverFamilyId)
+        {
+            _logger.LogWarning(
+                "User {UserId} outside the receiving family attempted to confirm settlement {SettlementId} received", callerId, settlementId);
             throw new ForbiddenException("Only a member of the receiving family can confirm payment received.");
+        }
 
         if (!SettlementStateMachine.CanConfirmReceived(settlement.Status))
+        {
+            _logger.LogDebug("Settlement {SettlementId} is {Status}; expected PayerSent for ConfirmReceived", settlementId, settlement.Status);
             throw ValidationErrors.Field("Status", $"Settlement is {settlement.Status}; expected PayerSent.");
+        }
 
         var now = DateTimeOffset.UtcNow;
 

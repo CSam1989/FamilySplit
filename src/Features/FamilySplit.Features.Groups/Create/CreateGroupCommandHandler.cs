@@ -39,7 +39,10 @@ public sealed class CreateGroupCommandHandler
         await _validator.ValidateAndThrowAsync(cmd, ct);
 
         if (!await _data.IsActiveFamilyAdminAsync(callerId, ct))
+        {
+            _logger.LogWarning("Non-admin group-create attempt by user {UserId}", callerId);
             throw new ForbiddenException();
+        }
 
         var callerFamilyId = await _guard.GetCallerFamilyIdAsync(callerId, ct);
 

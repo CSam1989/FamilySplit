@@ -22,10 +22,16 @@ public sealed class RemoveFamilyMemberCommandHandler
     public async Task HandleAsync(Guid memberId, Guid callerId, CancellationToken ct)
     {
         if (!await _data.IsGlobalAdminAsync(callerId, ct))
+        {
+            _logger.LogWarning("Non-admin user {UserId} attempted to remove family member {MemberId}", callerId, memberId);
             throw new ForbiddenException();
+        }
 
-        _ = await _data.GetActiveMemberAsync(memberId, ct)
-            ?? throw ValidationErrors.Field("MemberId", "Family member not found.");
+        if (await _data.GetActiveMemberAsync(memberId, ct) is null)
+        {
+            _logger.LogDebug("Remove attempted on missing family member {MemberId} by user {UserId}", memberId, callerId);
+            throw ValidationErrors.Field("MemberId", "Family member not found.");
+        }
 
         await _data.DeactivateMemberAsync(memberId, ct);
 

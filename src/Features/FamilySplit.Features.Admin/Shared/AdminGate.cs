@@ -1,6 +1,7 @@
 using FamilySplit.Common.Exceptions;
 using FamilySplit.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace FamilySplit.Features.Admin.Shared;
 
@@ -12,7 +13,7 @@ namespace FamilySplit.Features.Admin.Shared;
 internal static class AdminGate
 {
     /// <summary>Throws <see cref="ForbiddenException"/> unless the caller's User row is a global admin.</summary>
-    public static async Task RequireGlobalAdminAsync(AppDbContext db, Guid callerId, CancellationToken ct)
+    public static async Task RequireGlobalAdminAsync(AppDbContext db, Guid callerId, ILogger logger, CancellationToken ct)
     {
         var isAdmin = await db.Users
             .AsNoTracking()
@@ -21,6 +22,9 @@ internal static class AdminGate
             .FirstOrDefaultAsync(ct);
 
         if (!isAdmin)
+        {
+            logger.LogWarning("Non-admin user {UserId} attempted a global-admin query", callerId);
             throw new ForbiddenException();
+        }
     }
 }

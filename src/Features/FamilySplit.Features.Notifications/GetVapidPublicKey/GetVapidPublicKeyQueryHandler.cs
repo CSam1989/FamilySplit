@@ -26,9 +26,12 @@ public sealed class GetVapidPublicKeyQueryHandler
 
         var key = _config["Push:Vapid:PublicKey"];
         if (string.IsNullOrWhiteSpace(key))
+        {
+            _logger.LogWarning("VAPID public key requested but not configured");
             throw new InvalidOperationException(
                 "Push:Vapid:PublicKey is not configured. " +
                 "Generate VAPID keys and store them in user secrets / env vars.");
+        }
 
         return key;
     }

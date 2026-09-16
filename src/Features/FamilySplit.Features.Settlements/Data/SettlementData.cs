@@ -111,8 +111,12 @@ internal sealed class SettlementData : ISettlementData
 
     public async Task MarkActivitySettledAsync(Guid activityId, CancellationToken ct)
     {
-        var activity = await _db.Activities.FindAsync([activityId], ct)
-            ?? throw ValidationErrors.NotFound("Activity not found.");
+        var activity = await _db.Activities.FindAsync([activityId], ct);
+        if (activity is null)
+        {
+            _logger.LogDebug("Activity {ActivityId} not found when marking Settled", activityId);
+            throw ValidationErrors.NotFound("Activity not found.");
+        }
 
         activity.Status = ActivityStatus.Settled;
         await _db.SaveChangesAsync(ct);
@@ -152,8 +156,12 @@ internal sealed class SettlementData : ISettlementData
     public async Task ConfirmSentAsync(
         Guid settlementId, ApprovalStep step, AuditEntry audit, SettlementNotification notify, CancellationToken ct)
     {
-        var settlement = await _db.Settlements.FindAsync([settlementId], ct)
-            ?? throw ValidationErrors.NotFound("Settlement not found.");
+        var settlement = await _db.Settlements.FindAsync([settlementId], ct);
+        if (settlement is null)
+        {
+            _logger.LogDebug("Settlement {SettlementId} not found when persisting ConfirmSent", settlementId);
+            throw ValidationErrors.NotFound("Settlement not found.");
+        }
 
         settlement.Status = SettlementStatus.PayerSent;
         _db.ApprovalSteps.Add(step);
@@ -176,8 +184,12 @@ internal sealed class SettlementData : ISettlementData
         SettlementNotification notify,
         CancellationToken ct)
     {
-        var settlement = await _db.Settlements.FindAsync([settlementId], ct)
-            ?? throw ValidationErrors.NotFound("Settlement not found.");
+        var settlement = await _db.Settlements.FindAsync([settlementId], ct);
+        if (settlement is null)
+        {
+            _logger.LogDebug("Settlement {SettlementId} not found when persisting ConfirmReceived", settlementId);
+            throw ValidationErrors.NotFound("Settlement not found.");
+        }
 
         settlement.Status = SettlementStatus.Completed;
         settlement.CompletedAt = completedAt;
@@ -187,8 +199,12 @@ internal sealed class SettlementData : ISettlementData
         // The status flip and the activity transition commit in a single atomic save.
         if (markActivitySettled)
         {
-            var activity = await _db.Activities.FindAsync([activityId], ct)
-                ?? throw ValidationErrors.NotFound("Activity not found.");
+            var activity = await _db.Activities.FindAsync([activityId], ct);
+            if (activity is null)
+            {
+                _logger.LogDebug("Activity {ActivityId} not found when marking Settled during ConfirmReceived", activityId);
+                throw ValidationErrors.NotFound("Activity not found.");
+            }
             activity.Status = ActivityStatus.Settled;
         }
 

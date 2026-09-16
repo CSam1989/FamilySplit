@@ -65,7 +65,17 @@ public class AuthEffects
     [EffectMethod(typeof(SignOutAction))]
     public async Task HandleSignOut(IDispatcher dispatcher)
     {
-        await _auth.LogoutAsync();
+        try
+        {
+            await _auth.LogoutAsync();
+        }
+        catch (Exception ex)
+        {
+            // Best-effort server-side revoke; local state is cleared by the reducer
+            // regardless, so a failure here must not block navigating away.
+            _logger.LogError(ex, "Logout call failed; clearing local session state anyway.");
+        }
+
         // State is reset by the reducer; navigate to home so the login screen is shown.
         _nav.NavigateTo("/");
     }

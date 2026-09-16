@@ -41,15 +41,25 @@ public sealed class CreateSubActivityCommandHandler
 
         await _validator.ValidateAndThrowAsync(cmd, ct);
 
-        var parent = await _data.GetActivityCoreAsync(parentActivityId, ct)
-            ?? throw ValidationErrors.NotFound("Activity not found.");
+        var parent = await _data.GetActivityCoreAsync(parentActivityId, ct);
+        if (parent is null)
+        {
+            _logger.LogDebug("Create-sub-activity attempted under missing parent activity {ActivityId} by user {UserId}", parentActivityId, callerId);
+            throw ValidationErrors.NotFound("Activity not found.");
+        }
 
         // Depth-1 guard: sub-activities may not themselves have a parent.
         if (parent.ParentActivityId is not null)
+        {
+            _logger.LogDebug("Rejected nested sub-activity creation under {ActivityId} by user {UserId}", parentActivityId, callerId);
             throw ValidationErrors.Field("ParentActivityId", "Sub-activities cannot be nested more than one level deep.");
+        }
 
         if (parent.Status != ActivityStatus.Open)
+        {
+            _logger.LogDebug("Rejected sub-activity creation on non-open parent activity {ActivityId} by user {UserId}", parentActivityId, callerId);
             throw ValidationErrors.Field("Status", "Cannot add a sub-activity to a closed or settled activity.");
+        }
 
         await _guard.RequireGroupMemberAsync(parent.GroupId, callerId, ct);
 

@@ -24,16 +24,28 @@ public sealed class AddFamilyToGroupCommandHandler
     public async Task HandleAsync(Guid groupId, AddFamilyToGroupCommand cmd, Guid callerId, CancellationToken ct)
     {
         if (!await _data.IsGlobalAdminAsync(callerId, ct))
+        {
+            _logger.LogWarning("Non-admin user {UserId} attempted to add family {FamilyId} to group {GroupId}", callerId, cmd.FamilyId, groupId);
             throw new ForbiddenException();
+        }
 
         if (!await _data.GroupExistsAsync(groupId, ct))
+        {
+            _logger.LogDebug("Add-family-to-group attempted on missing group {GroupId} by user {UserId}", groupId, callerId);
             throw ValidationErrors.Field("GroupId", "Group not found.");
+        }
 
         if (!await _data.FamilyExistsAsync(cmd.FamilyId, ct))
+        {
+            _logger.LogDebug("Add-family-to-group attempted with missing family {FamilyId} by user {UserId}", cmd.FamilyId, callerId);
             throw ValidationErrors.Field("FamilyId", "Family not found.");
+        }
 
         if (await _data.FamilyInGroupAsync(groupId, cmd.FamilyId, ct))
+        {
+            _logger.LogDebug("Rejected add-family-to-group — family {FamilyId} already in group {GroupId}, by user {UserId}", cmd.FamilyId, groupId, callerId);
             throw ValidationErrors.Field("FamilyId", "This family is already in the group.");
+        }
 
         await _data.AddFamilyToGroupAsync(new GroupFamily
         {

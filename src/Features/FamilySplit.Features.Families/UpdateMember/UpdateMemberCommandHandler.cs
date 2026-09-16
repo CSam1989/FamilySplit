@@ -31,21 +31,35 @@ public sealed class UpdateMemberCommandHandler
     {
         await _validator.ValidateAndThrowAsync(cmd, ct);
 
-        var caller = await _data.GetCallerMemberAsync(callerId, ct)
-            ?? throw new ForbiddenException();
+        var caller = await _data.GetCallerMemberAsync(callerId, ct);
+        if (caller is null)
+        {
+            _logger.LogWarning("Update-member attempt by user {UserId} with no linked FamilyMember", callerId);
+            throw new ForbiddenException();
+        }
 
         // Allow if editing own profile; otherwise require admin.
         if (caller.Id != memberId && !caller.IsAdmin)
+        {
+            _logger.LogWarning("Non-admin update-member attempt by user {UserId} for member {MemberId}", callerId, memberId);
             throw new ForbiddenException();
+        }
 
-        var target = await _data.GetActiveMemberInFamilyAsync(memberId, caller.FamilyId, ct)
-            ?? throw ValidationErrors.Field("MemberId", "Family member not found.");
+        var target = await _data.GetActiveMemberInFamilyAsync(memberId, caller.FamilyId, ct);
+        if (target is null)
+        {
+            _logger.LogDebug("Update-member attempt by user {UserId} for unknown member {MemberId}", callerId, memberId);
+            throw ValidationErrors.Field("MemberId", "Family member not found.");
+        }
 
         var emailNorm = cmd.Email?.Trim().ToLowerInvariant();
 
         if (emailNorm is not null && emailNorm != target.Email
             && await _data.EmailInUseAsync(emailNorm, excludeMemberId: memberId, ct))
+        {
+            _logger.LogDebug("Update-member attempt by user {UserId} with an email already in use", callerId);
             throw ValidationErrors.Field("Email", "A family member with this email already exists.");
+        }
 
         // Only family admins may change the IsAdmin flag; non-admins editing their own
         // profile cannot self-elevate or self-demote — keep the target's current flag.

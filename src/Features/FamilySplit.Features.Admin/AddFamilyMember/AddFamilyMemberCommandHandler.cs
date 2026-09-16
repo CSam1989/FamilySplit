@@ -32,15 +32,24 @@ public sealed class AddFamilyMemberCommandHandler
         await _validator.ValidateAndThrowAsync(cmd, ct);
 
         if (!await _data.IsGlobalAdminAsync(callerId, ct))
+        {
+            _logger.LogWarning("Non-admin user {UserId} attempted to add a family member to family {FamilyId}", callerId, familyId);
             throw new ForbiddenException();
+        }
 
         if (!await _data.FamilyExistsAsync(familyId, ct))
+        {
+            _logger.LogDebug("Add-family-member attempted on missing family {FamilyId} by user {UserId}", familyId, callerId);
             throw ValidationErrors.Field("FamilyId", "Family not found.");
+        }
 
         var emailNorm = cmd.Email?.Trim().ToLowerInvariant();
 
         if (emailNorm is not null && await _data.EmailInUseAsync(emailNorm, excludeMemberId: null, ct))
+        {
+            _logger.LogDebug("Rejected add-family-member to family {FamilyId} — email already in use, by user {UserId}", familyId, callerId);
             throw ValidationErrors.Field("Email", "A family member with this email already exists.");
+        }
 
         var member = new FamilyMember
         {

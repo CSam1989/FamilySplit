@@ -31,7 +31,10 @@ public sealed class CreateFamilyCommandHandler
         await _validator.ValidateAndThrowAsync(cmd, ct);
 
         if (!await _data.IsGlobalAdminAsync(callerId, ct))
+        {
+            _logger.LogWarning("Non-admin user {UserId} attempted to create a family", callerId);
             throw new ForbiddenException();
+        }
 
         var now = DateTimeOffset.UtcNow;
         var family = new Family

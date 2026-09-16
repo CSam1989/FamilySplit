@@ -3,6 +3,7 @@ using FamilySplit.Common.Exceptions;
 using FamilySplit.Domain.Entities;
 using FamilySplit.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace FamilySplit.Features.Expenses.Data;
 
@@ -17,11 +18,13 @@ internal sealed class ExpenseData : IExpenseData
 {
     private readonly AppDbContext _db;
     private readonly AuditService _audit;
+    private readonly ILogger<ExpenseData> _logger;
 
-    public ExpenseData(AppDbContext db, AuditService audit)
+    public ExpenseData(AppDbContext db, AuditService audit, ILogger<ExpenseData> logger)
     {
         _db = db;
         _audit = audit;
+        _logger = logger;
     }
 
     public async Task<ActivityForExpense?> GetActivityAsync(Guid activityId, CancellationToken ct) =>
@@ -107,8 +110,12 @@ internal sealed class ExpenseData : IExpenseData
 
     public async Task UpdateExpenseAsync(Guid expenseId, ExpenseFields fields, IReadOnlyList<ParticipantShare>? recomputed, AuditEntry audit, CancellationToken ct)
     {
-        var expense = await _db.Expenses.FindAsync([expenseId], ct)
-            ?? throw ValidationErrors.NotFound("Expense not found.");
+        var expense = await _db.Expenses.FindAsync([expenseId], ct);
+        if (expense is null)
+        {
+            _logger.LogDebug("Expense {ExpenseId} not found when persisting update", expenseId);
+            throw ValidationErrors.NotFound("Expense not found.");
+        }
 
         expense.Title = fields.Title;
         expense.Description = fields.Description;
@@ -142,8 +149,12 @@ internal sealed class ExpenseData : IExpenseData
 
     public async Task DeleteExpenseAsync(Guid expenseId, AuditEntry audit, CancellationToken ct)
     {
-        var expense = await _db.Expenses.FindAsync([expenseId], ct)
-            ?? throw ValidationErrors.NotFound("Expense not found.");
+        var expense = await _db.Expenses.FindAsync([expenseId], ct);
+        if (expense is null)
+        {
+            _logger.LogDebug("Expense {ExpenseId} not found when persisting delete", expenseId);
+            throw ValidationErrors.NotFound("Expense not found.");
+        }
 
         _audit.Queue(audit);
         _db.Expenses.Remove(expense);

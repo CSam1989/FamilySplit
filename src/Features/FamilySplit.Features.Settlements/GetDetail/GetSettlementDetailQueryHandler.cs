@@ -33,15 +33,23 @@ public sealed class GetSettlementDetailQueryHandler
             .AsNoTracking()
             .Where(s => s.Id == settlementId)
             .Select(s => new { s.Id, s.ActivityId })
-            .FirstOrDefaultAsync(ct)
-            ?? throw ValidationErrors.NotFound("Settlement not found.");
+            .FirstOrDefaultAsync(ct);
+        if (settlement is null)
+        {
+            _logger.LogDebug("Settlement {SettlementId} not found for detail requested by user {UserId}", settlementId, callerId);
+            throw ValidationErrors.NotFound("Settlement not found.");
+        }
 
         var activity = await _db.Activities
             .AsNoTracking()
             .Where(a => a.Id == settlement.ActivityId)
             .Select(a => new { a.GroupId })
-            .FirstOrDefaultAsync(ct)
-            ?? throw ValidationErrors.NotFound("Activity not found.");
+            .FirstOrDefaultAsync(ct);
+        if (activity is null)
+        {
+            _logger.LogDebug("Activity {ActivityId} not found for settlement {SettlementId} detail", settlement.ActivityId, settlementId);
+            throw ValidationErrors.NotFound("Activity not found.");
+        }
 
         await _guard.RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 
@@ -65,8 +73,12 @@ public sealed class GetSettlementDetailQueryHandler
                 settlementRow.ProposedAt,
                 settlementRow.CompletedAt,
             }
-        ).FirstOrDefaultAsync(ct)
-          ?? throw ValidationErrors.NotFound("Settlement not found.");
+        ).FirstOrDefaultAsync(ct);
+        if (s is null)
+        {
+            _logger.LogDebug("Settlement {SettlementId} not found when projecting detail rows", settlementId);
+            throw ValidationErrors.NotFound("Settlement not found.");
+        }
 
         var steps = await (
             from step in _db.ApprovalSteps.AsNoTracking()

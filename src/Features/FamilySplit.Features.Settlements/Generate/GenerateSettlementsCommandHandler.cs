@@ -37,16 +37,26 @@ public sealed class GenerateSettlementsCommandHandler
     {
         _logger.LogDebug("Generating settlements for activity {ActivityId} requested by user {UserId}", activityId, callerId);
 
-        var activity = await _data.GetActivityAsync(activityId, ct)
-            ?? throw ValidationErrors.NotFound("Activity not found.");
+        var activity = await _data.GetActivityAsync(activityId, ct);
+        if (activity is null)
+        {
+            _logger.LogDebug("Activity {ActivityId} not found for settlement generation by user {UserId}", activityId, callerId);
+            throw ValidationErrors.NotFound("Activity not found.");
+        }
 
         await _guard.RequireGroupMemberAsync(activity.GroupId, callerId, ct);
 
         if (activity.Status == ActivityStatus.AbsorbedByParent)
+        {
+            _logger.LogDebug("Cannot generate settlements for absorbed sub-activity {ActivityId}", activityId);
             throw ValidationErrors.Field("Status", "Cannot settle a sub-activity that was absorbed by its parent.");
+        }
 
         if (activity.ParentActivityId is not null)
+        {
+            _logger.LogDebug("Cannot generate settlements independently for sub-activity {ActivityId}", activityId);
             throw ValidationErrors.Field("Status", "Sub-activities cannot be settled independently. Generate settlements from the parent activity instead.");
+        }
 
         // Idempotency: if settlements already exist, do nothing — the client re-queries the list.
         // This also absorbs a concurrent second request (e.g. double-dispatch).
@@ -59,10 +69,16 @@ public sealed class GenerateSettlementsCommandHandler
         // A Settled activity with no settlement rows was an all-balances-even settle —
         // treat a repeat call as an idempotent no-op rather than an error.
         if (activity.Status == ActivityStatus.Settled)
+        {
+            _logger.LogDebug("Activity {ActivityId} already Settled with no settlement rows — idempotent no-op", activityId);
             return;
+        }
 
         if (activity.Status == ActivityStatus.Open)
+        {
+            _logger.LogDebug("Cannot generate settlements for activity {ActivityId} — status is Open, must be closed first", activityId);
             throw ValidationErrors.Field("Status", "Activity must be closed before generating settlements.");
+        }
 
         var currency = await _data.GetActivityCurrencyAsync(activityId, ct);
         var inputs = await _data.GetBalanceInputsAsync(activityId, ct);

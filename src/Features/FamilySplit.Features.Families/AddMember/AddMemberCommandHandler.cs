@@ -31,15 +31,25 @@ public sealed class AddMemberCommandHandler
     {
         await _validator.ValidateAndThrowAsync(cmd, ct);
 
-        var caller = await _data.GetCallerMemberAsync(callerId, ct)
-            ?? throw new ForbiddenException();
-        if (!caller.IsAdmin)
+        var caller = await _data.GetCallerMemberAsync(callerId, ct);
+        if (caller is null)
+        {
+            _logger.LogWarning("Add-member attempt by user {UserId} with no linked FamilyMember", callerId);
             throw new ForbiddenException();
+        }
+        if (!caller.IsAdmin)
+        {
+            _logger.LogWarning("Non-admin add-member attempt by user {UserId}", callerId);
+            throw new ForbiddenException();
+        }
 
         var emailNorm = cmd.Email?.Trim().ToLowerInvariant();
 
         if (emailNorm is not null && await _data.EmailInUseAsync(emailNorm, excludeMemberId: null, ct))
+        {
+            _logger.LogDebug("Add-member attempt by user {UserId} with an email already in use", callerId);
             throw ValidationErrors.Field("Email", "A family member with this email already exists.");
+        }
 
         var member = new FamilyMember
         {

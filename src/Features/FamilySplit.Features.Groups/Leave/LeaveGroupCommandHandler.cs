@@ -32,21 +32,31 @@ public sealed class LeaveGroupCommandHandler
         _logger.LogDebug("Leaving group {GroupId} by user {UserId}", groupId, callerId);
 
         if (!await _data.IsActiveFamilyAdminAsync(callerId, ct))
+        {
+            _logger.LogWarning("Non-admin leave-group attempt for group {GroupId} by user {UserId}", groupId, callerId);
             throw new ForbiddenException();
+        }
 
         var callerFamilyId = await _guard.GetCallerFamilyIdAsync(callerId, ct);
 
-        var membership = await _data.GetFamilyMembershipAsync(groupId, callerFamilyId, ct)
-            ?? throw ValidationErrors.Field("Group", "Your family is not a member of this group.");
+        var membership = await _data.GetFamilyMembershipAsync(groupId, callerFamilyId, ct);
+        if (membership is null)
+        {
+            _logger.LogDebug("Leave attempt for group {GroupId} by non-member family {FamilyId}", groupId, callerFamilyId);
+            throw ValidationErrors.Field("Group", "Your family is not a member of this group.");
+        }
 
         // Guard: if this family is the sole admin, refuse the leave.
         if (membership.Role == MemberRole.Admin)
         {
             var adminCount = await _data.CountGroupAdminsAsync(groupId, ct);
             if (adminCount <= 1)
+            {
+                _logger.LogDebug("Sole-admin leave attempt for group {GroupId} by family {FamilyId}", groupId, callerFamilyId);
                 throw ValidationErrors.Field("Group",
                     "Cannot leave: your family is the only admin of this group. " +
                     "Transfer the admin role to another family first.");
+            }
         }
 
         await _data.RemoveFamilyFromGroupAsync(membership.GroupFamilyId, ct);
