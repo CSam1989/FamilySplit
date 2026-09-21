@@ -65,6 +65,10 @@
     <!-- Integration / E2E test packages -->
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.10" />
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.13.0" />
+    <!-- Transitive via Testcontainers.PostgreSql, which still pins 2025.1.0 — GHSA-mggc-4xg6-vcxf
+         (ScpClient command injection via unquoted remote paths) and GHSA-q939-rpr3-3284
+         (ScpClient path traversal on recursive download) are fixed in 2026.0.0. -->
+    <PackageVersion Include="SSH.NET" Version="2026.0.0" />
     <PackageVersion Include="Npgsql" Version="10.0.3" />
     <PackageVersion Include="Respawn" Version="7.0.0" />
     <!-- Client unit test (bUnit) -->
